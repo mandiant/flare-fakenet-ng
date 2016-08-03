@@ -32,7 +32,8 @@ the releases page:
 
     https://www.github.com/fireeye/flare-fakenet-ng/releases
 
-Execute FakeNet-NG by running 'fakenet.exe' from the downloaded directory.
+Execute FakeNet-NG by running 'fakenet64.exe' or 'fakenet32.exe' for 64-bit or
+32-bit version of Windows respectively.
 
 This is the preferred method as it does not require you to install any
 additional modules, which is ideal for a malware analysis machine.
