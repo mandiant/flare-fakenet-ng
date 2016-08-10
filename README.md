@@ -106,7 +106,7 @@ parameter to get simple help:
       _____________________________________________________________
                              Developed by            
                           Peter Kacherginsky      
-           FLARE (FireEye Labs Advanced Reversing Engineering)       
+           FLARE (FireEye Labs Advanced Reverse Engineering)       
       _____________________________________________________________ 
     Usage: fakenet.py [options]:
 

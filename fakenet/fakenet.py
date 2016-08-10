@@ -175,7 +175,7 @@ def main():
   _____________________________________________________________
                          Developed by            
                       Peter Kacherginsky      
-       FLARE (FireEye Labs Advanced Reversing Engineering)       
+       FLARE (FireEye Labs Advanced Reverse Engineering)       
   _____________________________________________________________               
                                                """
 
