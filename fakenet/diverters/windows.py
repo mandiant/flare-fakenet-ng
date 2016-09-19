@@ -441,7 +441,7 @@ class Diverter(WinUtilMixin):
                 self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)                
 
             # Check host blacklist
-            if packet.dst_addr in self.blacklist_hosts:
+            elif packet.dst_addr in self.blacklist_hosts:
                 self.logger.debug('Ignoring %s %s %s request packet to %s in the host blacklist.', direction_string, interface_string, protocol, packet.dst_addr)
                 self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)   
 
