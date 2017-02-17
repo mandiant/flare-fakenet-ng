@@ -86,7 +86,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 if command == '':
                     break
 
-                elif command == 'HELO':
+                elif command in ['HELO','EHLO']:
                     self.request.sendall("250 PracticalMalwareAnalysis.com\r\n")
 
                 elif command in ['MAIL', 'RCPT', 'NOOP', 'RSET']:
