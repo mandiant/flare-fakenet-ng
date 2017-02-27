@@ -6,7 +6,7 @@ except ImportError:
     from distutils.core import setup
 
 requirements = [
-    "pydivert",
+    "pydivert==1.0.2",
     "dpkt",
     "dnslib",
 ]
