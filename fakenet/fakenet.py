@@ -98,11 +98,10 @@ class Fakenet():
                     self.logger.error('       Please use the original Fakenet for older versions of Windows.')
                     sys.exit(1)
 
-                # Check architecture
-                if platform.machine() == 'AMD64' and platform.architecture()[0] != '64bit':
-                    self.logger.error('Error: Please install 64-bit Python interpreter to support diverter functions.')
-                    sys.exit(1)
-
+                # # Check architecture
+                # if platform.machine() == 'AMD64' and platform.architecture()[0] != '64bit':
+                #     self.logger.error('Error: Please install 64-bit Python interpreter to support diverter functions.')
+                #     sys.exit(1)
 
                 from diverters.windows import Diverter
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, self.logging_level)
