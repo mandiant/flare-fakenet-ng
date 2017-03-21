@@ -30,10 +30,9 @@ Stand-alone executable
 It is easiest to simply download the compiled version which can be obtained from
 the releases page:
 
-    https://www.github.com/fireeye/flare-fakenet-ng/releases
+    https://github.com/fireeye/flare-fakenet-ng/releases
 
-Execute FakeNet-NG by running 'fakenet64.exe' or 'fakenet32.exe' for 64-bit or
-32-bit version of Windows respectively.
+Execute FakeNet-NG by running 'fakenet.exe'.
 
 This is the preferred method as it does not require you to install any
 additional modules, which is ideal for a malware analysis machine.
@@ -47,7 +46,7 @@ Alternatively you can install FakeNet-NG as a python module using pip:
 
 Or by obtaining the latest source code and installing it manually:
 
-    git clone https://www.github.com/fireeye/flare-fakenet-ng/
+    git clone https://github.com/fireeye/flare-fakenet-ng/
 
 Change directory to the downloaded flare-fakenet-ng and run:
 
