@@ -919,18 +919,13 @@ class WinUtilMixin():
     ###########################################################################
     # DnsFlushResolverCache
     def flush_dns(self):
-        if windll.dnsapi.DnsFlushResolverCache():
-            self.logger.info('Flushed DNS cache.')
+ 
+        try:
+            subprocess.check_call('ipconfig /flushdns', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError, e:
+            self.logger.error("Failed to flush DNS cache.")
         else:
-            self.logger.error('Failed to flush DNS cache. (DnsFlushResolverCache)')
-
-            # As a backup call ipconfig /flushdns because DnsFlushResolverCache is undocumented.
-            try:
-                subprocess.check_call('ipconfig /flushdns', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError, e:
-                self.logger.error("Failed to flush DNS cache. (ipconfig)")
-            else:
-                self.logger.info('Flushed DNS cache. (ipconfig)')
+            self.logger.info('Flushed DNS cache.')
 
     def get_reg_value(self, key, sub_key, value, sam = KEY_READ):
 

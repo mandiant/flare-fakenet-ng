@@ -3,7 +3,6 @@
 import logging
 
 from pydivert.windivert import *
-from pydivert.enum import Direction, Defaults
 
 import socket
 
@@ -33,6 +32,9 @@ class Diverter(WinUtilMixin):
         # Local IP address
         self.external_ip = socket.gethostbyname(socket.gethostname())
         self.loopback_ip = socket.gethostbyname('localhost')
+
+        # Used for caching of DNS server names prior to changing
+        self.adapters_dns_server_backup = dict()
 
         # Sessions cache
         # NOTE: A dictionary of source ports mapped to destination address, port tuples
@@ -110,31 +112,9 @@ class Diverter(WinUtilMixin):
 
         #######################################################################
         # Initialize WinDivert
-
-        # Locate the WinDivert driver
-        # NOTE: This is necessary to work in scenarios where the applications is
-        #       executed as a python script, installed as an egg or with the pyinstaller
-
-        dll_arch = "64" if platform.machine() == 'AMD64' else "32"
-
-        dll_path = os.path.join('lib', dll_arch, 'WinDivert.dll')
-
-        if not os.path.exists(dll_path):
-    
-            dll_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'lib', dll_arch, 'WinDivert.dll')
-
-            if not os.path.exists(dll_path):
-
-                self.logger.error('Could not open bundled WinDivert.dll')
-                sys.exit(1)
-
-        # Divert handle
-        driver = None
-
-        driver = WinDivert(dll_path = dll_path)
         
         try:
-            self.handle = Handle(driver, filter=self.filter)
+            self.handle = WinDivert(filter=self.filter)
             self.handle.open()
         except WindowsError, e:
             if e.winerror == 5:
@@ -355,13 +335,11 @@ class Diverter(WinUtilMixin):
 
         self.diverter_thread.start()
 
-
-
     def divert_thread(self):
 
         try:
             while True:
-                packet = self.handle.receive()
+                packet = self.handle.recv()
                 self.handle_packet(packet)
 
         # Handle errors related to shutdown process.      
@@ -393,14 +371,14 @@ class Diverter(WinUtilMixin):
         # Modify outgoing ICMP packet to target local Windows host which will reply to the ICMP messages.
         # HACK: Can't intercept inbound ICMP server, but still works for now.
 
-        if not ((packet.meta.is_loopback() and packet.src_addr == self.loopback_ip and packet.dst_addr == self.loopback_ip) or \
+        if not ((packet.is_loopback and packet.src_addr == self.loopback_ip and packet.dst_addr == self.loopback_ip) or \
            (packet.src_addr == self.external_ip and packet.dst_addr == self.external_ip)):
 
-            self.logger.info('Modifying %s ICMP packet:', 'loopback' if packet.meta.is_loopback() else 'external')
+            self.logger.info('Modifying %s ICMP packet:', 'loopback' if packet.is_loopback else 'external')
             self.logger.info('  from: %s -> %s', packet.src_addr, packet.dst_addr)
 
             # Direct packet to the right interface IP address to avoid routing issues
-            packet.dst_addr = self.loopback_ip if packet.meta.is_loopback() else self.external_ip
+            packet.dst_addr = self.loopback_ip if packet.is_loopback else self.external_ip
 
             self.logger.info('  to:   %s -> %s', packet.src_addr, packet.dst_addr)
 
@@ -409,8 +387,8 @@ class Diverter(WinUtilMixin):
     def handle_tcp_udp_packet(self, packet, protocol, default_listener_port, blacklist_ports):
 
         # Meta strings
-        interface_string = 'loopback' if packet.meta.is_loopback() else 'external'
-        direction_string = 'inbound' if packet.meta.is_inbound() else 'outbound'
+        interface_string = 'loopback' if packet.is_loopback else 'external'
+        direction_string = 'inbound' if packet.is_inbound else 'outbound'
 
         # Protocol specific filters
         diverted_ports         = self.diverted_ports.get(protocol)
@@ -432,7 +410,7 @@ class Diverter(WinUtilMixin):
         elif diverted_ports and (packet.dst_port in diverted_ports or default_listener_port != None) and not packet.src_port in diverted_ports:
 
             # Find which process ID is sending the request
-            conn_pid = self.get_pid_port_tcp(packet.src_port) if type(packet.headers[1].hdr) == TcpHeader else self.get_pid_port_udp(packet.src_port)
+            conn_pid = self.get_pid_port_tcp(packet.src_port) if packet.tcp else self.get_pid_port_udp(packet.src_port)
             process_name = self.get_process_image_filename(conn_pid) if conn_pid else None
 
             # Check process blacklist
@@ -514,7 +492,7 @@ class Diverter(WinUtilMixin):
                 logger_level('  from: %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
                 # Direct packet to the right interface IP address to avoid routing issues
-                packet.dst_addr = self.loopback_ip if packet.meta.is_loopback() else self.external_ip
+                packet.dst_addr = self.loopback_ip if packet.is_loopback else self.external_ip
 
                 # Direct packet to an existing or a default listener
                 packet.dst_port = packet.dst_port if packet.dst_port in diverted_ports else default_listener_port
@@ -530,7 +508,7 @@ class Diverter(WinUtilMixin):
         elif diverted_ports and packet.src_port in diverted_ports:
 
             # Find which process ID is sending the request
-            conn_pid = self.get_pid_port_tcp(packet.dst_port) if type(packet.headers[1].hdr) == TcpHeader else self.get_pid_port_udp(packet.dst_port)
+            conn_pid = self.get_pid_port_tcp(packet.dst_port) if packet.tcp else self.get_pid_port_udp(packet.dst_port)
             process_name = self.get_process_image_filename(conn_pid)
 
             if not packet.dst_port in self.sessions:
@@ -568,30 +546,30 @@ class Diverter(WinUtilMixin):
         #######################################################################
         # Capture packet and store raw packet in the PCAP
         if self.capture_flag:
-            self.pcap.writepkt(packet._raw_packet)
+            self.pcap.writepkt(packet.raw.tobytes())
 
         ###########################################################################
         # Verify the IP packet has an additional header
 
-        if len(packet.headers) > 1 and packet.headers[1] and packet.headers[1].hdr:
+        if packet.ip:
 
             #######################################################################
             # Handle ICMP Packets
   
-            if type(packet.headers[1].hdr) in [IcmpHeader, Icmpv6Header]:
+            if packet.icmp:
                 packet = self.handle_icmp_packet(packet)
 
             #######################################################################
             # Handle TCP/UDP Packets
 
-            elif type(packet.headers[1].hdr) == TcpHeader:
+            elif packet.tcp:
                 protocol = 'TCP'
                 packet = self.handle_tcp_udp_packet(packet, 
                                                     protocol, 
                                                     self.default_listener_tcp_port, 
                                                     self.blacklist_ports_tcp)
 
-            elif type(packet.headers[1].hdr) == UdpHeader:
+            elif packet.udp:
                 protocol = 'UDP'
                 packet = self.handle_tcp_udp_packet(packet,
                                                     protocol,
@@ -608,7 +586,7 @@ class Diverter(WinUtilMixin):
         # TODO: Develop logic to record traffic before modification for both requests and
         #       responses to reduce duplicate captures.
         if self.capture_flag and (dst_addr != packet.dst_addr):
-            self.pcap.writepkt(packet._raw_packet)
+            self.pcap.writepkt(packet.raw.tobytes())
 
         #######################################################################
         # Attempt to send the processed packet
@@ -618,15 +596,15 @@ class Diverter(WinUtilMixin):
 
             protocol = 'Unknown'
 
-            if type(packet.headers[1].hdr) == TcpHeader:
+            if packet.tcp:
                 protocol = 'TCP'
-            elif type(packet.headers[1].hdr) == UdpHeader:
+            elif packet.udp:
                 protocol = 'UDP'
-            elif type(packet.headers[1].hdr) in [IcmpHeader, Icmpv6Header]:
+            elif packet.icmp:
                 protocol = 'ICMP'
 
-            interface_string = 'loopback' if packet.meta.is_loopback() else 'external'
-            direction_string = 'inbound' if packet.meta.is_inbound() else 'outbound'
+            interface_string = 'loopback' if packet.is_loopback else 'external'
+            direction_string = 'inbound' if packet.is_inbound else 'outbound'
 
             self.logger.error('ERROR: Failed to send %s %s %s packet', direction_string, interface_string, protocol)
 
@@ -639,8 +617,8 @@ class Diverter(WinUtilMixin):
 
 def main():
 
-    self.diverter_config = {'redirectalltraffic': 'no', 'defaultlistener': 'DefaultListener', 'dumppackets': 'no'}
-    listeners_config = {'DefaultListener': {'port': '1337'}}
+    diverter_config = {'redirectalltraffic': 'no', 'defaultlistener': 'DefaultListener', 'dumppackets': 'no'}
+    listeners_config = {'DefaultListener': {'port': '1337', 'protocol': 'TCP'}}
 
     diverter = Diverter(diverter_config, listeners_config)
     diverter.start()
