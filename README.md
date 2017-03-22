@@ -726,6 +726,11 @@ Error: Could not locate WinDivert DLL or one of its components
 Please ensure that FakeNet-NG is extracted to the local C: drive to make
 sure the WinDivert driver is loaded correctly.
 
+Error: The application has failed to start because its side-by-side configuration is incorrect.
+-----------------------------------------------------------------------------------------------
+
+This error may occur when running a stand-alone executable version of Fakenet. Please download and install Visual C++ 2008 runtime executable.
+
 Limitations
 ===========
 
