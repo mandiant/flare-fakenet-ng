@@ -398,7 +398,12 @@ class Diverter(WinUtilMixin):
         port_host_blacklist    = self.port_host_blacklist.get(protocol)
         port_execute           = self.port_execute.get(protocol)
 
-        if packet.src_port in blacklist_ports or packet.dst_port in blacklist_ports:
+
+        if (packet.is_loopback and packet.src_addr == self.loopback_ip and packet.dst_addr == self.loopback_ip) or \
+           (packet.src_addr == self.external_ip and packet.dst_addr == self.external_ip):
+            self.logger.debug('Ignoring loopback packet')
+
+        elif packet.src_port in blacklist_ports or packet.dst_port in blacklist_ports:
             self.logger.debug('Forwarding blacklisted port %s %s %s packet:', direction_string, interface_string, protocol)
             self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
