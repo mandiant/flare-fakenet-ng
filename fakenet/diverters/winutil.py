@@ -753,6 +753,16 @@ class WinUtilMixin():
         else:
             return False
 
+    def get_adapter_friendlyname(self, if_index):
+
+        for adapter in self.get_adapters_addresses():
+
+            if adapter.IfIndex == if_index:
+                return adapter.FriendlyName
+
+        else:
+            return None
+
 
     ###########################################################################
     # The GetAdaptersInfo function retrieves adapter information for the local computer.
@@ -782,25 +792,57 @@ class WinUtilMixin():
             yield pAdapterInfo.contents
             pAdapterInfo = pAdapterInfo.contents.Next
 
-    def get_gateways(self):
+    def get_gateways(self, adapter):
 
-        for adapter in self.get_adapters_info():
+        gateway = adapter.GatewayList
 
-            gateway = adapter.GatewayList
+        while gateway:
 
-            while gateway:
+            yield gateway.IpAddress.String
+            gateway = gateway.Next
 
-                yield gateway.IpAddress.String
-                gateway = gateway.Next
+    def get_ipaddresses(self, adapter):
+
+        ipaddress = adapter.IpAddressList
+
+        while ipaddress:
+
+            yield ipaddress.IpAddress.String
+            ipaddress = ipaddress.Next
+
+    def get_ipaddresses_netmask(self, adapter):
+
+        ipaddress = adapter.IpAddressList
+
+        while ipaddress:
+
+            yield (ipaddress.IpAddress.String, ipaddress.IpMask.String)
+            ipaddress = ipaddress.Next
 
     def check_gateways(self):
 
-        for gateway in self.get_gateways():
-            if gateway != '0.0.0.0':
+        for adapter in self.get_adapters_info():
+            for gateway in self.get_gateways(adapter):
+                if gateway != '0.0.0.0':
+                    return True
+        else:
+            return False
+
+    def check_ipaddresses_interface(self, adapter):
+
+        for ipaddress in self.get_ipaddresses(adapter):
+            if ipaddress != '0.0.0.0':
                 return True
         else:
             return False
 
+    def check_ipaddresses(self):
+
+        for adapter in self.get_adapters_info():
+            if self.check_ipaddresses_interface(adapter):
+                return True
+        else:
+            return False
 
     ###########################################################################
     # The GetNetworkParams function retrieves network parameters for the local computer.
@@ -843,7 +885,9 @@ class WinUtilMixin():
 
         ip_addr_string = FixedInfo.DnsServerList
 
-        if ip_addr_string:
+        print "DNS",ip_addr_string.IpAddress.String
+
+        if ip_addr_string and ip_addr_string.IpAddress.String:
             return True
 
         else:
@@ -909,9 +953,19 @@ class WinUtilMixin():
 
     ###########################################################################
     # DnsFlushResolverCache
+    #
+    # DWORD APIENTRY DhcpNotifyConfigChange(
+    #     LPWSTR lpwszServerName,
+    #     LPWSTR lpwszAdapterName,
+    #     BOOL fIsNewIPAddress,
+    #     DWORD dwIPIndex,
+    #     DWORD dwIPAddress,
+    #     DWORD dwSubnetMask,
+    #     int nServiceEnable );
+
     def notify_ip_change(self, adapter_name):
 
-        if windll.dhcpcsvc.DhcpNotifyConfigChange(0, adapter_name, 0, 0, 0, 0) == NO_ERROR:
+        if windll.dhcpcsvc.DhcpNotifyConfigChange(0, adapter_name, 0, 0, 0, 0, 0) == NO_ERROR:
             self.logger.debug('Successfully performed adapter change notification on %s', adapter_name)
         else:
             self.logger.error('Failed to notify adapter change on %s', adapter_name)

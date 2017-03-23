@@ -97,18 +97,76 @@ class Diverter(WinUtilMixin):
 
         # Check active interfaces
         if not self.check_active_ethernet_adapters():
-            self.logger.warning('WARNING: No active ethernet interfaces detected!')
+            self.logger.warning('ERROR: No active ethernet interfaces detected!')
             self.logger.warning('         Please enable a network interface.')
+            sys.exit(1)
+
+        # Check configured ip addresses
+        if not self.check_ipaddresses():
+            self.logger.warning('ERROR: No interface had IP address configured!')
+            self.logger.warning('         Please configure an IP address on a network interfnace.')
+            sys.exit(1)
 
         # Check configured gateways
         if not self.check_gateways():
             self.logger.warning('WARNING: No gateways configured!')
-            self.logger.warning('         Please configure a default gateway or route in order to intercept external traffic.')
+
+            # Check if there is a gateway configured on any of the Ethernet interfaces. If that's not the case,
+            # then locate configured IP address and set a gateway automatically. This is necessary for VMWare Host-Only
+            # DHCP server which leaves default gateway empty.
+            if self.diverter_config.get('fixgateway') and self.diverter_config['fixgateway'].lower() == 'yes':
+
+                for adapter in self.get_adapters_info():
+
+                    if self.check_ipaddresses_interface(adapter):
+
+                        (ip_address, netmask) = next(self.get_ipaddresses_netmask(adapter))
+                        gw_address =  ip_address[:ip_address.rfind('.')]+'.1'
+
+                        interface_name = self.get_adapter_friendlyname(adapter.Index)
+
+                        cmd_set_gw = "netsh interface ip set address name=\"%s\" static %s %s %s" % (interface_name, ip_address, netmask, gw_address)
+
+                        # Configure gateway
+                        try:
+                            subprocess.check_call(cmd_set_gw, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        except subprocess.CalledProcessError, e:
+                            self.logger.error("         Failed to set gateway %s on interface %s." % (gw_address, interface_name))
+                        else:
+                            self.logger.info("         Setting gateway %s on interface %s" % (gw_address, interface_name))
+
+            else:
+                self.logger.warning('WARNING: Please configure a default gateway or route in order to intercept external traffic.')
+                self.logger.warning('         Current interception abilities are limited to local traffic.')
+
 
         # Check configured DNS servers
         if not self.check_dns_servers():
             self.logger.warning('WARNING: No DNS servers configured!')
-            self.logger.warning('         Please configure a DNS server in order to allow network resolution.')
+
+            # Check if there is a DNS server on any of the Ethernet interfaces. If that's not the case,
+            # then locate configured IP address and set a DNS server automatically.
+            if self.diverter_config.get('fixdns') and self.diverter_config['fixdns'].lower() == 'yes':
+
+                for adapter in self.get_adapters_info():
+
+                    if self.check_ipaddresses_interface(adapter):
+
+                        ip_address = next(self.get_ipaddresses(adapter))
+                        dns_address = ip_address
+
+                        interface_name = self.get_adapter_friendlyname(adapter.Index)
+
+                        cmd_set_dns = "netsh interface ip set dns name=\"%s\" static %s" % (interface_name, dns_address)
+                        
+                        # Configure DNS server
+                        try:
+                            subprocess.check_call(cmd_set_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        except subprocess.CalledProcessError, e:
+                            self.logger.error("         Failed to set DNS %s on interface %s." % (dns_address, interface_name))
+                        else:
+                            self.logger.info("         Setting DNS %s on interface %s" % (dns_address, interface_name))
+
 
         #######################################################################
         # Initialize WinDivert
@@ -318,7 +376,7 @@ class Diverter(WinUtilMixin):
 
         # Set local DNS server IP address
         if self.diverter_config.get('modifylocaldns') and self.diverter_config['modifylocaldns'].lower() == 'yes':
-            self.set_dns_server(self.loopback_ip)
+            self.set_dns_server(self.external_ip)
 
         # Stop DNS service
         if self.diverter_config.get('stopdnsservice') and self.diverter_config['stopdnsservice'].lower() == 'yes':
@@ -399,9 +457,9 @@ class Diverter(WinUtilMixin):
         port_execute           = self.port_execute.get(protocol)
 
 
-        if (packet.is_loopback and packet.src_addr == self.loopback_ip and packet.dst_addr == self.loopback_ip) or \
-           (packet.src_addr == self.external_ip and packet.dst_addr == self.external_ip):
+        if (packet.is_loopback and packet.src_addr == self.loopback_ip and packet.dst_addr == self.loopback_ip):
             self.logger.debug('Ignoring loopback packet')
+            self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
         elif packet.src_port in blacklist_ports or packet.dst_port in blacklist_ports:
             self.logger.debug('Forwarding blacklisted port %s %s %s packet:', direction_string, interface_string, protocol)
