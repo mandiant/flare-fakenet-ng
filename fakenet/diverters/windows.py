@@ -36,6 +36,10 @@ class Diverter(WinUtilMixin):
         # Used for caching of DNS server names prior to changing
         self.adapters_dns_server_backup = dict()
 
+        # Used to restore modified Interfaces back to DHCP
+        self.adapters_dhcp_restore = list()
+        self.adapters_dns_restore = list()
+
         # Sessions cache
         # NOTE: A dictionary of source ports mapped to destination address, port tuples
         self.sessions = dict()
@@ -118,12 +122,15 @@ class Diverter(WinUtilMixin):
 
                 for adapter in self.get_adapters_info():
 
-                    if self.check_ipaddresses_interface(adapter):
+                    # Look for a DHCP interface with a set IP address but no gateway (Host-Only)
+                    if self.check_ipaddresses_interface(adapter) and adapter.DhcpEnabled:
 
                         (ip_address, netmask) = next(self.get_ipaddresses_netmask(adapter))
                         gw_address =  ip_address[:ip_address.rfind('.')]+'.1'
 
                         interface_name = self.get_adapter_friendlyname(adapter.Index)
+
+                        self.adapters_dhcp_restore.append(interface_name)
 
                         cmd_set_gw = "netsh interface ip set address name=\"%s\" static %s %s %s" % (interface_name, ip_address, netmask, gw_address)
 
@@ -157,8 +164,10 @@ class Diverter(WinUtilMixin):
 
                         interface_name = self.get_adapter_friendlyname(adapter.Index)
 
+                        self.adapters_dns_restore.append(interface_name)
+
                         cmd_set_dns = "netsh interface ip set dns name=\"%s\" static %s" % (interface_name, dns_address)
-                        
+
                         # Configure DNS server
                         try:
                             subprocess.check_call(cmd_set_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -167,6 +176,9 @@ class Diverter(WinUtilMixin):
                         else:
                             self.logger.info("         Setting DNS %s on interface %s" % (dns_address, interface_name))
 
+            else:
+                self.logger.warning('WARNING: Please configure a DNS server in order to intercept domain name resolutions.')
+                self.logger.warning('         Current interception abilities are limited to IP only traffic.')
 
         #######################################################################
         # Initialize WinDivert
@@ -413,6 +425,34 @@ class Diverter(WinUtilMixin):
             self.pcap.close()
 
         self.handle.close()
+
+        # Restore DHCP adapter settings
+        for interface_name in self.adapters_dhcp_restore:
+
+            cmd_set_dhcp = "netsh interface ip set address name=\"%s\" dhcp" % interface_name
+
+            # Restore DHCP on interface
+            try:
+                subprocess.check_call(cmd_set_dhcp, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError, e:
+                self.logger.error("Failed to restore DHCP on interface %s." % interface_name)
+            else:
+                self.logger.info("Restored DHCP on interface %s" % interface_name)
+
+        # Restore DHCP adapter settings
+        for interface_name in self.adapters_dns_restore:
+
+            cmd_del_dns = "netsh interface ip delete dns name=\"%s\" all" % interface_name
+            cmd_set_dns_dhcp = "netsh interface ip set dns \"%s\" dhcp" % interface_name
+
+            # Restore DNS on interface
+            try:
+                subprocess.check_call(cmd_del_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.check_call(cmd_set_dns_dhcp, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError, e:
+                self.logger.error("Failed to restore DNS on interface %s." % interface_name)
+            else:
+                self.logger.info("Restored DNS on interface %s" % interface_name)
 
         # Restore DNS server
         if self.diverter_config.get('modifylocaldns') and self.diverter_config['modifylocaldns'].lower() == 'yes':

@@ -1,0 +1,10 @@
+Version 1.1
+-----------
+
+* Support for Pydivert 2.x branch.
+
+
+Version 1.0
+-----------
+
+* Initial release

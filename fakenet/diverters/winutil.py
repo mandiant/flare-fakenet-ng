@@ -885,8 +885,6 @@ class WinUtilMixin():
 
         ip_addr_string = FixedInfo.DnsServerList
 
-        print "DNS",ip_addr_string.IpAddress.String
-
         if ip_addr_string and ip_addr_string.IpAddress.String:
             return True
 
