@@ -85,6 +85,41 @@ class Fakenet():
             elif config.getboolean(section, 'enabled'):
                 self.listeners_config[section] = dict(config.items(section))
 
+
+        # Expand listeners
+        self.listeners_config = self.expand_listeners(self.listeners_config)
+
+    def expand_ports(self, ports_list):
+        ports = []
+        for i in ports_list.split(','):
+            if '-' not in i:
+                ports.append(int(i))
+            else:
+                l,h = map(int, i.split('-'))
+                ports+= range(l,h+1)
+        return ports
+
+    def expand_listeners(self, listeners_config):
+
+        listeners_config_expanded = OrderedDict()
+
+        for listener_name in listeners_config:
+
+            listener_config = self.listeners_config[listener_name]
+            ports = self.expand_ports(listener_config['port'])
+
+            if len(ports) > 1:
+
+                for port in ports:
+
+                    listener_config['port'] = port
+                    listeners_config_expanded["%s_%d" % (listener_name, port)] = listener_config.copy()
+
+            else:
+                listeners_config_expanded[listener_name] = listener_config
+
+        return listeners_config_expanded
+
     def start(self):
 
         if self.fakenet_config.get('diverttraffic') and self.fakenet_config['diverttraffic'].lower() == 'yes':
@@ -104,7 +139,6 @@ class Fakenet():
             else:
                 self.logger.error('Error: Your system %s is currently not supported.', platform.system())
                 sys.exit(1)
-
 
         # Start all of the listeners
         for listener_name in self.listeners_config:

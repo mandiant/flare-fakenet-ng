@@ -310,6 +310,16 @@ class Diverter(WinUtilMixin):
     ###########################################################################
     # Parse diverter settings and filters
 
+    def expand_ports(self, ports_list):
+        ports = []
+        for i in ports_list.split(','):
+            if '-' not in i:
+                ports.append(int(i))
+            else:
+                l,h = map(int, i.split('-'))
+                ports+= range(l,h+1)
+        return ports
+
     def parse_diverter_config(self):
 
         # Do not redirect blacklisted processes
@@ -351,12 +361,12 @@ class Diverter(WinUtilMixin):
 
             # Do not redirect blacklisted TCP ports
             if self.diverter_config.get('blacklistportstcp') != None:
-                self.blacklist_ports_tcp = [int(port.strip()) for port in self.diverter_config.get('blacklistportstcp').split(',')]
+                self.blacklist_ports_tcp = self.expand_ports(self.diverter_config.get('blacklistportstcp'))
                 self.logger.debug('Blacklisted TCP ports: %s', ', '.join([str(p) for p in self.blacklist_ports_tcp]))
 
             # Do not redirect blacklisted UDP ports
             if self.diverter_config.get('blacklistportsudp') != None:
-                self.blacklist_ports_udp = [int(port.strip()) for port in self.diverter_config.get('blacklistportsudp').split(',')]
+                self.blacklist_ports_udp = self.expand_ports(self.diverter_config.get('blacklistportsudp'))
                 self.logger.debug('Blacklisted UDP ports: %s', ', '.join([str(p) for p in self.blacklist_ports_udp]))
 
         # Redirect only specific traffic, build the filter dynamically
@@ -496,7 +506,6 @@ class Diverter(WinUtilMixin):
         port_host_blacklist    = self.port_host_blacklist.get(protocol)
         port_execute           = self.port_execute.get(protocol)
 
-
         if (packet.is_loopback and packet.src_addr == self.loopback_ip and packet.dst_addr == self.loopback_ip):
             self.logger.debug('Ignoring loopback packet')
             self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
@@ -556,8 +565,22 @@ class Diverter(WinUtilMixin):
 
             # Make sure you are not intercepting packets from one of the FakeNet listeners
             elif conn_pid and os.getpid() == conn_pid:
-                self.logger.debug('Skipping %s %s %s listener packet:', direction_string, interface_string, protocol)
-                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+
+                # HACK: FTP Passive Mode Handling
+                # Check if a listener is initiating a new connection from a non-diverted port and add it to blacklist. This is done to handle a special use-case
+                # of FTP ACTIVE mode where FTP server is initiating a new connection for which the response may be redirected to a default listener.
+                # NOTE: Additional testing can be performed to check if this is actually a SYN packet
+                if packet.dst_addr == self.external_ip and packet.src_addr == self.external_ip and not packet.src_port in diverted_ports and not packet.dst_port in diverted_ports:
+
+                    self.logger.debug('Listener initiated connection %s %s %s:', direction_string, interface_string, protocol)
+                    self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+                    self.logger.debug('  Blacklisted port %d', packet.src_port)
+
+                    blacklist_ports.append(packet.src_port)
+
+                else:
+                    self.logger.debug('Skipping %s %s %s listener packet:', direction_string, interface_string, protocol)
+                    self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
             # Modify the packet
             else:
