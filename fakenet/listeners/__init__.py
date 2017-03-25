@@ -5,6 +5,7 @@ import SMTPListener
 import FTPListener
 import IRCListener
 import TFTPListener
+import POPListener
 
-__all__ = ['RawListener', 'HTTPListener', 'DNSListener', 'SMTPListener', 'FTPListener', 'IRCListener', 'TFTPListener']
+__all__ = ['RawListener', 'HTTPListener', 'DNSListener', 'SMTPListener', 'FTPListener', 'IRCListener', 'TFTPListener', 'POPListener']
 

@@ -89,13 +89,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         except Exception, e:
             self.server.logger.error('Error: %s', e)
 
-    def client_ident(self):
-        """
-        Return the client identifier as included in many command replies.
-        """
-        return('%s!%s@%s' % (self.nick, self.user, self.server.config['servername']))
-
-
     def irc_DEFAULT(self, cmd, params):
         self.server.logger.info('Client issued an unknown command %s %s', cmd, params)      
         self.irc_send_server("421", "%s :Unknown command" % cmd)          
@@ -103,7 +96,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def irc_NICK(self, cmd, params):
 
         self.nick = params
-        
+
         self.irc_send_server("001", "%s :Welcome to FakeNet Internet Relay Chat Network." % self.nick)
         self.irc_send_server("376", "%s :End of /MOTD command." % self.nick)
 

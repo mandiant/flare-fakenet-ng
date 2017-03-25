@@ -30,7 +30,7 @@ BLOCKSIZE = 512
 
 class TFTPListener():
 
-    def __init__(self, config, name = 'RawListener', logging_level = logging.INFO):
+    def __init__(self, config, name = 'TFTPListener', logging_level = logging.INFO):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
             

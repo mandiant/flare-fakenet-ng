@@ -74,10 +74,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         try:
 
-            self.request.sendall("220 PracticalMalwareAnalysis.COM STMP Service Ready\r\n")
+            self.request.sendall("220 FakeNet SMTP Service Ready\r\n")
             while True:
                 data = self.request.recv(4096)
-                self.server.logger.info('Recieved Data.')
                 for line in data.split("\n"):
                     self.server.logger.debug(line)
 
@@ -112,7 +111,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     self.server.logger.info('Received mail data.')
                     for line in mail_data.split("\n"):
-                        self.server.logger.debug(line)
+                        self.server.logger.info(line)
 
                     self.request.sendall("250 OK\r\n")
 
