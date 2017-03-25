@@ -115,7 +115,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, *args)
 
     def setup(self):
-        self.request.settimeout(int(self.server.config.get('timeout', 10)))
+        self.request.settimeout(int(self.server.config.get('timeout', 5)))
         BaseHTTPServer.BaseHTTPRequestHandler.setup(self)
 
     def do_HEAD(self):

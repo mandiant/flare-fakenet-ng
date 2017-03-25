@@ -87,13 +87,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     break
 
                 elif command in ['HELO','EHLO']:
-                    self.request.sendall("250 PracticalMalwareAnalysis.com\r\n")
+                    self.request.sendall("250 evil.com\r\n")
 
                 elif command in ['MAIL', 'RCPT', 'NOOP', 'RSET']:
                     self.request.sendall("250 OK\r\n")
 
                 elif command == 'QUIT':
-                    self.request.sendall("221 PracticalMalwareAnalysis.com bye\r\n")
+                    self.request.sendall("221 evil.com bye\r\n")
 
                 elif command == "DATA":
                     self.request.sendall("354 start mail input, end with <CRLF>.<CRLF>\r\n")

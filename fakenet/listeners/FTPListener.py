@@ -18,14 +18,14 @@ FAKEUSER = 'FAKEUSER'
 FAKEPWD  = 'FAKEPWD'
 
 EXT_FILE_RESPONSE = {
-    'html': u'FakeNet.html',
-    'png' : u'FakeNet.png',
-    'ico' : u'FakeNet.ico',
-    'jpeg': u'FakeNet.jpg',
-    'exe' : u'FakeNetMini.exe',
-    'pdf' : u'FakeNet.pdf',
-    'xml' : u'FakeNet.html',
-    'txt' : u'FakeNet.txt',
+    '.html': u'FakeNet.html',
+    '.png' : u'FakeNet.png',
+    '.ico' : u'FakeNet.ico',
+    '.jpeg': u'FakeNet.jpg',
+    '.exe' : u'FakeNetMini.exe',
+    '.pdf' : u'FakeNet.pdf',
+    '.xml' : u'FakeNet.html',
+    '.txt' : u'FakeNet.txt',
 }
 
 class FakeFTPHandler(FTPHandler, object):
@@ -132,7 +132,7 @@ class FTPListener():
 
 
         self.handler.authorizer = self.authorizer
-        self.handler.passive_ports = self.expand_ports(self.config['pasvports'])
+        self.handler.passive_ports = self.expand_ports(self.config.get('pasvports', '60000-60010'))
 
 
         self.server = ThreadedFTPServer((self.local_ip, int(self.config['port'])), self.handler)

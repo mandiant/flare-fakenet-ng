@@ -34,27 +34,6 @@ class IRCListener():
 
         self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
 
-        if self.config.get('usessl') == 'Yes':
-            self.logger.debug('Using SSL socket')
-
-            keyfile_path = 'privkey.pem'
-            if not os.path.exists(keyfile_path):
-                keyfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), keyfile_path)
-
-                if not os.path.exists(keyfile_path):
-                    self.logger.error('Could not locate privkey.pem')
-                    sys.exit(1)
-
-            certfile_path = 'server.pem'
-            if not os.path.exists(certfile_path):
-                certfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), certfile_path)
-
-                if not os.path.exists(certfile_path):
-                    self.logger.error('Could not locate certfile.pem')
-                    sys.exit(1)
-
-            self.server.socket = ssl.wrap_socket(self.server.socket, keyfile='privkey.pem', certfile='server.pem', server_side=True, ciphers='RSA')
-
         self.server.logger = self.logger
         self.server.config = self.config
         self.server.servername = self.config.get('servername', 'localhost')
@@ -70,8 +49,6 @@ class IRCListener():
             self.server.server_close()
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
-
-
 
     def handle(self):
 
@@ -126,8 +103,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def irc_NICK(self, cmd, params):
 
         self.nick = params
-
-
+        
         self.irc_send_server("001", "%s :Welcome to FakeNet Internet Relay Chat Network." % self.nick)
         self.irc_send_server("376", "%s :End of /MOTD command." % self.nick)
 
@@ -202,7 +178,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
     def irc_send_client_custom(self, nick, user, servername, message):
         self.request.sendall(":%s!%s@%s %s\r\n" % (nick, user, servername, message))
-
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
