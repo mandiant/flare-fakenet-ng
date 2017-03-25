@@ -9,6 +9,9 @@ requirements = [
     "pydivert",
     "dpkt",
     "dnslib",
+    "pyftpdlib",
+    "pyopenssl",
+
 ]
 
 setup(

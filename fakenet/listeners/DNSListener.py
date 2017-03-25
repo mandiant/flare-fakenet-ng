@@ -87,19 +87,35 @@ class DNSHandler():
                 response = DNSRecord(DNSHeader(id=d.header.id, bitmap=d.header.bitmap, qr=1, aa=1, ra=1), q=d.q)
 
                 # Get fake record from the configuration or use the external address
-                fake_record = self.server.config.get('dnsresponse', socket.gethostbyname(socket.gethostname()))
 
                 if qtype == 'A':
+
+                    fake_record = self.server.config.get('responsea', socket.gethostbyname(socket.gethostname()))
 
                     if self.server.nxdomains > 0:
                         self.server.logger.info('Ignoring query. NXDomains: %d', self.server.nxdomains)
                         self.server.nxdomains -= 1
                     else:
-                        # dnslib doesn't like trailing dots
-                        if fake_record[-1] == ".": fake_record = fake_record[:-1]
-
                         self.server.logger.info('Responding with \'%s\'', fake_record)
                         response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
+
+                elif qtype == 'MX':
+
+                    fake_record = self.server.config.get('responsemx', 'mail.evil.com')
+
+                    # dnslib doesn't like trailing dots
+                    if fake_record[-1] == ".": fake_record = fake_record[:-1]
+
+                    self.server.logger.info('Responding with \'%s\'', fake_record)
+                    response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
+
+
+                elif qtype == 'TXT':
+
+                    fake_record = self.server.config.get('responsetxt', 'FAKENET')
+
+                    self.server.logger.info('Responding with \'%s\'', fake_record)
+                    response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
 
                 response = response.pack()
                 
@@ -194,11 +210,27 @@ def test(config):
     print answer
     print '-'*80
 
+    print "\t[DNSListener] Testing 'google.com' MX record."
+    query = DNSRecord(q=DNSQuestion('google.com',getattr(QTYPE,'MX')))
+    answer_pkt = query.send('localhost', int(config.get('port', 53)))
+    answer = DNSRecord.parse(answer_pkt)
+
+    print '-'*80
+    print answer
+
+    print "\t[DNSListener] Testing 'google.com' TXT record."
+    query = DNSRecord(q=DNSQuestion('google.com',getattr(QTYPE,'TXT')))
+    answer_pkt = query.send('localhost', int(config.get('port', 53)))
+    answer = DNSRecord.parse(answer_pkt)
+
+    print '-'*80
+    print answer
+    print '-'*80
 
 def main():
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
     
-    config = {'port': '53', 'protocol': 'UDP', 'dnsresponse': '127.0.0.1', 'nxdomains': 3 }
+    config = {'port': '53', 'protocol': 'UDP', 'responsea': '127.0.0.1', 'responsemx': 'mail.bad.com', 'responsetxt': 'FAKENET', 'nxdomains': 3 }
 
     listener = DNSListener(config, logging_level = logging.DEBUG)
     listener.start()

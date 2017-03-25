@@ -36,6 +36,10 @@ class Diverter(WinUtilMixin):
         # Used for caching of DNS server names prior to changing
         self.adapters_dns_server_backup = dict()
 
+        # Used to restore modified Interfaces back to DHCP
+        self.adapters_dhcp_restore = list()
+        self.adapters_dns_restore = list()
+
         # Sessions cache
         # NOTE: A dictionary of source ports mapped to destination address, port tuples
         self.sessions = dict()
@@ -97,18 +101,84 @@ class Diverter(WinUtilMixin):
 
         # Check active interfaces
         if not self.check_active_ethernet_adapters():
-            self.logger.warning('WARNING: No active ethernet interfaces detected!')
+            self.logger.warning('ERROR: No active ethernet interfaces detected!')
             self.logger.warning('         Please enable a network interface.')
+            sys.exit(1)
+
+        # Check configured ip addresses
+        if not self.check_ipaddresses():
+            self.logger.warning('ERROR: No interface had IP address configured!')
+            self.logger.warning('         Please configure an IP address on a network interfnace.')
+            sys.exit(1)
 
         # Check configured gateways
         if not self.check_gateways():
             self.logger.warning('WARNING: No gateways configured!')
-            self.logger.warning('         Please configure a default gateway or route in order to intercept external traffic.')
+
+            # Check if there is a gateway configured on any of the Ethernet interfaces. If that's not the case,
+            # then locate configured IP address and set a gateway automatically. This is necessary for VMWare Host-Only
+            # DHCP server which leaves default gateway empty.
+            if self.diverter_config.get('fixgateway') and self.diverter_config['fixgateway'].lower() == 'yes':
+
+                for adapter in self.get_adapters_info():
+
+                    # Look for a DHCP interface with a set IP address but no gateway (Host-Only)
+                    if self.check_ipaddresses_interface(adapter) and adapter.DhcpEnabled:
+
+                        (ip_address, netmask) = next(self.get_ipaddresses_netmask(adapter))
+                        gw_address =  ip_address[:ip_address.rfind('.')]+'.1'
+
+                        interface_name = self.get_adapter_friendlyname(adapter.Index)
+
+                        self.adapters_dhcp_restore.append(interface_name)
+
+                        cmd_set_gw = "netsh interface ip set address name=\"%s\" static %s %s %s" % (interface_name, ip_address, netmask, gw_address)
+
+                        # Configure gateway
+                        try:
+                            subprocess.check_call(cmd_set_gw, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        except subprocess.CalledProcessError, e:
+                            self.logger.error("         Failed to set gateway %s on interface %s." % (gw_address, interface_name))
+                        else:
+                            self.logger.info("         Setting gateway %s on interface %s" % (gw_address, interface_name))
+
+            else:
+                self.logger.warning('WARNING: Please configure a default gateway or route in order to intercept external traffic.')
+                self.logger.warning('         Current interception abilities are limited to local traffic.')
+
 
         # Check configured DNS servers
         if not self.check_dns_servers():
             self.logger.warning('WARNING: No DNS servers configured!')
-            self.logger.warning('         Please configure a DNS server in order to allow network resolution.')
+
+            # Check if there is a DNS server on any of the Ethernet interfaces. If that's not the case,
+            # then locate configured IP address and set a DNS server automatically.
+            if self.diverter_config.get('fixdns') and self.diverter_config['fixdns'].lower() == 'yes':
+
+                for adapter in self.get_adapters_info():
+
+                    if self.check_ipaddresses_interface(adapter):
+
+                        ip_address = next(self.get_ipaddresses(adapter))
+                        dns_address = ip_address
+
+                        interface_name = self.get_adapter_friendlyname(adapter.Index)
+
+                        self.adapters_dns_restore.append(interface_name)
+
+                        cmd_set_dns = "netsh interface ip set dns name=\"%s\" static %s" % (interface_name, dns_address)
+
+                        # Configure DNS server
+                        try:
+                            subprocess.check_call(cmd_set_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        except subprocess.CalledProcessError, e:
+                            self.logger.error("         Failed to set DNS %s on interface %s." % (dns_address, interface_name))
+                        else:
+                            self.logger.info("         Setting DNS %s on interface %s" % (dns_address, interface_name))
+
+            else:
+                self.logger.warning('WARNING: Please configure a DNS server in order to intercept domain name resolutions.')
+                self.logger.warning('         Current interception abilities are limited to IP only traffic.')
 
         #######################################################################
         # Initialize WinDivert
@@ -240,6 +310,16 @@ class Diverter(WinUtilMixin):
     ###########################################################################
     # Parse diverter settings and filters
 
+    def expand_ports(self, ports_list):
+        ports = []
+        for i in ports_list.split(','):
+            if '-' not in i:
+                ports.append(int(i))
+            else:
+                l,h = map(int, i.split('-'))
+                ports+= range(l,h+1)
+        return ports
+
     def parse_diverter_config(self):
 
         # Do not redirect blacklisted processes
@@ -281,12 +361,12 @@ class Diverter(WinUtilMixin):
 
             # Do not redirect blacklisted TCP ports
             if self.diverter_config.get('blacklistportstcp') != None:
-                self.blacklist_ports_tcp = [int(port.strip()) for port in self.diverter_config.get('blacklistportstcp').split(',')]
+                self.blacklist_ports_tcp = self.expand_ports(self.diverter_config.get('blacklistportstcp'))
                 self.logger.debug('Blacklisted TCP ports: %s', ', '.join([str(p) for p in self.blacklist_ports_tcp]))
 
             # Do not redirect blacklisted UDP ports
             if self.diverter_config.get('blacklistportsudp') != None:
-                self.blacklist_ports_udp = [int(port.strip()) for port in self.diverter_config.get('blacklistportsudp').split(',')]
+                self.blacklist_ports_udp = self.expand_ports(self.diverter_config.get('blacklistportsudp'))
                 self.logger.debug('Blacklisted UDP ports: %s', ', '.join([str(p) for p in self.blacklist_ports_udp]))
 
         # Redirect only specific traffic, build the filter dynamically
@@ -318,7 +398,7 @@ class Diverter(WinUtilMixin):
 
         # Set local DNS server IP address
         if self.diverter_config.get('modifylocaldns') and self.diverter_config['modifylocaldns'].lower() == 'yes':
-            self.set_dns_server(self.loopback_ip)
+            self.set_dns_server(self.external_ip)
 
         # Stop DNS service
         if self.diverter_config.get('stopdnsservice') and self.diverter_config['stopdnsservice'].lower() == 'yes':
@@ -355,6 +435,34 @@ class Diverter(WinUtilMixin):
             self.pcap.close()
 
         self.handle.close()
+
+        # Restore DHCP adapter settings
+        for interface_name in self.adapters_dhcp_restore:
+
+            cmd_set_dhcp = "netsh interface ip set address name=\"%s\" dhcp" % interface_name
+
+            # Restore DHCP on interface
+            try:
+                subprocess.check_call(cmd_set_dhcp, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError, e:
+                self.logger.error("Failed to restore DHCP on interface %s." % interface_name)
+            else:
+                self.logger.info("Restored DHCP on interface %s" % interface_name)
+
+        # Restore DHCP adapter settings
+        for interface_name in self.adapters_dns_restore:
+
+            cmd_del_dns = "netsh interface ip delete dns name=\"%s\" all" % interface_name
+            cmd_set_dns_dhcp = "netsh interface ip set dns \"%s\" dhcp" % interface_name
+
+            # Restore DNS on interface
+            try:
+                subprocess.check_call(cmd_del_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.check_call(cmd_set_dns_dhcp, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError, e:
+                self.logger.error("Failed to restore DNS on interface %s." % interface_name)
+            else:
+                self.logger.info("Restored DNS on interface %s" % interface_name)
 
         # Restore DNS server
         if self.diverter_config.get('modifylocaldns') and self.diverter_config['modifylocaldns'].lower() == 'yes':
@@ -398,7 +506,11 @@ class Diverter(WinUtilMixin):
         port_host_blacklist    = self.port_host_blacklist.get(protocol)
         port_execute           = self.port_execute.get(protocol)
 
-        if packet.src_port in blacklist_ports or packet.dst_port in blacklist_ports:
+        if (packet.is_loopback and packet.src_addr == self.loopback_ip and packet.dst_addr == self.loopback_ip):
+            self.logger.debug('Ignoring loopback packet')
+            self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+
+        elif packet.src_port in blacklist_ports or packet.dst_port in blacklist_ports:
             self.logger.debug('Forwarding blacklisted port %s %s %s packet:', direction_string, interface_string, protocol)
             self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
@@ -453,8 +565,22 @@ class Diverter(WinUtilMixin):
 
             # Make sure you are not intercepting packets from one of the FakeNet listeners
             elif conn_pid and os.getpid() == conn_pid:
-                self.logger.debug('Skipping %s %s %s listener packet:', direction_string, interface_string, protocol)
-                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+
+                # HACK: FTP Passive Mode Handling
+                # Check if a listener is initiating a new connection from a non-diverted port and add it to blacklist. This is done to handle a special use-case
+                # of FTP ACTIVE mode where FTP server is initiating a new connection for which the response may be redirected to a default listener.
+                # NOTE: Additional testing can be performed to check if this is actually a SYN packet
+                if packet.dst_addr == self.external_ip and packet.src_addr == self.external_ip and not packet.src_port in diverted_ports and not packet.dst_port in diverted_ports:
+
+                    self.logger.debug('Listener initiated connection %s %s %s:', direction_string, interface_string, protocol)
+                    self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+                    self.logger.debug('  Blacklisted port %d', packet.src_port)
+
+                    blacklist_ports.append(packet.src_port)
+
+                else:
+                    self.logger.debug('Skipping %s %s %s listener packet:', direction_string, interface_string, protocol)
+                    self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
             # Modify the packet
             else:
