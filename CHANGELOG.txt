@@ -1,12 +1,14 @@
 Version 1.1
 -----------
 
+* POP Listener (Basic mode only)
+* TFTP Listener
+* IRC Listener
 * FTP Listener (with SSL support, Passive and Active modes).
 * Specify port ranges for listeners (e.g. 80, 8080-8085, 8888).
 * VMWare Host-Only mode autoconfiguration.
 * Support for Pydivert 2.x branch.
 * Many bug and stability fixes.
-
 
 Version 1.0
 -----------
