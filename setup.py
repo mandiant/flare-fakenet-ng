@@ -16,7 +16,7 @@ requirements = [
 
 setup(
     name='FakeNet NG',
-    version='1.0',
+    version='1.1',
     description="",
     long_description="",
     author="Peter Kacherginsky",
