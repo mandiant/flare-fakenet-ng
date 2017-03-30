@@ -126,7 +126,7 @@ class Diverter(WinUtilMixin):
                     if self.check_ipaddresses_interface(adapter) and adapter.DhcpEnabled:
 
                         (ip_address, netmask) = next(self.get_ipaddresses_netmask(adapter))
-                        gw_address =  ip_address[:ip_address.rfind('.')]+'.1'
+                        gw_address =  ip_address[:ip_address.rfind('.')]+'.254'
 
                         interface_name = self.get_adapter_friendlyname(adapter.Index)
 
