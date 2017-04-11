@@ -1,6 +1,7 @@
 import logging
 
 import threading
+import netifaces
 import SocketServer
 from dnslib import *
 
@@ -86,11 +87,49 @@ class DNSHandler():
                 # Create a custom response to the query
                 response = DNSRecord(DNSHeader(id=d.header.id, bitmap=d.header.bitmap, qr=1, aa=1, ra=1), q=d.q)
 
-                # Get fake record from the configuration or use the external address
-
                 if qtype == 'A':
+                    # Get fake record from the configuration or use the external address
+                    fake_record = self.server.config.get('responsea', None)
 
-                    fake_record = self.server.config.get('responsea', socket.gethostbyname(socket.gethostname()))
+                    # Using socket.gethostbyname(socket.gethostname()) will return
+                    # 127.0.1.1 on Ubuntu systems that automatically add this entry
+                    # to /etc/hosts at install time or at other times. To produce a
+                    # plug-and-play user experience when using FakeNet for Linux,
+                    # we can't ask users to maintain /etc/hosts (which may involve
+                    # resolveconf or other work). Instead, we will give users a
+                    # choice:
+                    #
+                    #  * Configure a static IP, e.g. 192.0.2.123
+                    #    Returns that IP
+                    #
+                    #  * Set the DNS Listener DNSResponse to "GetHostByName"
+                    #    Returns socket.gethostbyname(socket.gethostname())
+                    #
+                    #  * Set the DNS Listener DNSResponse to "GetFirstNonLoopback"
+                    #    Returns the first non-loopback IP in use by the system
+                    #
+                    # If the DNSResponse setting is omitted, the listener will
+                    # default to getting the first non-loopback IPv4 address (for A
+                    # records).
+                    #
+                    # The DNSResponse setting was previously statically set to
+                    # 192.0.2.123, which for local scenarios works fine in Windows
+                    # standalone use cases because all connections to IP addresses
+                    # are redirected by Diverter. Changing the default setting to 
+                    #
+                    # IPv6 is not yet implemented, but when it is, it will be
+                    # necessary to consider how to get similar behavior to
+
+                    if fake_record == 'GetFirstNonLoopback':
+                        for iface in netifaces.interfaces():
+                            for link in netifaces.ifaddresses(iface)[netifaces.AF_INET]:
+                                if 'addr' in link:
+                                    addr = link['addr']
+                                    if not addr.startswith('127.'):
+                                        fake_record = addr
+                                        break
+                    elif fake_record == 'GetHostByName' or fake_record is None:
+                        fake_record = socket.gethostbyname(socket.gethostname())
 
                     if self.server.nxdomains > 0:
                         self.server.logger.info('Ignoring query. NXDomains: %d', self.server.nxdomains)
@@ -126,11 +165,11 @@ class UDPHandler(DNSHandler, SocketServer.BaseRequestHandler):
     def handle(self):
 
         try:
-            (data,socket) = self.request
+            (data,sk) = self.request
             response = self.parse(data)
 
             if response:
-                socket.sendto(response, self.client_address)
+                sk.sendto(response, self.client_address)
 
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)
