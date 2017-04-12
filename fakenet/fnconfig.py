@@ -1,11 +1,32 @@
 class Config:
-    def __init__(self, config_dict=None):
-        # Copy dictionary with lowercase keys
-        if config_dict:
-            self.configure(config_dict)
+    def __init__(self, config_dict=None, portlists=[]):
+        if config_dict is not None:
+            self.configure(config_dict, portlists)
 
-    def configure(self, config_dict):
+    def configure(self, config_dict, portlists=[]):
+        """Parse configuration.
+
+        Does two things:
+            1.) Turn dictionary keys to lowercase
+            2.) Expand port range specifications
+        """
         self._dict = dict( (k.lower(), v) for k, v in config_dict.iteritems())
+
+        for entry in portlists:
+            portlist = self.getconfigval(entry)
+            if portlist:
+                expanded = self._expand_ports(portlist)
+                self.setconfigval(entry, expanded)
+
+    def _expand_ports(self, ports_list):
+        ports = []
+        for i in ports_list.split(','):
+            if '-' not in i:
+                ports.append(int(i))
+            else:
+                l,h = map(int, i.split('-'))
+                ports+= range(l,h+1)
+        return ports
 
     def _fuzzy_true(self, value):
         return value.lower() in ['on', 'true', 'yes']
@@ -27,5 +48,9 @@ class Config:
         return (self.is_configured(opt) and
                 self._fuzzy_false(self._dict[opt.lower()]))
 
-    def configval(self, opt, default=None):
+    def getconfigval(self, opt, default=None):
         return self._dict[opt.lower()] if self.is_configured(opt) else default
+
+    def setconfigval(self, opt, obj):
+        self._dict[opt.lower()] = obj
+

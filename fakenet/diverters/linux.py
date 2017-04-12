@@ -168,11 +168,13 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.logger.info('Starting...')
 
         hookspec = namedtuple('hookspec', ['table', 'chain', 'callback'])
-        callbacks = [
-            hookspec('PREROUTING', 'raw', self.handle_pkt_nonlocal),
-            hookspec('INPUT', 'mangle', self.handle_pkt_incoming),
-            hookspec('OUTPUT', 'mangle', self.handle_pkt_outgoing),
-        ]
+
+        callbacks = list()
+
+        # May add conditional logic to apply hooks based on configuration
+        callbacks.append(hookspec('PREROUTING', 'raw', self.handle_pkt_nonlocal))
+        callbacks.append(hookspec('INPUT', 'mangle', self.handle_pkt_incoming))
+        callbacks.append(hookspec('OUTPUT', 'mangle', self.handle_pkt_outgoing))
 
         nhooks = len(callbacks)
 
@@ -324,14 +326,30 @@ class Diverter(DiverterBase, LinUtilMixin):
         pkt.accept()
 
     def handle_pkt_incoming(self, pkt):
+        """Incoming packet hook.
+        
+        This serves more than one purpose, so it can't be eliminated when users
+        disable RedirectAllTraffic.
+        
+        Here's what it does:
+            1.) Write unmangled packets to pcap
+            2.) Dynamic port forwarding to the default listener
+            3.) Write mangled packets to pcap, too
+        """
+
         self.logger.debug('handle_pkt_incoming...')
 
         raw = pkt.get_payload()
         ipver = ((ord(raw[0]) & 0xf0) >> 4)
         hdr, proto = self.parse_pkt[ipver](ipver, raw)
 
+        # Write original, unmangled packet regardless of protocol
+        self.write_pcap(hdr.pack())
+
         proto_name = self.handled_protocols.get(proto)
 
+        # If the datagram is carrying a protocol we handle, parse to determine
+        # redirection.
         if proto_name:
             default = self.default_listener[proto_name]
             diverted_ports = self.diverted_ports.get(proto_name, [])
@@ -342,10 +360,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
             endpoint_key = self.gen_endpoint_key(proto_name, src_ip, sport)
 
-            # Write original, unmangled packet
-            self.write_pcap(hdr.pack())
-
-            if self.decide_redir(ipver, default, diverted_ports, src_ip, sport, dst_ip, dport):
+            if self.decide_redir(ipver, proto_name, default, diverted_ports, src_ip, sport, dst_ip, dport):
                 # Record the foreign endpoint and old destination port in the
                 # port forwarding table
                 self.logger.debug(' + ADDING endpoint key entry: ' + endpoint_key)
@@ -388,7 +403,19 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         pkt.accept()
 
-    def decide_redir(self, ipver, default_port, bound_ports, src_ip, sport, dst_ip, dport):
+    def decide_redir(self, ipver, proto_name, default_port, bound_ports, src_ip, sport, dst_ip, dport):
+        if not self.is_set('redirectalltraffic'):
+            return False
+
+        if proto_name == 'TCP':
+            if dport in self.getconfigval('BlackListPortsTCP'):
+                self.logger.info('Not forwarding packet destined for tcp/%d' % (dport))
+                return False
+        elif proto_name == 'UDP':
+            if dport in self.getconfigval('BlackListPortsUDP'):
+                self.logger.info('Not forwarding packet destined for udp/%d' % (dport))
+                return False
+
         is_dummy_svc_port = (dport == default_port)
 
         # A, B, C, and D are for easy calculation of sum-of-products logical result
