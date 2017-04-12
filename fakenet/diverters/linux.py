@@ -103,6 +103,9 @@ class Diverter(DiverterBase, LinUtilMixin):
             dpkt.ip.IP_PROTO_UDP: 'UDP',
         }
 
+        self.nonlocal_ips = []
+        self.log_nonlocal_once = True
+
         # Quick lookup of what unbound service ports have been redirected. This
         # is only used by the iptables-based implementation to determine
         # whether to create a new iptables rule.
@@ -166,8 +169,9 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         hookspec = namedtuple('hookspec', ['table', 'chain', 'callback'])
         callbacks = [
-            hookspec('INPUT', 'mangle', self.handle_pkt_in_prerouting),
-            hookspec('OUTPUT', 'mangle', self.handle_pkt_in_output),
+            hookspec('PREROUTING', 'raw', self.handle_pkt_nonlocal),
+            hookspec('INPUT', 'mangle', self.handle_pkt_incoming),
+            hookspec('OUTPUT', 'mangle', self.handle_pkt_outgoing),
         ]
 
         nhooks = len(callbacks)
@@ -255,8 +259,36 @@ class Diverter(DiverterBase, LinUtilMixin):
         """e.g. 192.168.19.132:3030/tcp"""
         return str(ip) + ':' + str(proto_name) + '/' + str(port)
 
-    def handle_pkt_in_output(self, pkt):
-        self.logger.debug('handle_pkt_in_output...')
+    def handle_pkt_nonlocal(self, pkt):
+        """Handle comms sent to IP addresses that are not bound to any adapter.
+
+        This allows analysts to observe when malware is communicating with
+        hard-coded IP addresses.
+        """
+        self.logger.debug('handle_pkt_redirected...')
+        raw = pkt.get_payload()
+        ipver = ((ord(raw[0]) & 0xf0) >> 4)
+        hdr, proto = self.parse_pkt[ipver](ipver, raw)
+
+        dst_ip = socket.inet_ntoa(hdr.dst)
+
+        if dst_ip not in self.ip_addrs[ipver]:
+            new_ip = (dst_ip not in self.nonlocal_ips)
+
+            if new_ip:
+                self.nonlocal_ips.append(dst_ip)
+
+            # Log when a new IP is observed OR if we are not restricted to
+            # logging only the first occurrence of a given nonlocal IP.
+            if new_ip or (not self.log_nonlocal_once):
+                self.logger.info(
+                    'Received nonlocal IPv%d datagram destined for %s' %
+                    (ipver, dst_ip))
+
+        pkt.accept()
+
+    def handle_pkt_outgoing(self, pkt):
+        self.logger.debug('handle_pkt_outgoing...')
         raw = pkt.get_payload()
         ipver = ((ord(raw[0]) & 0xf0) >> 4)
         hdr, proto = self.parse_pkt[ipver](ipver, raw)
@@ -291,8 +323,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         pkt.accept()
 
-    def handle_pkt_in_prerouting(self, pkt):
-        self.logger.debug('handle_pkt_in_prerouting...')
+    def handle_pkt_incoming(self, pkt):
+        self.logger.debug('handle_pkt_incoming...')
 
         raw = pkt.get_payload()
         ipver = ((ord(raw[0]) & 0xf0) >> 4)
@@ -310,6 +342,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
             endpoint_key = self.gen_endpoint_key(proto_name, src_ip, sport)
 
+            self.write_pcap(hdr.pack())
+
             if self.decide_redir(ipver, default, diverted_ports, src_ip, sport, dst_ip, dport):
                 # Record the foreign endpoint and old destination port in the
                 # port forwarding table
@@ -326,6 +360,9 @@ class Diverter(DiverterBase, LinUtilMixin):
                 if hdr_modified:
                     hdr = hdr_modified
                     pkt.set_payload(hdr.pack())
+
+                # Double write for SSL decoding purposes
+                self.write_pcap(hdr.pack())
 
             else:
                 # Delete stale entries in the port forwarding table if the
@@ -347,8 +384,6 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         else:
             self.logger.debug('Not handling protocol ' + str(proto))
-
-        self.write_pcap(hdr.pack())
 
         pkt.accept()
 
