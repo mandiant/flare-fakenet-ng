@@ -342,6 +342,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
             endpoint_key = self.gen_endpoint_key(proto_name, src_ip, sport)
 
+            # Write original, unmangled packet
             self.write_pcap(hdr.pack())
 
             if self.decide_redir(ipver, default, diverted_ports, src_ip, sport, dst_ip, dport):
@@ -365,14 +366,14 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.write_pcap(hdr.pack())
 
             else:
-                # Delete stale entries in the port forwarding table if the
-                # foreign endpoint appears to be reusing a port that was
-                # formerly used to connect to an unbound port. This prevents
-                # the OUTPUT or other packet hook from faithfully overwriting
-                # the source port to conform to the foreign endpoint's stale
-                # connection port when the foreign host is reusing the port
-                # number to connect to an already-bound port on the FakeNet
-                # system.
+                # Delete any stale entries in the port forwarding table: If the
+                # foreign endpoint appears to be reusing a client port that was
+                # formerly used to connect to an unbound port on this server,
+                # remove the entry. This prevents the OUTPUT or other packet
+                # hook from faithfully overwriting the source port to conform
+                # to the foreign endpoint's stale connection port when the
+                # foreign host is reusing the port number to connect to an
+                # already-bound port on the FakeNet system.
 
                 self.port_fwd_table_lock.acquire()
                 try:

@@ -2,11 +2,12 @@ import time
 import dpkt
 import socket
 import logging
+import fnconfig
 import threading
 from collections import namedtuple
 from collections import OrderedDict
 
-class DiverterBase():
+class DiverterBase(fnconfig.Config):
     def init_base(self, diverter_config, listeners_config, ip_addrs,
                   logging_level = logging.INFO):
         self.ip_addrs = ip_addrs
@@ -18,7 +19,7 @@ class DiverterBase():
         self.logger = logging.getLogger('Diverter')
         self.logger.setLevel(logging_level)
 
-        self.diverter_config = diverter_config
+        self.configure(diverter_config)
         self.listeners_config = listeners_config
 
         # Local IP address
@@ -192,59 +193,59 @@ class DiverterBase():
 
     def parse_diverter_config(self):
 
-        if self.diverter_config.get('dumppackets') and self.diverter_config['dumppackets'].lower() == 'yes':
-            pcap_filename = '%s_%s.pcap' % (self.diverter_config.get('dumppacketsfileprefix', 'packets'), time.strftime('%Y%m%d_%H%M%S'))
+        if self.is_set('dumppackets'):
+            pcap_filename = '%s_%s.pcap' % (self.getconfigval('dumppacketsfileprefix', 'packets'), time.strftime('%Y%m%d_%H%M%S'))
             self.logger.info('Capturing traffic to %s', pcap_filename)
             self.pcap = dpkt.pcap.Writer(open(pcap_filename, 'wb'), linktype=dpkt.pcap.DLT_RAW)
             self.pcap_lock = threading.Lock()
 
         # Do not redirect blacklisted processes
-        if self.diverter_config.get('processblacklist') != None:
-            self.blacklist_processes = [process.strip() for process in self.diverter_config.get('processblacklist').split(',')]
+        if self.is_configured('processblacklist'):
+            self.blacklist_processes = [process.strip() for process in self.getconfigval('processblacklist').split(',')]
             self.logger.debug('Blacklisted processes: %s', ', '.join([str(p) for p in self.blacklist_processes]))
 
         # Do not redirect blacklisted hosts
-        if self.diverter_config.get('hostblacklist') != None:
-            self.blacklist_hosts = [host.strip() for host in self.diverter_config.get('hostblacklist').split(',')]
+        if self.is_configured('hostblacklist'):
+            self.blacklist_hosts = [host.strip() for host in self.getconfigval('hostblacklist').split(',')]
             self.logger.debug('Blacklisted hosts: %s', ', '.join([str(p) for p in self.blacklist_hosts]))
 
         # Redirect all traffic
         self.default_listener = dict()
-        if self.diverter_config.get('redirectalltraffic') and self.diverter_config['redirectalltraffic'].lower() == 'yes':
+        if self.is_set('redirectalltraffic'):
             # TODO: Refactor WinDivert cruft
             self.filter = "outbound and ip and (icmp or tcp or udp)"
 
-            if self.diverter_config.get('defaulttcplistener') == None:
+            if self.is_unconfigured('defaulttcplistener'):
                 self.logger.error('ERROR: No default TCP listener specified in the configuration.')
                 sys.exit(1)
 
-            elif self.diverter_config.get('defaultudplistener') == None:
+            elif self.is_unconfigured('defaultudplistener'):
                 self.logger.error('ERROR: No default UDP listener specified in the configuration.')
                 sys.exit(1)
 
-            elif not self.diverter_config.get('defaulttcplistener') in self.listeners_config:
-                self.logger.error('ERROR: No configuration exists for default TCP listener %s', self.diverter_config.get('defaulttcplistener'))
+            elif not self.getconfigval('defaulttcplistener') in self.listeners_config:
+                self.logger.error('ERROR: No configuration exists for default TCP listener %s', self.getconfigval('defaulttcplistener'))
                 sys.exit(1)
 
-            elif not self.diverter_config.get('defaultudplistener') in self.listeners_config:
-                self.logger.error('ERROR: No configuration exists for default UDP listener %s', self.diverter_config.get('defaultudplistener'))
+            elif not self.getconfigval('defaultudplistener') in self.listeners_config:
+                self.logger.error('ERROR: No configuration exists for default UDP listener %s', self.getconfigval('defaultudplistener'))
                 sys.exit(1)
 
             else:
-                self.default_listener['TCP'] = int( self.listeners_config[ self.diverter_config['defaulttcplistener'] ]['port'] )
-                self.logger.error('Using default listener %s on port %d', self.diverter_config['defaulttcplistener'], self.default_listener['TCP'])
+                self.default_listener['TCP'] = int( self.listeners_config[ self.getconfigval('defaulttcplistener') ]['port'] )
+                self.logger.error('Using default listener %s on port %d', self.getconfigval('defaulttcplistener'), self.default_listener['TCP'])
 
-                self.default_listener['UDP'] = int( self.listeners_config[ self.diverter_config['defaultudplistener'] ]['port'] )
-                self.logger.error('Using default listener %s on port %d', self.diverter_config['defaultudplistener'], self.default_listener['UDP'])
+                self.default_listener['UDP'] = int( self.listeners_config[ self.getconfigval('defaultudplistener') ]['port'] )
+                self.logger.error('Using default listener %s on port %d', self.getconfigval('defaultudplistener'), self.default_listener['UDP'])
 
             # Do not redirect blacklisted TCP ports
-            if self.diverter_config.get('blacklistportstcp') != None:
-                self.blacklist_ports['TCP'] = [int(port.strip()) for port in self.diverter_config.get('blacklistportstcp').split(',')]
+            if self.is_configured('blacklistportstcp'):
+                self.blacklist_ports['TCP'] = [int(port.strip()) for port in self.getconfigval('blacklistportstcp').split(',')]
                 self.logger.debug('Blacklisted TCP ports: %s', ', '.join([str(p) for p in self.blacklist_ports['TCP']]))
 
             # Do not redirect blacklisted UDP ports
-            if self.diverter_config.get('blacklistportsudp') != None:
-                self.blacklist_ports['UDP'] = [int(port.strip()) for port in self.diverter_config.get('blacklistportsudp').split(',')]
+            if self.is_configured('blacklistportsudp'):
+                self.blacklist_ports['UDP'] = [int(port.strip()) for port in self.getconfigval('blacklistportsudp').split(',')]
                 self.logger.debug('Blacklisted UDP ports: %s', ', '.join([str(p) for p in self.blacklist_ports['UDP']]))
 
         # Redirect only specific traffic, build the filter dynamically
