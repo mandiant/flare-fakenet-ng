@@ -408,12 +408,12 @@ class Diverter(DiverterBase, LinUtilMixin):
             return False
 
         if proto_name == 'TCP':
-            if dport in self.getconfigval('BlackListPortsTCP'):
-                self.logger.info('Not forwarding packet destined for tcp/%d' % (dport))
+            if dport in self.getconfigval('blacklistportstcp'):
+                self.logger.debug('Not forwarding packet destined for tcp/%d' % (dport))
                 return False
         elif proto_name == 'UDP':
-            if dport in self.getconfigval('BlackListPortsUDP'):
-                self.logger.info('Not forwarding packet destined for udp/%d' % (dport))
+            if dport in self.getconfigval('blacklistportsudp'):
+                self.logger.debug('Not forwarding packet destined for udp/%d' % (dport))
                 return False
 
         is_dummy_svc_port = (dport == default_port)

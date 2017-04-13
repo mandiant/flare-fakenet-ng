@@ -20,7 +20,8 @@ class DiverterBase(fnconfig.Config):
         self.logger.setLevel(logging_level)
 
         portlists = ['BlackListPortsTCP','BlackListPortsUDP']
-        self.configure(diverter_config, portlists)
+        stringlists = ['HostBlackList',]
+        self.configure(diverter_config, portlists, stringlists)
         self.listeners_config = listeners_config
 
         # Local IP address
@@ -207,8 +208,7 @@ class DiverterBase(fnconfig.Config):
 
         # Do not redirect blacklisted hosts
         if self.is_configured('hostblacklist'):
-            self.blacklist_hosts = [host.strip() for host in self.getconfigval('hostblacklist').split(',')]
-            self.logger.debug('Blacklisted hosts: %s', ', '.join([str(p) for p in self.blacklist_hosts]))
+            self.logger.debug('Blacklisted hosts: %s', ', '.join([str(p) for p in self.getconfigval('hostblacklist')]))
 
         # Redirect all traffic
         self.default_listener = dict()
@@ -238,6 +238,14 @@ class DiverterBase(fnconfig.Config):
 
                 self.default_listener['UDP'] = int( self.listeners_config[ self.getconfigval('defaultudplistener') ]['port'] )
                 self.logger.error('Using default listener %s on port %d', self.getconfigval('defaultudplistener'), self.default_listener['UDP'])
+
+            # Do not redirect blacklisted TCP ports
+            if self.is_configured('blacklistportstcp'):
+                self.logger.debug('Blacklisted TCP ports: %s', ', '.join([str(p) for p in self.getconfigval('BlackListPortsTCP')]))
+
+            # Do not redirect blacklisted UDP ports
+            if self.is_configured('blacklistportsudp'):
+                self.logger.debug('Blacklisted UDP ports: %s', ', '.join([str(p) for p in self.getconfigval('BlackListPortsUDP')]))
 
         # Redirect only specific traffic, build the filter dynamically
         else:

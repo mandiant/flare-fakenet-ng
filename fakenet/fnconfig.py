@@ -1,9 +1,17 @@
 class Config:
+    """Configuration primitives.
+
+    Inherit from or instantiate this class and call configure() when you've got
+    a dictionary of configuration values you want to process and query.
+
+    Would be nice to have _expand_cidrlist() so blacklists can specify ranges.
+    """
+
     def __init__(self, config_dict=None, portlists=[]):
         if config_dict is not None:
             self.configure(config_dict, portlists)
 
-    def configure(self, config_dict, portlists=[]):
+    def configure(self, config_dict, portlists=[], stringlists=[]):
         """Parse configuration.
 
         Does two things:
@@ -16,6 +24,12 @@ class Config:
             portlist = self.getconfigval(entry)
             if portlist:
                 expanded = self._expand_ports(portlist)
+                self.setconfigval(entry, expanded)
+
+        for entry in stringlists:
+            stringlist = self.getconfigval(entry)
+            if stringlist:
+                expanded = [s.strip() for s in stringlist.split(',')]
                 self.setconfigval(entry, expanded)
 
     def _expand_ports(self, ports_list):
