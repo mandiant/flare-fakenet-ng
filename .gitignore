@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# pcap files (FakeNet-NG may generate these)
+*.pcap
+
 # C extensions
 *.so
 
