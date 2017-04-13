@@ -14,9 +14,10 @@ class Config:
     def configure(self, config_dict, portlists=[], stringlists=[]):
         """Parse configuration.
 
-        Does two things:
+        Does three things:
             1.) Turn dictionary keys to lowercase
-            2.) Expand port range specifications
+            2.) Turn string lists into arrays for quicker access
+            3.) Expand port range specifications
         """
         self._dict = dict( (k.lower(), v) for k, v in config_dict.iteritems())
 
