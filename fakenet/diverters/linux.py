@@ -118,7 +118,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.linux_remove_iptables_rules(self.rules_added)
 
         for q in self._queues:
-            self.logger.debug('Stopping NFQUEUE for ' % (str(q)))
+            self.logger.debug('Stopping NFQUEUE for %s' % (str(q)))
             q.stop()
 
         if self.pcap:
