@@ -33,6 +33,18 @@ class Config:
                 expanded = [s.strip() for s in stringlist.split(',')]
                 self.setconfigval(entry, expanded)
 
+    def reconfigure(self, portlists=[], stringlists=[]):
+        """Same as configure(), but allows multiple callers to sequentially
+        apply parsing directives for port and string lists.
+
+        For instance, if a base class calls configure() specifying one set of
+        port lists and string lists, but a derived class knows about further
+        configuration items that will need to be accessed samewise, this
+        function can be used to leave the existing parsed data alone and only
+        re-parse the new port or string lists into arrays.
+        """
+        self.configure(self._dict, portlists, stringlists)
+
     def _expand_ports(self, ports_list):
         ports = []
         for i in ports_list.split(','):
@@ -44,10 +56,10 @@ class Config:
         return ports
 
     def _fuzzy_true(self, value):
-        return value.lower() in ['on', 'true', 'yes']
+        return value.lower() in ['yes', 'on', 'true', 'enable', 'enabled']
 
     def _fuzzy_false(self, value):
-        return not self._fuzzy_true(value)
+        return value.lower() in ['no', 'off', 'false', 'disable', 'disabled']
 
     def is_configured(self, opt):
         return opt.lower() in self._dict.keys()

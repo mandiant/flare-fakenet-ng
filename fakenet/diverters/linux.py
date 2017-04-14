@@ -1,3 +1,4 @@
+import sys
 import dpkt
 import time
 import socket
@@ -13,78 +14,6 @@ from netfilterqueue import NetfilterQueue
 
 b2 = lambda x: '1' if x else '0'
 
-class LinuxDiverterNetfilterQueue:
-    """NetfilterQueue object wrapper.
-    
-    Uses the has-a relationship rather than sub-classing because it
-    encapsulates a thread and other fields, and does not modify any methods of
-    the NetfilterQueue object.
-    """
-
-    def __init__(self, qno, chain, table, callback):
-        self.qno = qno
-        self.chain = chain
-        self.table = table
-        self._callback = callback
-        self._nfqueue = NetfilterQueue()
-        self._sk = None
-        self._stopflag = False
-        self._thread = None
-
-    def _gen_cmd(self, ins_or_del):
-        return 'iptables -t %s ' + ins_or_del + ' %s -j NFQUEUE --queue-num %d'
-
-    def gen_add_cmd(self):
-        return (self._gen_cmd('-I') % (self.chain, self.table, self.qno))
-
-    def gen_del_cmd(self):
-        return (self._gen_cmd('-D') % (self.chain, self.table, self.qno))
-
-    def start(self, timeout_sec=0.5):
-        """
-        Binds to the netfilter queue number specified in the ctor, obtains the
-        nfq socket, sets a timeout of <timeout_sec>, and starts the thread
-        procedure which checks _stopflag every <timeout_sec> seconds.
-        """
-        # Bind the specified callback to the specified queue
-        self._nfqueue.bind(self.qno, self._callback)
-
-        # Facilitate _stopflag monitoring and thread joining
-        self._sk = socket.fromfd(self._nfqueue.get_fd(), socket.AF_UNIX, socket.SOCK_STREAM)
-        self._sk.settimeout(timeout_sec)
-
-        self._thread = threading.Thread(target=self._threadproc)
-        # self._thread.daemon = True
-        self._stopflag = False
-        self._thread.start()
-
-    def _threadproc(self):
-        while not self._stopflag:
-            try:
-                self._nfqueue.run_socket(self._sk)
-            except socket.timeout:
-                # Ignore timeouts generated every N seconds due to the prior
-                # call to settimeout(), and move on to evaluating the current
-                # state of _stopflag.
-                pass
-
-    def stop_nonblocking(self):
-        """Call this on each LinuxDiverterNetfilterQueue object in turn to stop
-        them all as close as possible to the same time (likely within 1 sec of
-        each other due to the socket timeout).
-        
-        Perfect synchrony is a non-goal because even though it can be achieved,
-        halting the Diverter will still disrupt existing connections
-        (redirected and otherwise). Hence, it is up to the user to halt
-        FakeNet-NG after any critical network operations have concluded.
-        """
-        self._stopflag = True
-
-    def stop(self):
-        self.stop_nonblocking()
-        self._thread.join()
-        self._nfqueue.unbind()
-
 class Diverter(DiverterBase, LinUtilMixin):
     def __init__(self, diverter_config, listeners_config, ip_addrs,
                  logging_level = logging.INFO):
@@ -93,6 +22,12 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.init_diverter_linux()
 
     def init_diverter_linux(self):
+        """Linux-specific Diverter initialization."""
+        # The Linux-specific Diverter accepts a string list configuration item
+        # that is specific to the Linux Diverter which will not be parsed by
+        # DiverterBase and needs to be accessed as an array in the future.
+        self.reconfigure(portlists=[], stringlists=['linuxredirectnonlocal'])
+
         self.parse_pkt = dict()
         self.parse_pkt[4] = self.parse_ipv4
         self.parse_pkt[6] = self.parse_ipv6
@@ -103,142 +38,91 @@ class Diverter(DiverterBase, LinUtilMixin):
             dpkt.ip.IP_PROTO_UDP: 'UDP',
         }
 
+        # Track iptables rules not associated with any nfqueue object.
+        self.rules_added = []
+
+        # Manage (non-)logging already-seen nonlocal destination IPs in
+        # incoming packets.
         self.nonlocal_ips = []
         self.log_nonlocal_once = True
 
-        # Quick lookup of what unbound service ports have been redirected. This
-        # is only used by the iptables-based implementation to determine
-        # whether to create a new iptables rule.
-        self.redirected = dict()
-
         # Port forwarding table, for looking up original unbound service ports
-        # when sending replies to endpoints that have attempted to communicate
-        # with unbound ports. Allows fixing up source ports in response
-        # packets.
-
+        # when sending replies to foreign endpoints that have attempted to
+        # communicate with unbound ports. Allows fixing up source ports in
+        # response packets.
         self.port_fwd_table = dict()
         self.port_fwd_table_lock = threading.Lock()
-
-    def get_current_nfnlq_bindings(self, procfs_path):
-        """Determine what NFQUEUE queue numbers (if any) are already bound by
-        existing libnfqueue client processes.
-        
-        Although iptables rules may exist specifying other queues in addition
-        to these, the netfilter team does not support using libiptc (such as
-        via python-iptables) to detect that condition, so code that does so may
-        break in the future. Shelling out to iptables and parsing its output
-        for NFQUEUE numbers is not an attractive option. The practice of
-        checking the currently bound NetFilter netlink queue bindings seems
-        like an adequate compromise. If an iptables rule specifies an NFQUEUE
-        number that is not yet bound by any process in the system, that is a
-        race condition that can be left up to the user to manage. We can add
-        FakeNet arguments to be passed to the Diverter for handling this, if it
-        becomes strictly necessary to provide that feature.
-        """
-
-        queues = list()
-        with open(procfs_path, 'r') as f:
-            lines = f.read().split('\n')
-            for line in lines:
-                line = line.strip()
-                if line:
-                    try:
-                        queue_nr = int(line.split()[0], 10)
-                        self.logger.debug('Found NFQUEUE #' + str(queue_nr) +
-                                          ' per ' + procfs_path)
-                        queues.append(queue_nr)
-                    except:
-                        pass
-
-        return queues
-
-    def get_next_queuenos(self, existing_queues, n):
-        # Queue numbers are of type u_int16_t hence 0xffff being the maximum
-        # possible queue number.
-        next2 = list()
-        for qno in xrange(1 + 0xffff):
-            if qno not in existing_queues:
-                next2.append(qno)
-                if len(next2) == n:
-                    break
-
-        return next2
 
     def start(self):
         self.logger.info('Starting...')
 
-        hookspec = namedtuple('hookspec', ['table', 'chain', 'callback'])
+        hookspec = namedtuple('hookspec', ['chain', 'table', 'callback'])
 
         callbacks = list()
 
-        # May add conditional logic to apply hooks based on configuration
-        callbacks.append(hookspec('PREROUTING', 'raw', self.handle_pkt_nonlocal))
-        callbacks.append(hookspec('INPUT', 'mangle', self.handle_pkt_incoming))
-        callbacks.append(hookspec('OUTPUT', 'mangle', self.handle_pkt_outgoing))
+        # May add conditional logic later to apply hooks based on configuration
+        callbacks.append(hookspec('PREROUTING', 'raw', self.handle_nonlocal))
+        callbacks.append(hookspec('INPUT', 'mangle', self.handle_incoming))
+        callbacks.append(hookspec('OUTPUT', 'mangle', self.handle_outgoing))
 
         nhooks = len(callbacks)
 
-        # Auto-sense the next N available NFQUEUE numbers and install hooks
-        existing_queues = self.get_current_nfnlq_bindings('/proc/net/netfilter/nfnetlink_queue')
-        qnos = self.get_next_queuenos(existing_queues, nhooks)
+        # Discover the next N available NFQUEUE numbers and install hooks
+        qnos = self.linux_get_next_nfqueue_numbers(nhooks)
         if len(qnos) != nhooks:
-            raise SystemError('Could not procure a sufficient number of ' +
+            self.logger.error('Could not procure a sufficient number of ' +
                             'netfilter queue numbers')
+            sys.exit(1)
 
         self.logger.debug('Next available NFQUEUE numbers: ' + str(qnos))
 
+        # Create a list of queues based on the hook specifications and
+        # netfilter queue numbers from above, and start each queue.
         self._queues = list()
-        for qno, hook in zip(qnos, callbacks):
-            ldnq = LinuxDiverterNetfilterQueue(qno, hook.chain, hook.table,
-                                               hook.callback)
-            self._queues.append(ldnq)
-
-            # Remove rule if exists
-            cmd = ldnq.gen_del_cmd()
-            self.logger.debug(cmd)
-            subprocess.call(cmd.split())
-
-            # Add rule
-            cmd = ldnq.gen_add_cmd()
-            self.logger.debug(cmd)
-            ret = subprocess.call(cmd.split())
-
-            if ret != 0:
-                raise SystemError('Failed to create %s/%s rule @ NFQUEUE #%d' %
-                                  (hook.chain, hook.table, qno))
-
-        # Only start queues one all iptables rules have been successfully
-        # created
-        for queue in self._queues:
-            queue.start()
+        for qno, hk in zip(qnos, callbacks):
+            q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback)
+            self._queues.append(q)
+            ok = q.start()
+            if not ok:
+                self.logger.error('Failed to start NFQUEUE for %s' % (str(q)))
+                self.stop()
+                sys.exit(1)
 
         # TODO: Duplicate windows.Diverter code for
         #   * # Set local DNS server IP address (if modifylocaldns)
         #   * # Stop DNS service (if stopdnsservice)
         #   * self.flush_dns() # ipconfig /flushdns
 
+        if self.is_configured('linuxredirectnonlocal'):
+            specified_ifaces = self.getconfigval('linuxredirectnonlocal')
+            ok, rules = self.linux_redir_nonlocal(specified_ifaces)
+
+            # Irrespective of whether this failed, we want to add any
+            # successful iptables rules to the list so that stop() will be able
+            # to remove them using linux_remove_iptables_rules().
+            self.rules_added += rules
+
+            if not ok:
+                self.stop()
+                sys.exit(1)
+
     def stop(self):
         self.logger.info('Stopping...')
 
-        # Indicate that we are stopping and allow LinuxDiverterNetfilterQueue
-        # threads to conclude their socket wait states.
-        for queue in self._queues:
-            cmd = queue.gen_del_cmd()
-            self.logger.debug(cmd)
-            ret = subprocess.call(cmd.split())
-            if ret != 0:
-                self.logger.error('Failed to remove %s/%s rule @ NFQUEUE #%d' %
-                                  (queue.table, queue.chain, queue.qno))
-            queue.stop_nonblocking()
+        self.logger.debug('Notifying netfilter queue objects of imminent ' +
+            'stop')
+        for q in self._queues:
+            q.stop_nonblocking()
 
-        # Wait until all queues actually stop
-        for queue in self._queues:
-            self.logger.debug('Stopping %s/%s hook at NFQUEUE #%d' %
-                             (queue.chain, queue.table, queue.qno))
-            queue.stop()
+        self.logger.debug('Removing iptables rules')
+        self.linux_remove_iptables_rules(self.rules_added)
+
+        for q in self._queues:
+            self.logger.debug('Stopping NFQUEUE for ' % (str(q)))
+            q.stop()
 
         if self.pcap:
-            self.pcap.close()
+            self.pcap.close()  # Only after all queues are stopped
 
         self.logger.info('Stopped')
 
@@ -258,10 +142,10 @@ class Diverter(DiverterBase, LinUtilMixin):
         return hdr, hdr.nxt
 
     def gen_endpoint_key(self, proto_name, ip, port):
-        """e.g. 192.168.19.132:3030/tcp"""
+        """e.g. 192.168.19.132:tcp/3030"""
         return str(ip) + ':' + str(proto_name) + '/' + str(port)
 
-    def handle_pkt_nonlocal(self, pkt):
+    def handle_nonlocal(self, pkt):
         """Handle comms sent to IP addresses that are not bound to any adapter.
 
         This allows analysts to observe when malware is communicating with
@@ -289,8 +173,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         pkt.accept()
 
-    def handle_pkt_outgoing(self, pkt):
-        self.logger.debug('handle_pkt_outgoing...')
+    def handle_outgoing(self, pkt):
+        self.logger.debug('handle_outgoing...')
         raw = pkt.get_payload()
         ipver = ((ord(raw[0]) & 0xf0) >> 4)
         hdr, proto = self.parse_pkt[ipver](ipver, raw)
@@ -325,7 +209,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         pkt.accept()
 
-    def handle_pkt_incoming(self, pkt):
+    def handle_incoming(self, pkt):
         """Incoming packet hook.
         
         This serves more than one purpose, so it can't be eliminated when users
@@ -337,7 +221,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             3.) Write mangled packets to pcap, too
         """
 
-        self.logger.debug('handle_pkt_incoming...')
+        self.logger.debug('handle_incoming...')
 
         raw = pkt.get_payload()
         ipver = ((ord(raw[0]) & 0xf0) >> 4)
@@ -425,8 +309,8 @@ class Diverter(DiverterBase, LinUtilMixin):
         a = src_ip_is_local = (src_ip in self.ip_addrs[ipver])
         b = dst_ip_is_local = (dst_ip in self.ip_addrs[ipver])
 
-        c = src_port_is_bound = sport in (bound_ports + self.redirected.keys())
-        d = dst_port_is_bound = dport in (bound_ports + self.redirected.keys())
+        c = src_port_is_bound = sport in (bound_ports)
+        d = dst_port_is_bound = dport in (bound_ports)
 
         self.logger.debug('srcip: ' + str(src_ip) + (' (local)' if a else ' (foreign)'))
         self.logger.debug('dstip: ' + str(dst_ip) + (' (local)' if b else ' (foreign)'))
