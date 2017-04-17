@@ -21,6 +21,9 @@ class Diverter(DiverterBase, LinUtilMixin):
                        logging_level)
         self.init_diverter_linux()
 
+        self.logger.setLevel(logging.DEBUG)
+        self.localmode = True
+
     def init_diverter_linux(self):
         """Linux-specific Diverter initialization."""
         # The Linux-specific Diverter accepts a string list configuration item
@@ -36,6 +39,8 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.handled_protocols = {
             dpkt.ip.IP_PROTO_TCP: 'TCP',
             dpkt.ip.IP_PROTO_UDP: 'UDP',
+            # TODO: Incorporate ICMP so that it appears in pcap and logging
+            # dpkt.ip.IP_PROTO_ICMP: 'ICMP',
         }
 
         # Track iptables rules not associated with any nfqueue object.
@@ -52,6 +57,12 @@ class Diverter(DiverterBase, LinUtilMixin):
         # response packets.
         self.port_fwd_table = dict()
         self.port_fwd_table_lock = threading.Lock()
+
+        # IP forwarding table, for looking up original foreign destination IPs
+        # when sending replies to local endpoints that have attempted to
+        # communicate with other machines e.g. via hard-coded C2 IP addresses.
+        self.ip_fwd_table = dict()
+        self.ip_fwd_table_lock = threading.Lock()
 
     def start(self):
         self.logger.info('Starting...')
@@ -179,33 +190,90 @@ class Diverter(DiverterBase, LinUtilMixin):
         ipver = ((ord(raw[0]) & 0xf0) >> 4)
         hdr, proto = self.parse_pkt[ipver](ipver, raw)
 
+        # Write original, unmangled packet regardless of protocol
+        self.write_pcap(hdr.pack())
+
         proto_name = self.handled_protocols.get(proto)
 
         if proto_name:
+            src_ip = socket.inet_ntoa(hdr.src)
+            sport = hdr.data.sport
+
             dst_ip = socket.inet_ntoa(hdr.dst)
             dport = hdr.data.dport
-            endpoint_key = self.gen_endpoint_key(proto_name, dst_ip, dport)
 
-            # If the remote endpoint (IP/port/proto) combo corresponds to an
-            # endpoint that initiated a conversation with an unbound port in
-            # the past, then fix up the source port for this outgoing packet
-            # with the last destination port that was requested by that
-            # endpoint. The term "endpoint" is (ab)used loosely here to apply
-            # to UDP host/port/proto combos and any other protocol that may be
-            # supported in the future.
+            # Port forwarding key based on destination
+            pkey = self.gen_endpoint_key(proto_name, dst_ip, dport)
+
+            # IP forwarding key based on source
+            ikey = self.gen_endpoint_key(proto_name, src_ip, sport)
+
+            self.logger.debug('Outgoing %s %s:%s->%s:%s' % (proto_name, src_ip, sport, dst_ip, dport))
+
+            self.logger.debug('Condition 3 test')
+            # Condition 3: If the remote endpoint (IP/port/proto) combo
+            # corresponds to an endpoint that initiated a conversation with an
+            # unbound port in the past, then fix up the source port for this
+            # outgoing packet with the last destination port that was requested
+            # by that endpoint. The term "endpoint" is (ab)used loosely here to
+            # apply to UDP host/port/proto combos and any other protocol that
+            # may be supported in the future.
             self.port_fwd_table_lock.acquire()
             try:
-                if endpoint_key in self.port_fwd_table:
-                    self.logger.debug(' = FOUND endpoint key entry: ' + endpoint_key)
-                    new_sport = self.port_fwd_table[endpoint_key]
-                    hdr = self.mangle_srcport(hdr, proto_name, hdr.data.sport, new_sport)
+                if pkey in self.port_fwd_table:
+                    self.logger.debug('Condition 3 satisfied')
+                    self.logger.debug(' = FOUND portfwd key entry: ' + pkey)
+                    new_sport = self.port_fwd_table[pkey]
+                    hdr = self.mangle_srcport(pkt, hdr, proto_name, hdr.data.sport, new_sport)
                     pkt.set_payload(hdr.pack())
                 else:
-                    self.logger.debug(' ! NO SUCH endpoint key entry: ' + endpoint_key)
+                    self.logger.debug(' ! NO SUCH portfwd key entry: ' + pkey)
             finally:
                 self.port_fwd_table_lock.release()
 
-        self.write_pcap(hdr.pack())
+            self.logger.debug('Condition 1 test')
+            # Condition 1: If the remote IP address is foreign to this system,
+            # then redirect it to a local IP address.
+            if self.localmode and (dst_ip not in self.ip_addrs[ipver]):
+                self.logger.debug('Condition 1 satisfied')
+                self.ip_fwd_table_lock.acquire()
+                try:
+                    self.ip_fwd_table[ikey] = dst_ip
+
+                finally:
+                    self.ip_fwd_table_lock.release()
+
+                # TODO: Try 127.0.0.1, but may need this to be 192.168.x.x
+                newdst = '127.0.0.1'
+                hdr_modified = self.mangle_dstip(pkt, hdr, proto_name, dst_ip, newdst)
+
+                if hdr_modified:
+                    hdr = hdr_modified
+                    pkt.set_payload(hdr.pack())
+
+                # Double write for SSL decoding purposes
+                self.write_pcap(hdr.pack())
+
+            else:
+                # Delete any stale entries in the IP forwarding table: If the
+                # local endpoint appears to be reusing a client port that was
+                # formerly used to connect to a foreign host (but not anymore),
+                # then remove the entry. This prevents a packet hook from
+                # faithfully overwriting the source IP on a later packet to
+                # conform to the foreign endpoint's stale connection IP when
+                # the host is reusing the port number to connect to an IP
+                # address that is local to the FakeNet system.
+
+                self.ip_fwd_table_lock.acquire()
+                try:
+                    if ikey in self.ip_fwd_table:
+                        self.logger.debug(' - DELETING ipfwd key entry: ' + ikey)
+                        del self.ip_fwd_table[ikey]
+                finally:
+                    self.ip_fwd_table_lock.release()
+
+        else:
+            self.logger.debug('Not handling protocol ' + str(proto))
 
         pkt.accept()
 
@@ -237,25 +305,70 @@ class Diverter(DiverterBase, LinUtilMixin):
         if proto_name:
             default = self.default_listener[proto_name]
             diverted_ports = self.diverted_ports.get(proto_name, [])
+
             src_ip = socket.inet_ntoa(hdr.src)
             sport = hdr.data.sport
+
             dst_ip = socket.inet_ntoa(hdr.dst)
             dport = hdr.data.dport
 
-            endpoint_key = self.gen_endpoint_key(proto_name, src_ip, sport)
+            # Port forwarding key based on source
+            pkey = self.gen_endpoint_key(proto_name, src_ip, sport)
 
-            if self.decide_redir(ipver, proto_name, default, diverted_ports, src_ip, sport, dst_ip, dport):
+            # IP forwarding key based on destination
+            ikey = self.gen_endpoint_key(proto_name, dst_ip, dport)
+
+            self.logger.debug('Incoming %s %s:%s->%s:%s' % (proto_name, src_ip, sport, dst_ip, dport))
+
+            self.logger.debug('Condition 4 test')
+            # Condition 4: If the local endpoint (IP/port/proto) combo
+            # corresponds to an endpoint that initiated a conversation with a
+            # foreign endpoint in the past, then fix up the source IP for this
+            # incoming packet with the last destination IP that was requested
+            # by the endpoint.
+            self.ip_fwd_table_lock.acquire()
+            try:
+                if self.localmode and (ikey in self.ip_fwd_table):
+                    self.logger.debug('Condition 4 satisfied')
+                    self.logger.debug(' = FOUND ipfwd key entry: ' + ikey)
+                    new_sip = self.ip_fwd_table[ikey]
+                    hdr = self.mangle_srcip(pkt, hdr, proto_name, hdr.src, new_sip)
+                    pkt.set_payload(hdr.pack())
+                else:
+                    self.logger.debug(' ! NO SUCH ipfwd key entry: ' + ikey)
+            finally:
+                self.ip_fwd_table_lock.release()
+
+            self.logger.debug('Condition 2 test')
+
+            # Pre-condition: destination not present in port forwarding table
+            # (prevent masqueraded ports responding to unbound ports from being
+            # mistaken as starting a conversation with an unbound port)
+            self.port_fwd_table_lock.acquire()
+            found = False
+            try:
+                # Uses ikey (really destination endpoint key)
+                found = ikey in self.port_fwd_table
+            finally:
+                self.port_fwd_table_lock.release()
+
+            # Condition 2: If the packet is destined for an unbound port, then
+            # redirect it to a bound port and save the old destination IP in
+            # the port forwarding table keyed by the source endpoint identity.
+
+            if (not found) and self.decide_redir_port(ipver, proto_name, default, diverted_ports, src_ip, sport, dst_ip, dport):
+            # if self.decide_redir_port(ipver, proto_name, default, diverted_ports, src_ip, sport, dst_ip, dport):
+                self.logger.debug('Condition 2 satisfied')
                 # Record the foreign endpoint and old destination port in the
                 # port forwarding table
-                self.logger.debug(' + ADDING endpoint key entry: ' + endpoint_key)
+                self.logger.debug(' + ADDING portfwd key entry: ' + pkey)
                 self.port_fwd_table_lock.acquire()
                 try:
-                    self.port_fwd_table[endpoint_key] = dport
+                    self.port_fwd_table[pkey] = dport
                 finally:
                     self.port_fwd_table_lock.release()
 
-                # Perform the redirection
-                hdr_modified = self.redir(pkt, hdr, proto_name, dport, default)
+                hdr_modified = self.mangle_dstport(pkt, hdr, proto_name, dport, default)
 
                 if hdr_modified:
                     hdr = hdr_modified
@@ -276,9 +389,9 @@ class Diverter(DiverterBase, LinUtilMixin):
 
                 self.port_fwd_table_lock.acquire()
                 try:
-                    if endpoint_key in self.port_fwd_table:
-                        self.logger.debug(' - DELETING endpoint key entry: ' + endpoint_key)
-                        del self.port_fwd_table[endpoint_key]
+                    if pkey in self.port_fwd_table:
+                        self.logger.debug(' - DELETING portfwd key entry: ' + pkey)
+                        del self.port_fwd_table[pkey]
                 finally:
                     self.port_fwd_table_lock.release()
 
@@ -287,7 +400,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         pkt.accept()
 
-    def decide_redir(self, ipver, proto_name, default_port, bound_ports, src_ip, sport, dst_ip, dport):
+    def decide_redir_port(self, ipver, proto_name, default_port, bound_ports, src_ip, sport, dst_ip, dport):
         if not self.is_set('redirectalltraffic'):
             return False
 
@@ -299,8 +412,6 @@ class Diverter(DiverterBase, LinUtilMixin):
             if dport in self.getconfigval('blacklistportsudp'):
                 self.logger.debug('Not forwarding packet destined for udp/%d' % (dport))
                 return False
-
-        is_dummy_svc_port = (dport == default_port)
 
         # A, B, C, and D are for easy calculation of sum-of-products logical result
         # Full names are present for readability
@@ -328,19 +439,39 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return result
 
-    def redir(self, pkt, hdr, proto_name, dstport, newdstport):
-        self.logger.debug('REDIRECTING')
-        hdr = self.mangle_dstport(hdr, proto_name, dstport, newdstport)
+    def mangle_dstip(self, pkt, hdr, proto_name, dstip, newdstip):
+        """Mangle destination IP for selected outgoing packets."""
+        self.logger.debug('REDIRECTING %s %s:%d->%s:%d to IP %s' %
+                (proto_name, socket.inet_ntoa(hdr.src), hdr.data.sport,
+                 socket.inet_ntoa(hdr.dst), hdr.data.dport, newdstip))
+
+        hdr.dst = socket.inet_aton(newdstip)
+        self._calc_csums(hdr)
         return hdr
 
-    def mangle_dstport(self, hdr, proto_name, dstport, newdstport):
+    def mangle_srcip(self, pkt, hdr, proto_name, src_ip, new_srcip):
+        """Mangle source IP for selected incoming packets."""
+        self.logger.debug('MASQUERADING %s %s:%d->%s:%d from IP %s' %
+                (proto_name, socket.inet_ntoa(hdr.src), hdr.data.sport,
+                 socket.inet_ntoa(hdr.dst), hdr.data.dport, new_srcip))
+        hdr.src = socket.inet_aton(new_srcip)
+        self._calc_csums(hdr)
+        return hdr
+
+    def mangle_dstport(self, pkt, hdr, proto_name, dstport, newdstport):
         """Mangle destination port for selected incoming packets."""
+        self.logger.debug('REDIRECTING %s %s:%d->%s:%d to port %d' %
+            (proto_name, socket.inet_ntoa(hdr.src), hdr.data.sport,
+            socket.inet_ntoa(hdr.dst), hdr.data.dport, newdstport))
         hdr.data.dport = newdstport
         self._calc_csums(hdr)
         return hdr
 
-    def mangle_srcport(self, hdr, proto_name, srcport, newsrcport):
+    def mangle_srcport(self, pkt, hdr, proto_name, srcport, newsrcport):
         """Mangle source port for selected outgoing packets."""
+        self.logger.debug('MASQUERADING %s %s:%d->%s:%d from port %d' %
+            (proto_name, socket.inet_ntoa(hdr.src), hdr.data.sport,
+            socket.inet_ntoa(hdr.dst), hdr.data.dport, newsrcport))
         hdr.data.sport = newsrcport
         self._calc_csums(hdr)
         return hdr
