@@ -13,8 +13,8 @@ class DiverterBase(fnconfig.Config):
         self.ip_addrs = ip_addrs
 
         self.pcap = None
+        self.pcap_filename = ''
         self.pcap_lock = None
-        self.dump_packets_file_prefix = 'packets'
 
         self.logger = logging.getLogger('Diverter')
         self.logger.setLevel(logging_level)
@@ -38,6 +38,8 @@ class DiverterBase(fnconfig.Config):
         #       followed by a list or another nested dict with the actual definitions
 
         # Diverted ports
+        # TODO: a more meaningful name might be BOUND ports indicating ports
+        # that FakeNet-NG has bound to with a listener
         self.diverted_ports = dict()
 
         # Listener Port Process filtering
@@ -196,9 +198,9 @@ class DiverterBase(fnconfig.Config):
     def parse_diverter_config(self):
 
         if self.is_set('dumppackets'):
-            pcap_filename = '%s_%s.pcap' % (self.getconfigval('dumppacketsfileprefix', 'packets'), time.strftime('%Y%m%d_%H%M%S'))
-            self.logger.info('Capturing traffic to %s', pcap_filename)
-            self.pcap = dpkt.pcap.Writer(open(pcap_filename, 'wb'), linktype=dpkt.pcap.DLT_RAW)
+            self.pcap_filename = '%s_%s.pcap' % (self.getconfigval('dumppacketsfileprefix', 'packets'), time.strftime('%Y%m%d_%H%M%S'))
+            self.logger.info('Capturing traffic to %s', self.pcap_filename)
+            self.pcap = dpkt.pcap.Writer(open(self.pcap_filename, 'wb'), linktype=dpkt.pcap.DLT_RAW)
             self.pcap_lock = threading.Lock()
 
         # Do not redirect blacklisted processes

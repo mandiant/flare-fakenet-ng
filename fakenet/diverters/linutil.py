@@ -215,21 +215,31 @@ class LinUtilMixin():
         """
 
         local_ifaces = self._linux_get_ifaces()
+        all_iface_aliases = ['any', '*']
+        acceptable_ifaces = local_ifaces + all_iface_aliases
         iptables_rules = []
 
         # Catch cases where the user isn't going to get what they expect
         # because iptables does not err for non-existent ifaces...
-        if not set(specified_ifaces).issubset(local_ifaces):
+        if not set(specified_ifaces).issubset(acceptable_ifaces):
             # And indicate ALL interfaces that do not appear to exist
             for iface in specified_ifaces:
-                if iface not in local_ifaces:
+                if iface not in acceptable_ifaces:
                     self.logger.error(('Interface %s not found for ' +
-                            'nonlocal packet redirection') % (iface))
+                            'nonlocal packet redirection, must be one of ' +
+                            '%s') % (iface, str(acceptable_ifaces)))
             return (False, [])
 
         for iface in specified_ifaces:
-            rule = IptCmdTemplate(
-                    'iptables -t nat %s PREROUTING -i %s -j REDIRECT', [iface])
+            fmt, args = '', list()
+            if iface in all_iface_aliases:
+                # Handle */any case by omitting -i switch and corresponding arg
+                fmt = 'iptables -t nat %s PREROUTING -j REDIRECT'
+            else:
+                fmt = 'iptables -t nat %s PREROUTING -i %s -j REDIRECT'
+                args = [iface]
+
+            rule = IptCmdTemplate(fmt, args)
             ret = rule.add()
 
             if ret != 0:
