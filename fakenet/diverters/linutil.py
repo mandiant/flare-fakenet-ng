@@ -184,8 +184,8 @@ class LinUtilMixin():
         except IOError as e:
             self.logger.warning(('Failed to open %s to enumerate netfilter ' +
                     'netlink queues, caller may proceed as if none are in ' +
-                    'use.') %
-                    (procfs_path))
+                    'use: %s') %
+                    (procfs_path, e.message))
 
         return qnos
 
@@ -204,7 +204,7 @@ class LinUtilMixin():
 
         return next_qnos
 
-    def linux_redir_nonlocal(self, specified_ifaces):
+    def linux_iptables_redir_nonlocal(self, specified_ifaces):
         """Linux-specific iptables processing for 'LinuxRedirectNonlocal'
         configuration item.
 
@@ -265,8 +265,8 @@ class LinUtilMixin():
                         fields = line.split(':')
                         ifaces.append(fields[0].strip())
         except IOError as e:
-            self.logger.error('Failed to open %s to enumerate interfaces' %
-                    (procfs_path))
+            self.logger.error('Failed to open %s to enumerate interfaces: %s' %
+                    (procfs_path, e.message))
 
         return ifaces
 
@@ -282,3 +282,32 @@ class LinUtilMixin():
                 failed.append(rule)
 
         return failed
+
+    def linux_modifylocaldns_ephemeral(self):
+        resolvconf_path = '/etc/resolv.conf'
+        self.old_dns = None
+
+        try:
+            with open(resolvconf_path, 'r') as f:
+                self.old_dns = f.read()
+        except IOError as e:
+            self.logger.error(('Failed to open %s to save DNS ' +
+                    'configuration: %s') % (resolvconf_path, e.message))
+
+        if self.old_dns:
+            try:
+                with open(resolvconf_path, 'w') as f:
+                    f.write('nameserver 127.0.0.1\n')
+            except IOError as e:
+                self.logger.error(('Failed to open %s to modify DNS ' +
+                        'configuration: %s') % (resolvconf_path, e.message))
+
+    def linux_restore_local_dns(self):
+        resolvconf_path = '/etc/resolv.conf'
+        try:
+            with open(resolvconf_path, 'w') as f:
+                f.write(self.old_dns)
+                self.old_dns = None
+        except IOError as e:
+            self.logger.error(('Failed to open %s to restore DNS ' +
+                    'configuration: %s') % (resolvconf_path, e.message))

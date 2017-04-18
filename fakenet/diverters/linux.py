@@ -14,40 +14,45 @@ from netfilterqueue import NetfilterQueue
 
 b2 = lambda x: '1' if x else '0'
 
-class GenericHandler:
-    """Call it a friend class."""
+class PacketHandler:
+    """Used to encapsulate common patterns in packet hooks."""
 
     def __init__(self, pkt, diverter, label, callbacks3, callbacks4):
         self.logger = logging.getLogger('Diverter')
-        self.diverter = diverter
+
+        self.pkt = pkt
+        self.diverter = diverter  # Relies on the Diverter for certain operations
         self.label = label
         self.callbacks3 = callbacks3
         self.callbacks4 = callbacks4
 
-        self.raw = pkt.get_payload()
-        self.ipver = ((ord(raw[0]) & 0xf0) >> 4)
-        self.hdr, self.proto = self.diverter.parse_pkt[ipver](ipver, raw)
+        self.raw = self.pkt.get_payload()
+        self.ipver = ((ord(self.raw[0]) & 0xf0) >> 4)
+        self.hdr, self.proto = self.diverter.parse_pkt[self.ipver](self.ipver,
+                self.raw)
 
     def handle_pkt(self):
         """Generic packet hook.
 
-        Common prologue:
-        1.) Unconditionally Write unmangled packet to pcap
-        2.) Parse IP packet
+        1.) Common prologue:
+            A.) Unconditionally Write unmangled packet to pcap
+            B.) Parse IP packet
+
+        2.) Call layer 3 (network) callbacks...
+
         3.) Parse higher-layer protocol (TCP, UDP) for port numbers
 
-        Call layer 3 (network) callbacks...
+        4.) Call layer 4 (transport) callbacks...
 
-        Call layer 4 (transport) callbacks...
-
-        Common epilogue:
-        1.) If the packet headers have been modified:
-            a.) Update the packet payload with NetfilterQueue
-            b.) Double-write the mangled packet to the pcap for SSL decoding
-                purposes
-        2.) Accept the packet with NetfilterQueue
+        5.) Common epilogue:
+            A.) If the packet headers have been modified:
+                i.) Double-write the mangled packet to the pcap for SSL
+                    decoding purposes
+                ii.) Update the packet payload with NetfilterQueue
+            B.) Accept the packet with NetfilterQueue
         """
-            
+                
+        # 1A: Unconditionally write unmangled packet to pcap
         self.diverter.write_pcap(self.hdr.pack())
 
         if (self.hdr, self.proto) == (None, None):
@@ -58,43 +63,50 @@ class GenericHandler:
             self.logger.debug('%s %s' % (self.label,
                         self.diverter._hdr_to_str(proto_name, self.hdr)))
 
-            self.src_ip = socket_inet_ntoa(self.hdr.src)
+            # 1B: Parse IP packet (actually done in ctor)
+            self.src_ip = socket.inet_ntoa(self.hdr.src)
             self.dst_ip = socket.inet_ntoa(self.hdr.dst)
 
+            # 2: Call layer 3 (network) callbacks
             for net_callback in self.callbacks3:
                 net_callback(self.hdr, self.ipver, self.proto, proto_name,
                         self.src_ip, self.dst_ip)
 
-            if proto_name:
+            if proto_name and len(self.callbacks4):
+                # 3: Parse higher-layer protocol
                 self.sport = self.hdr.data.sport
                 self.dport = self.hdr.data.dport
                 self.skey = self.diverter.gen_endpoint_key(proto_name,
-                        self.src_ip, sport)
+                        self.src_ip, self.sport)
                 self.dkey = self.diverter.gen_endpoint_key(proto_name,
-                        self.dst_ip, dport)
+                        self.dst_ip, self.dport)
 
-                hdr_latest = hdr
+                hdr_latest = self.hdr
                 modified = False
 
-                # Layer 4 (Transport layer) callbacks
+                # 4: Layer 4 (Transport layer) callbacks
                 for trans_callback in self.callbacks4:
-                    hdr_mod = trans_callback(ipver, hdr_latest, proto_name,
-                            src_ip, sport, skey, dst_ip, dport, dkey)
+                    hdr_mod = trans_callback(self.ipver, hdr_latest,
+                            proto_name,
+                            self.src_ip, self.sport, self.skey,
+                            self.dst_ip, self.dport, self.dkey)
                     if hdr_mod:
                         hdr_latest = hdr_mod
                         modified = True
 
                 if modified:
-                    # Finalize changes with nfq
-                    pkt.set_payload(hdr_latest.pack())
-                    
-                    # Double write for SSL decoding purposes
-                    self.write_pcap(hdr_latest.pack())
+                    # 5Ai: Double write mangled packets to represent changes
+                    # made by FakeNet-NG while still allowing SSL decoding
+                    self.diverter.write_pcap(hdr_latest.pack())
+
+                    # 5Aii: Finalize changes with nfq
+                    self.pkt.set_payload(hdr_latest.pack())
             else:
                 self.logger.debug('%s: Not handling protocol %s' %
                         (self.label, self.proto))
 
-        pkt.accept()
+        # 5B: NF_ACCEPT
+        self.pkt.accept()
 
 class Diverter(DiverterBase, LinUtilMixin):
     def __init__(self, diverter_config, listeners_config, ip_addrs,
@@ -102,18 +114,19 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.init_base(diverter_config, listeners_config, ip_addrs,
                        logging_level)
 
+        # TODO: Remove this after testing and development are complete
         self.logger.setLevel(logging.DEBUG)
 
         self.init_diverter_linux()
 
     def init_diverter_linux(self):
         """Linux-specific Diverter initialization."""
-        # String list configuration item that is specific to the Linux Diverter
-        # which will not be parsed by DiverterBase and needs to be accessed as
-        # an array in the future.
+        # String list configuration item that is specific to the Linux
+        # Diverter, will not be parsed by DiverterBase, and needs to be
+        # accessed as an array in the future.
         self.reconfigure(portlists=[], stringlists=['linuxredirectnonlocal'])
 
-        # Singlehost vs multihost
+        # SingleHost vs MultiHost mode
         mode = 'SingleHost'  # Default
         self.single_host_mode = True
         if self.is_configured('networkmode'):
@@ -126,16 +139,17 @@ class Diverter(DiverterBase, LinUtilMixin):
                         (available_modes))
                 sys.exit(1)
 
-            # Adjust the previously assumed mode if the user specifies multi
+            # Adjust previously assumed mode if user specifies MultiHost
             if mode.lower() == 'multihost':
                 self.single_host_mode = False
 
-        self.logger.debug('Mode: ' + mode)
+        self.logger.info('Running in %s mode' % (mode))
 
         self.parse_pkt = dict()
         self.parse_pkt[4] = self.parse_ipv4
         self.parse_pkt[6] = self.parse_ipv6
-        self._queues = list()
+
+        self.nfqueues = list()
 
         self.handled_protocols = {
             dpkt.ip.IP_PROTO_TCP: 'TCP',
@@ -144,11 +158,10 @@ class Diverter(DiverterBase, LinUtilMixin):
             # dpkt.ip.IP_PROTO_ICMP: 'ICMP',
         }
 
-        # Track iptables rules not associated with any nfqueue object.
+        # Track iptables rules not associated with any nfqueue object
         self.rules_added = []
 
-        # Manage (non-)logging already-seen nonlocal destination IPs in
-        # incoming packets.
+        # Manage logging of foreign-destined packets
         self.nonlocal_ips_already_seen = []
         self.log_nonlocal_only_once = True
 
@@ -172,16 +185,19 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         callbacks = list()
 
+        # In MultiHost mode, when foreign packets come in with a non-local
+        # destination IP, they have to be examined in the PREROUTING chain in
+        # order to observe the non-local address before it is mangled into a
+        # local IP address by the NAT PREROUTING/REDIRECT rule (added by the
+        # LinuxRedirectNonlocal configuratoin setting).
+        #
+        # In contrast, when using FakeNet-NG under SingleHost mode, packets
+        # originated by processes within the system that are destined for
+        # foreign IP addresses never hit the PREROUTING chain, making this hook
+        # superfluous. That is why it is not applied when FakeNet-NG is in
+        # SingleHost mode. Instead, the check is performed within the hook for
+        # outgoing packets.
         if not self.single_host_mode:
-            # When foreign packets come in with a non-local IP address, they
-            # have to be examined in the PREROUTING chain in order to observe
-            # the non-local address before it is mangled into a local IP
-            # address by the NAT PREROUTING/REDIRECT rule. In contrast, when
-            # using FakeNet-NG under SingleHost mode, packets originated by
-            # processes within the system that are destined for foreign IP
-            # addresses do not hit the PREROUTING chain, making this hook
-            # superfluous. That is why it is not applied when FakeNet-NG is in
-            # SingleHost mode.
             callbacks.append(hookspec('PREROUTING', 'raw', self.handle_nonlocal))
 
         callbacks.append(hookspec('INPUT', 'mangle', self.handle_incoming))
@@ -201,30 +217,37 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         self.logger.debug('Enumerating queue numbers and hook ' +
                 'specifications to create NFQUEUE objects')
-        self._queues = list()
+        self.nfqueues = list()
         for qno, hk in zip(qnos, callbacks):
             self.logger.debug(('Creating NFQUEUE object for chain %s / table ' +
                     '%s / queue # %d => %s') % (hk.chain, hk.table, qno,
                     str(hk.callback)))
             q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback)
-            self._queues.append(q)
+            self.nfqueues.append(q)
             ok = q.start()
             if not ok:
                 self.logger.error('Failed to start NFQUEUE for %s' % (str(q)))
                 self.stop()
                 sys.exit(1)
 
+        if self.is_set('modifylocaldns'):
+            self.linux_modifylocaldns_ephemeral()
+
+        if self.is_configured('linuxflushdnscommand'):
+            cmd = self.getconfigval('linuxflushdnscommand')
+            ret = subprocess.call(cmd.split())
+            if ret != 0:
+                self.logger.error('Failed to flush DNS cache.')
+
         # TODO: Duplicate windows.Diverter code for
-        #   * # Set local DNS server IP address (if modifylocaldns)
         #   * # Stop DNS service (if stopdnsservice)
-        #   * self.flush_dns() # ipconfig /flushdns
 
         if self.is_configured('linuxredirectnonlocal'):
             self.logger.debug('Processing LinuxRedirectNonlocal')
             specified_ifaces = self.getconfigval('linuxredirectnonlocal')
             self.logger.debug('Processing linuxredirectnonlocal on ' +
                     'interfaces: %s' % (specified_ifaces))
-            ok, rules = self.linux_redir_nonlocal(specified_ifaces)
+            ok, rules = self.linux_iptables_redir_nonlocal(specified_ifaces)
 
             # Irrespective of whether this failed, we want to add any
             # successful iptables rules to the list so that stop() will be able
@@ -240,14 +263,14 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.logger.info('Stopping Linux Diverter...')
 
         self.logger.debug('Notifying NFQUEUE objects of imminent stop')
-        for q in self._queues:
+        for q in self.nfqueues:
             q.stop_nonblocking()
 
         self.logger.debug('Removing iptables rules not associated with any ' +
                 'NFQUEUE object')
         self.linux_remove_iptables_rules(self.rules_added)
 
-        for q in self._queues:
+        for q in self.nfqueues:
             self.logger.debug('Stopping NFQUEUE for %s' % (str(q)))
             q.stop()
 
@@ -257,10 +280,11 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         self.logger.info('Stopped Linux Diverter')
 
+        if self.is_set('modifylocaldns'):
+            self.linux_restore_local_dns()
+
         # TODO: Duplicate windows.Diverter code for
-        #   * # Restore DNS server (if modifylocaldns)
         #   * # Restart DNS service (if stopdnsservice)
-        #   * self.flush_dns() # ipconfig /flushdns
 
     def parse_ipv4(self, ipver, raw):
         hdr = dpkt.ip.IP(raw)
@@ -275,6 +299,12 @@ class Diverter(DiverterBase, LinUtilMixin):
     def gen_endpoint_key(self, proto_name, ip, port):
         """e.g. 192.168.19.132:tcp/3030"""
         return str(ip) + ':' + str(proto_name) + '/' + str(port)
+
+
+    def _check_log_nonlocal(self, hdr, ipver, proto, proto_name, src_ip,
+            dst_ip):
+        if dst_ip not in self.ip_addrs[ipver]:
+            self._maybe_log_nonlocal(hdr, ipver, proto, dst_ip)
 
     def _maybe_log_nonlocal(self, hdr, ipver, proto, dst_ip):
         """Conditionally log packets having a foreign destination.
@@ -305,32 +335,14 @@ class Diverter(DiverterBase, LinUtilMixin):
         This allows analysts to observe when malware is communicating with
         hard-coded IP addresses.
         """
-        self.logger.debug('handle_nonlocal...')
-        raw = pkt.get_payload()
-        ipver = ((ord(raw[0]) & 0xf0) >> 4)
-        hdr, proto = self.parse_pkt[ipver](ipver, raw)
 
-        if (hdr, proto) == (None, None):
-            self.logger.warning('handle_nonlocal: Failed to parse IP packet')
-        else:
-            dst_ip = socket.inet_ntoa(hdr.dst)
-            if dst_ip not in self.ip_addrs[ipver]:
-                self._maybe_log_nonlocal(hdr, ipver, proto, dst_ip)
+        net_cbs = [self._check_log_nonlocal,]
 
-        pkt.accept()
+        h = PacketHandler(pkt, self, 'handle_nonlocal', net_cbs, [])
+        h.handle_pkt()
 
     def handle_outgoing(self, pkt):
         """Outgoing packet hook.
-
-        TODO: refactor along with handle_incoming into a subclassing/callback
-        paradigm.
-
-        Takes several steps (some are out of order for coherence).
-
-        Common prologue:
-        1.) Unconditionally Write unmangled packet to pcap
-        2.) Parse IP packet
-        3.) Parse higher-layer protocol (TCP, UDP) for port numbers
 
         Specific to outgoing packets:
         4.) If SingleHost mode:
@@ -342,83 +354,28 @@ class Diverter(DiverterBase, LinUtilMixin):
         5.) Conditionally fix up mangled source ports to support port
             forwarding
 
-        Common epilogue:
-        6.) If the packet headers have been modified:
-            a.) Update the packet payload with NetfilterQueue
-            b.) Double-write the mangled packet to the pcap for SSL decoding
-                purposes
-        7.) Accept the packet with NetfilterQueue
-
         No return value.
         """
-        self.logger.debug('handle_outgoing...')
-        raw = pkt.get_payload()
-        ipver = ((ord(raw[0]) & 0xf0) >> 4)
-        hdr, proto = self.parse_pkt[ipver](ipver, raw)
 
-        # Write original, unmangled packet regardless of protocol and content
-        self.write_pcap(hdr.pack())
+        # Must scan for nonlocal packets in the output hook and at the network
+        # layer (regardless of whether supported protocols like TCP/UDP can be
+        # parsed) when using the SingleHost mode of FakeNet-NG. Note that if
+        # this check were performed when FakeNet-NG is operating in MultiHost
+        # mode, every response packet generated by a listener and destined for
+        # a remote host would erroneously be sent for potential logging as
+        # nonlocal host communication.
+        net_cbs = [self._check_log_nonlocal] if self.single_host_mode else []
 
-        if (hdr, proto) == (None, None):
-            self.logger.warning('handle_outgoing: Failed to parse IP packet')
-        else:
-            proto_name = self.handled_protocols.get(proto)
+        trans_cbs = [
+            self._maybe_fixup_sport,
+            self._maybe_redir_ip,
+        ]
 
-            self.logger.debug('Outgoing %s' % (self._hdr_to_str(proto_name,
-                              hdr)))
+        h = PacketHandler(pkt, self, 'handle_outgoing', net_cbs, trans_cbs)
+        h.handle_pkt()
 
-            # These need to be parsed out in order for anyone to do anything
-            # useful, so they are parsed out ahead of TCP/UDP-level parsing and
-            # mangling.
-            src_ip = socket.inet_ntoa(hdr.src)
-            dst_ip = socket.inet_ntoa(hdr.dst)
-
-            # Must scan for nonlocal packets in the output hook (regardless of
-            # whether supported protocols like TCP/UDP can be parsed) when
-            # using the SingleHost mode of FakeNet-NG. Note that if this check
-            # is performed when FakeNet-NG is operating in MultiHost mode,
-            # every response packet will erroneously be sent for potential
-            # logging as nonlocal host communication.
-            if self.single_host_mode and (dst_ip not in self.ip_addrs[ipver]):
-                self._maybe_log_nonlocal(hdr, ipver, proto, dst_ip)
-
-            if proto_name:
-                sport = hdr.data.sport
-                dport = hdr.data.dport
-                # Port forwarding key based on destination
-                dkey = self.gen_endpoint_key(proto_name, dst_ip, dport)
-                # IP forwarding key based on source
-                skey = self.gen_endpoint_key(proto_name, src_ip, sport)
-
-                hdr_latest = hdr
-                modified = False
-
-                hdr_mod = self._maybe_fixup_sport(ipver, hdr_latest,
-                        proto_name, src_ip, skey, dst_ip, dkey)
-                if hdr_mod:
-                    hdr_latest = hdr_mod
-                    modified = True
-
-                # Currently only processes the packet in SingleHost mode
-                hdr_mod = self._maybe_redir_ip(ipver, hdr_latest,
-                        proto_name, src_ip, skey, dst_ip, dkey)
-                if hdr_mod:
-                    hdr_latest = hdr_mod
-                    modified = True
-
-                if modified:
-                    # Finalize changes with nfq
-                    pkt.set_payload(hdr_latest.pack())
-
-                    # Double write for SSL decoding purposes
-                    self.write_pcap(hdr_latest.pack())
-
-            else:
-                self.logger.debug('Not handling protocol ' + str(proto))
-
-        pkt.accept()
-
-    def _maybe_fixup_srcip(self, hdr, ipver, proto_name, skey, dkey):
+    def _maybe_fixup_srcip(self, ipver, hdr, proto_name, src_ip, sport, skey,
+            dst_ip, dport, dkey):
         """Conditionally fix up the source IP address if the remote endpoint
         had their connection IP-forwarded.
 
@@ -451,7 +408,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def _maybe_redir_port(self, hdr, ipver, proto_name, src_ip, sport, skey, dst_ip, dport, dkey):
+    def _maybe_redir_port(self, ipver, hdr, proto_name, src_ip, sport, skey,
+            dst_ip, dport, dkey):
         hdr_modified = None
 
         default = self.default_listener[proto_name]
@@ -509,8 +467,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def _maybe_fixup_sport(self, ipver, hdr, proto_name, src_ip, skey, dst_ip,
-            dkey):
+    def _maybe_fixup_sport(self, ipver, hdr, proto_name, src_ip, sport, skey, dst_ip,
+            dport, dkey):
         """Conditionally fix up source port if the remote endpoint had their
         connection port-forwarded.
         
@@ -545,8 +503,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def _maybe_redir_ip(self, ipver, hdr, proto_name, src_ip, skey, dst_ip,
-            dkey):
+    def _maybe_redir_ip(self, ipver, hdr, proto_name, src_ip, sport, skey, dst_ip,
+            dport, dkey):
         """Conditionally redirect foreign destination IPs to localhost.
 
         Used only under SingleHost mode.
@@ -596,16 +554,6 @@ class Diverter(DiverterBase, LinUtilMixin):
     def handle_incoming(self, pkt):
         """Incoming packet hook.
 
-        TODO: refactor along with handle_outgoing into a subclassing/callback
-        paradigm.
-
-        Takes several steps (some are out of order for coherence).
-
-        Common prologue:
-        1.) Unconditionally write unmangled packet to pcap
-        2.) parse IP packet
-        3.) Parse higher-layer protocol (TCP, UDP) for port numbers
-
         Specific to incoming packets:
         5.) If SingleHost mode:
             a.) Conditionally fix up source IPs to support IP forwarding for
@@ -613,73 +561,15 @@ class Diverter(DiverterBase, LinUtilMixin):
         4.) Conditionally mangle destination ports to implement port forwarding
             for unbound ports to point to the default listener
 
-        Common epilogue:
-        6.) If the packet headers have been modified:
-            a.) Update the packet payload with NetfilterQueue
-            b.) Double-write the mangled packet to the pcap for SSL decoding
-                purposes
-        7.) Accept the packet with NetfilterQueue
-
         No return value.
         """
+        trans_cbs = [
+            self._maybe_fixup_srcip,
+            self._maybe_redir_port,
+        ]
 
-        self.logger.debug('handle_incoming...')
-        raw = pkt.get_payload()
-        ipver = ((ord(raw[0]) & 0xf0) >> 4)
-        hdr, proto = self.parse_pkt[ipver](ipver, raw)
-
-        # Write original, unmangled packet regardless of protocol and content
-        self.write_pcap(hdr.pack())
-
-        if (hdr, proto) == (None, None):
-            self.logger.warning('handle_incoming: Failed to parse IP packet')
-        else:
-            proto_name = self.handled_protocols.get(proto)
-
-            self.logger.debug('Incoming %s' % (self._hdr_to_str(proto_name,
-                            hdr)))
-
-            # Parsed before needed strictly for consistency with outgoing hook
-            src_ip = socket.inet_ntoa(hdr.src)
-            dst_ip = socket.inet_ntoa(hdr.dst)
-
-            # If the datagram is carrying a protocol we handle, parse to determine
-            # redirection.
-            if proto_name:
-                sport = hdr.data.sport
-                dport = hdr.data.dport
-                # Port forwarding key based on source
-                skey = self.gen_endpoint_key(proto_name, src_ip, sport)
-                # IP forwarding key based on destination
-                dkey = self.gen_endpoint_key(proto_name, dst_ip, dport)
-
-                hdr_latest = hdr
-                modified = False
-
-                # Currently only processes the packet in SingleHost mode
-                hdr_mod = self._maybe_fixup_srcip(hdr_latest, ipver, proto_name, skey,
-                        dkey)
-                if hdr_mod:
-                    hdr_latest = hdr_mod
-                    modified = True
-
-                hdr_mod = self._maybe_redir_port(hdr_latest, ipver, proto_name,
-                        src_ip, sport, skey, dst_ip, dport, dkey)
-                if hdr_mod:
-                    hdr_latest = hdr_mod
-                    modified = True
-
-                if modified:
-                    # Finalize changes with nfq
-                    pkt.set_payload(hdr_latest.pack())
-
-                    # Double write for SSL decoding purposes
-                    self.write_pcap(hdr_latest.pack())
-
-            else:
-                self.logger.debug('Not handling protocol ' + str(proto))
-
-        pkt.accept()
+        h = PacketHandler(pkt, self, 'handle_incoming', [], trans_cbs)
+        h.handle_pkt()
 
     def decide_redir_port(self, ipver, proto_name, default_port, bound_ports, src_ip, sport, dst_ip, dport):
         if not self.is_set('redirectalltraffic'):
