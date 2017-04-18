@@ -19,7 +19,7 @@ class Config:
             2.) Turn string lists into arrays for quicker access
             3.) Expand port range specifications
         """
-        self._dict = dict( (k.lower(), v) for k, v in config_dict.iteritems())
+        self._dict = dict((k.lower(), v) for k, v in config_dict.iteritems())
 
         for entry in portlists:
             portlist = self.getconfigval(entry)
@@ -51,8 +51,8 @@ class Config:
             if '-' not in i:
                 ports.append(int(i))
             else:
-                l,h = map(int, i.split('-'))
-                ports+= range(l,h+1)
+                l, h = map(int, i.split('-'))
+                ports += range(l, h + 1)
         return ports
 
     def _fuzzy_true(self, value):
@@ -80,4 +80,3 @@ class Config:
 
     def setconfigval(self, opt, obj):
         self._dict[opt.lower()] = obj
-

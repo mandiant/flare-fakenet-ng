@@ -4,6 +4,7 @@ import threading
 import subprocess
 import netfilterqueue
 
+
 class IptCmdTemplate:
     """For managing insertion and removal of iptables rules.
 
@@ -17,13 +18,17 @@ class IptCmdTemplate:
         self._remcmd = fmt % tuple(args[0:add_idx] + [rem] + args[rem_idx:])
 
     def gen_add_cmd(self): return self._addcmd
+
     def gen_remove_cmd(self): return self._remcmd
+
     def add(self): return subprocess.call(self._addcmd.split())
+
     def remove(self): return subprocess.call(self._remcmd.split())
+
 
 class LinuxDiverterNfqueue:
     """NetfilterQueue object wrapper.
-    
+
     Handles iptables rule addition/removal, NetfilterQueue management,
     netlink socket timeout setup, threading, and monitoring for asynchronous
     stop requests.
@@ -67,7 +72,7 @@ class LinuxDiverterNfqueue:
         times out.
         """
 
-        # Execute iptables to add the rule 
+        # Execute iptables to add the rule
         ret = self._rule.add()
         if ret != 0:
             return False
@@ -80,16 +85,17 @@ class LinuxDiverterNfqueue:
             self._bound = True
         except OSError as e:
             self.logger.error('Failed to start queue for %s: %s' %
-                (str(self), e.message))
+                              (str(self), e.message))
         except RuntimeWarning as e:
             self.logger.error('Failed to start queue for %s: %s' %
-                (str(self), e.message))
+                              (str(self), e.message))
 
         if not self._bound:
             return False
 
         # Facilitate _stopflag monitoring and thread joining
-        self._sk = socket.fromfd(self._nfqueue.get_fd(), socket.AF_UNIX, socket.SOCK_STREAM)
+        self._sk = socket.fromfd(
+            self._nfqueue.get_fd(), socket.AF_UNIX, socket.SOCK_STREAM)
         self._sk.settimeout(timeout_sec)
 
         # Start a thread to run the queue and monitor the stop flag
@@ -117,7 +123,7 @@ class LinuxDiverterNfqueue:
         """Call this on each LinuxDiverterNfqueue object in turn to stop them
         all as close as possible to the same time rather than waiting for each
         one to time out and stop before moving on to the next.
-        
+
         Perfect synchrony is a non-goal because halting the Diverter could
         disrupt existing connections anyway. Hence, it is up to the user to
         halt FakeNet-NG after any critical network operations have concluded.
@@ -135,6 +141,7 @@ class LinuxDiverterNfqueue:
 
         if self._rule_added:
             self._rule.remove()  # Shell out to iptables to remove the rule
+
 
 class LinUtilMixin():
     """Automate addition/removal of iptables rules, checking interface names,
@@ -155,7 +162,7 @@ class LinUtilMixin():
     def linux_get_current_nfnlq_bindings(self):
         """Determine what NFQUEUE queue numbers (if any) are already bound by
         existing libnfqueue client processes.
-        
+
         Although iptables rules may exist specifying other queues in addition
         to these, the netfilter team does not support using libiptc (such as
         via python-iptables) to detect that condition, so code that does so may
@@ -179,13 +186,13 @@ class LinUtilMixin():
                     if line:
                         queue_nr = int(line.split()[0], 10)
                         self.logger.debug(('Found NFQUEUE #' + str(queue_nr) +
-                                          ' per ') + procfs_path)
+                                           ' per ') + procfs_path)
                         qnos.append(queue_nr)
         except IOError as e:
             self.logger.warning(('Failed to open %s to enumerate netfilter ' +
-                    'netlink queues, caller may proceed as if none are in ' +
-                    'use: %s') %
-                    (procfs_path, e.message))
+                                 'netlink queues, caller may proceed as if ' +
+                                 'none are in use: %s') %
+                                (procfs_path, e.message))
 
         return qnos
 
@@ -225,9 +232,9 @@ class LinUtilMixin():
             # And indicate ALL interfaces that do not appear to exist
             for iface in specified_ifaces:
                 if iface not in acceptable_ifaces:
-                    self.logger.error(('Interface %s not found for ' +
-                            'nonlocal packet redirection, must be one of ' +
-                            '%s') % (iface, str(acceptable_ifaces)))
+                    self.logger.error(('Interface %s not found for nonlocal ' +
+                                       'packet redirection, must be one of ' +
+                                       '%s') % (iface, str(acceptable_ifaces)))
             return (False, [])
 
         for iface in specified_ifaces:
@@ -253,7 +260,7 @@ class LinUtilMixin():
 
     def _linux_get_ifaces(self):
         ifaces = []
-        
+
         procfs_path = '/proc/net/dev'
 
         try:
@@ -266,7 +273,7 @@ class LinUtilMixin():
                         ifaces.append(fields[0].strip())
         except IOError as e:
             self.logger.error('Failed to open %s to enumerate interfaces: %s' %
-                    (procfs_path, e.message))
+                              (procfs_path, e.message))
 
         return ifaces
 
@@ -292,7 +299,8 @@ class LinUtilMixin():
                 self.old_dns = f.read()
         except IOError as e:
             self.logger.error(('Failed to open %s to save DNS ' +
-                    'configuration: %s') % (resolvconf_path, e.message))
+                               'configuration: %s') % (resolvconf_path,
+                               e.message))
 
         if self.old_dns:
             try:
@@ -300,7 +308,8 @@ class LinUtilMixin():
                     f.write('nameserver 127.0.0.1\n')
             except IOError as e:
                 self.logger.error(('Failed to open %s to modify DNS ' +
-                        'configuration: %s') % (resolvconf_path, e.message))
+                                   'configuration: %s') % (resolvconf_path,
+                                   e.message))
 
     def linux_restore_local_dns(self):
         resolvconf_path = '/etc/resolv.conf'
@@ -310,4 +319,5 @@ class LinUtilMixin():
                 self.old_dns = None
         except IOError as e:
             self.logger.error(('Failed to open %s to restore DNS ' +
-                    'configuration: %s') % (resolvconf_path, e.message))
+                               'configuration: %s') % (resolvconf_path,
+                               e.message))
