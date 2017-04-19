@@ -203,7 +203,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # destination IP, they have to be examined in the PREROUTING chain in
         # order to observe the non-local address before it is mangled into a
         # local IP address by the IP NAT (PREROUTING/REDIRECT) rule added by
-        # the LinuxRedirectNonlocal configuratoin setting.
+        # the LinuxRedirectNonlocal configuration setting.
         #
         # In contrast, when using FakeNet-NG under SingleHost mode, packets
         # originated by processes within the system that are destined for
