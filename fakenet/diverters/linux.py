@@ -62,7 +62,7 @@ class PacketHandler:
             proto_name = self.diverter.handled_protocols.get(self.proto)
 
             self.logger.debug('%s %s' % (self.label,
-                                         self.diverter._hdr_to_str(proto_name,
+                                         self.diverter.hdr_to_str(proto_name,
                                                                    self.hdr)))
 
             # 1B: Parse IP packet (actually done in ctor)
@@ -384,48 +384,6 @@ class Diverter(DiverterBase, LinUtilMixin):
         # TODO: Duplicate windows.Diverter code for
         #   * # Restart DNS service (if stopdnsservice)
 
-    def parse_ipv4(self, ipver, raw):
-        hdr = dpkt.ip.IP(raw)
-        if hdr.hl < 5:
-            return (None, None)  # An IP header length less than 5 is invalid
-        return hdr, hdr.p
-
-    def parse_ipv6(self, ipver, raw):
-        hdr = dpkt.ip6.IP6(raw)
-        return hdr, hdr.nxt
-
-    def gen_endpoint_key(self, proto_name, ip, port):
-        """e.g. 192.168.19.132:tcp/3030"""
-        return str(ip) + ':' + str(proto_name) + '/' + str(port)
-
-    def check_log_nonlocal(self, hdr, ipver, proto, proto_name, src_ip,
-                            dst_ip):
-        if dst_ip not in self.ip_addrs[ipver]:
-            self._maybe_log_nonlocal(hdr, ipver, proto, dst_ip)
-
-    def _maybe_log_nonlocal(self, hdr, ipver, proto, dst_ip):
-        """Conditionally log packets having a foreign destination.
-
-        Each foreign destination will be logged only once if the Linux
-        Diverter's internal log_nonlocal_only_once flag is set. Otherwise, any
-        foreign destination IP address will be logged each time it is observed.
-        """
-        proto_name = self.handled_protocols.get(proto)
-
-        self.logger.debug('Nonlocal %s' % (self._hdr_to_str(proto_name, hdr)))
-
-        first_sighting = (dst_ip not in self.nonlocal_ips_already_seen)
-
-        if first_sighting:
-            self.nonlocal_ips_already_seen.append(dst_ip)
-
-        # Log when a new IP is observed OR if we are not restricted to
-        # logging only the first occurrence of a given nonlocal IP.
-        if first_sighting or (not self.log_nonlocal_only_once):
-            self.logger.info(
-                'Received nonlocal IPv%d datagram destined for %s' %
-                (ipver, dst_ip))
-
     def handle_nonlocal(self, pkt):
         """Handle comms sent to IP addresses that are not bound to any adapter.
 
@@ -436,6 +394,27 @@ class Diverter(DiverterBase, LinUtilMixin):
         net_cbs = [self.check_log_nonlocal, ]
 
         h = PacketHandler(pkt, self, 'handle_nonlocal', net_cbs, [])
+        h.handle_pkt()
+
+    def handle_incoming(self, pkt):
+        """Incoming packet hook.
+
+        Specific to incoming packets:
+        5.) If SingleHost mode:
+            a.) Conditionally fix up source IPs to support IP forwarding for
+                otherwise foreign-destined packets
+        4.) Conditionally mangle destination ports to implement port forwarding
+            for unbound ports to point to the default listener
+
+        No return value.
+        """
+        trans_cbs = [self.maybe_redir_port,]
+
+        # IP redirection fix-ups are only for SingleHost mode
+        if self.single_host_mode:
+            trans_cbs.append(self.maybe_fixup_srcip)
+
+        h = PacketHandler(pkt, self, 'handle_incoming', [], trans_cbs)
         h.handle_pkt()
 
     def handle_outgoing(self, pkt):
@@ -471,6 +450,48 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         h = PacketHandler(pkt, self, 'handle_outgoing', net_cbs, trans_cbs)
         h.handle_pkt()
+
+    def parse_ipv4(self, ipver, raw):
+        hdr = dpkt.ip.IP(raw)
+        if hdr.hl < 5:
+            return (None, None)  # An IP header length less than 5 is invalid
+        return hdr, hdr.p
+
+    def parse_ipv6(self, ipver, raw):
+        hdr = dpkt.ip6.IP6(raw)
+        return hdr, hdr.nxt
+
+    def gen_endpoint_key(self, proto_name, ip, port):
+        """e.g. 192.168.19.132:tcp/3030"""
+        return str(ip) + ':' + str(proto_name) + '/' + str(port)
+
+    def check_log_nonlocal(self, hdr, ipver, proto, proto_name, src_ip,
+                            dst_ip):
+        if dst_ip not in self.ip_addrs[ipver]:
+            self._maybe_log_nonlocal(hdr, ipver, proto, dst_ip)
+
+    def _maybe_log_nonlocal(self, hdr, ipver, proto, dst_ip):
+        """Conditionally log packets having a foreign destination.
+
+        Each foreign destination will be logged only once if the Linux
+        Diverter's internal log_nonlocal_only_once flag is set. Otherwise, any
+        foreign destination IP address will be logged each time it is observed.
+        """
+        proto_name = self.handled_protocols.get(proto)
+
+        self.logger.debug('Nonlocal %s' % (self.hdr_to_str(proto_name, hdr)))
+
+        first_sighting = (dst_ip not in self.nonlocal_ips_already_seen)
+
+        if first_sighting:
+            self.nonlocal_ips_already_seen.append(dst_ip)
+
+        # Log when a new IP is observed OR if we are not restricted to
+        # logging only the first occurrence of a given nonlocal IP.
+        if first_sighting or (not self.log_nonlocal_only_once):
+            self.logger.info(
+                'Received nonlocal IPv%d datagram destined for %s' %
+                (ipver, dst_ip))
 
     def maybe_fixup_srcip(self, ipver, hdr, proto_name, src_ip, sport, skey,
                            dst_ip, dport, dkey):
@@ -655,27 +676,6 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def handle_incoming(self, pkt):
-        """Incoming packet hook.
-
-        Specific to incoming packets:
-        5.) If SingleHost mode:
-            a.) Conditionally fix up source IPs to support IP forwarding for
-                otherwise foreign-destined packets
-        4.) Conditionally mangle destination ports to implement port forwarding
-            for unbound ports to point to the default listener
-
-        No return value.
-        """
-        trans_cbs = [self.maybe_redir_port,]
-
-        # IP redirection fix-ups are only for SingleHost mode
-        if self.single_host_mode:
-            trans_cbs.append(self.maybe_fixup_srcip)
-
-        h = PacketHandler(pkt, self, 'handle_incoming', [], trans_cbs)
-        h.handle_pkt()
-
     def decide_redir_port(self, ipver, proto_name, default_port, bound_ports,
                           src_ip, sport, dst_ip, dport):
         if not self.is_set('redirectalltraffic'):
@@ -725,7 +725,7 @@ class Diverter(DiverterBase, LinUtilMixin):
     def mangle_dstip(self, hdr, proto_name, dstip, newdstip):
         """Mangle destination IP for selected outgoing packets."""
         self.logger.debug('REDIRECTING %s to IP %s' %
-                          (self._hdr_to_str(proto_name, hdr), newdstip))
+                          (self.hdr_to_str(proto_name, hdr), newdstip))
         hdr.dst = socket.inet_aton(newdstip)
         self._calc_csums(hdr)
         return hdr
@@ -733,7 +733,7 @@ class Diverter(DiverterBase, LinUtilMixin):
     def mangle_srcip(self, hdr, proto_name, src_ip, new_srcip):
         """Mangle source IP for selected incoming packets."""
         self.logger.debug('MASQUERADING %s from IP %s' %
-                          (self._hdr_to_str(proto_name, hdr), new_srcip))
+                          (self.hdr_to_str(proto_name, hdr), new_srcip))
         hdr.src = socket.inet_aton(new_srcip)
         self._calc_csums(hdr)
         return hdr
@@ -741,7 +741,7 @@ class Diverter(DiverterBase, LinUtilMixin):
     def mangle_dstport(self, hdr, proto_name, dstport, newdstport):
         """Mangle destination port for selected incoming packets."""
         self.logger.debug('REDIRECTING %s to port %d' %
-                          (self._hdr_to_str(proto_name, hdr), newdstport))
+                          (self.hdr_to_str(proto_name, hdr), newdstport))
         hdr.data.dport = newdstport
         self._calc_csums(hdr)
         return hdr
@@ -749,12 +749,12 @@ class Diverter(DiverterBase, LinUtilMixin):
     def mangle_srcport(self, hdr, proto_name, srcport, newsrcport):
         """Mangle source port for selected outgoing packets."""
         self.logger.debug('MASQUERADING %s from port %d' %
-                          (self._hdr_to_str(proto_name, hdr), newsrcport))
+                          (self.hdr_to_str(proto_name, hdr), newsrcport))
         hdr.data.sport = newsrcport
         self._calc_csums(hdr)
         return hdr
 
-    def _hdr_to_str(self, proto_name, hdr):
+    def hdr_to_str(self, proto_name, hdr):
         src_ip = socket.inet_ntoa(hdr.src)
         dst_ip = socket.inet_ntoa(hdr.dst)
         if proto_name:
