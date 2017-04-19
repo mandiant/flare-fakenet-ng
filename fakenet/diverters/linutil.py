@@ -1,3 +1,5 @@
+import re
+import glob
 import socket
 import logging
 import threading
@@ -321,3 +323,86 @@ class LinUtilMixin():
             self.logger.error(('Failed to open %s to restore DNS ' +
                                'configuration: %s') % (resolvconf_path,
                                e.message))
+
+    def linux_find_processes(self, name):
+        """Yeah great, but what if a blacklisted process spawns after we call
+        this? We'd have to call this every time we do anything - expensive! Then again,
+        """
+        pids = []
+
+        proc_pid_dirs = glob.glob('/proc/[0-9]*/')
+
+        for proc_pid_dir in proc_pid_dirs:
+            try:
+                comm_file = os.path.join(proc_pid_dir, 'comm')
+                with open(comm_file, 'r') as f:
+                    try:
+                        comm = f.read()
+                        if comm == name:
+                            pid = int(proc_pid_dir.split('/')[-2], 10)
+                            pids.append(pid)
+                    except IOError as e:
+                        # Silently ignore
+                        pass
+            except IOError as e:
+                # Silently ignore
+                pass
+
+        return pids
+
+    def linux_find_sock_by_endpoint(self, ipver, proto, ip, port, local=True):
+        """Search /proc/net/tcp for a socket whose local (field 1) or remote
+        (field 2) address matches ip:port and return the corresponding inode
+        (field 9).
+
+        Fields referenced above are zero-based.
+
+        Example contents of /proc/net/tcp (wrapped and double-spaced)
+
+          sl  local_address rem_address   st tx_queue rx_queue tr tm->when
+            retrnsmt   uid  timeout inode      
+
+           0: 0100007F:0277 00000000:0000 0A 00000000:00000000 00:00000000
+            00000000     0        0 53320 1 0000000000000000 100 0 0 10 0
+
+           1: 00000000:021A 00000000:0000 0A 00000000:00000000 00:00000000
+            00000000     0        0 11125 1 0000000000000000 100 0 0 10 0
+
+           2: 00000000:1A0B 00000000:0000 0A 00000000:00000000 00:00000000
+            00000000    39        0 11175 1 0000000000000000 100 0 0 10 0
+
+           3: 0100007F:8071 0100007F:1F90 01 00000000:00000000 00:00000000
+            00000000  1000        0 58661 1 0000000000000000 20 0 0 10 -1
+
+           4: 0100007F:1F90 0100007F:8071 01 00000000:00000000 00:00000000
+            00000000  1000        0 58640 1 0000000000000000 20 4 30 10 -1
+
+        Returns inode
+        """
+        procfs_path = '/proc/net/tcp'
+        pass
+
+    def linux_find_process_connections(self, name, inode_sought=None):
+        inodes = list()
+
+        for pid in linux_find_processes(name):
+
+            # Check all /proc/<pid>/fd/* to see if they are symlinks
+            proc_fds_glob = '/proc/%d/fd/*' % (pid)
+            proc_fd_paths = glob.glob(proc_fds_glob)
+            for fd_path in proc_fd_paths:
+                if os.path.islink(fd_path):
+                    # If so, read the target and look for 'socket:[<inode>]'
+                    target = os.path.readlink(fd_path)
+                    m = re.match(r'socket:\[([0-9]+)\]', target)
+                    inode = int(m.group(1), 10)
+
+                    # If the search is constricted to one inode and there is
+                    # a match, then halt.
+                    if inode_sought is not None and inode == inode_sought:
+                        return [inode]
+
+                    # Otherwise, add it to the list and move on
+                    inodes.append(inode)
+
+        return inodes
