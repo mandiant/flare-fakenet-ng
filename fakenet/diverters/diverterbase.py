@@ -10,6 +10,11 @@ from collections import OrderedDict
 class DiverterBase(fnconfig.Config):
     def init_base(self, diverter_config, listeners_config, ip_addrs,
                   logging_level = logging.INFO):
+        # For fine-grained control of subclass debug output. Does not control
+        # debug output from DiverterBase. To see DiverterBase debug output,
+        # pass logging.DEBUG as the logging_level argument to init_base.
+        self.pdebug_level = 0
+
         self.ip_addrs = ip_addrs
 
         self.pcap = None
@@ -101,6 +106,17 @@ class DiverterBase(fnconfig.Config):
 
         # OS-specific Diverters must initialize e.g. WinDivert,
         # libnetfilter_queue, pf/alf, etc.
+
+    def set_debug_level(self, lvl):
+        """Enable debug output if necessary and set the debug output level."""
+        if lvl:
+            self.logger.setLevel(logging.DEBUG)
+        self.pdebug_level = lvl
+
+    def pdebug(self, lvl, s):
+        """Log only the debug trace messages that have been enabled."""
+        if self.pdebug_level & lvl:
+            self.logger.debug(s)
 
     def parse_listeners_config(self, listeners_config):
 

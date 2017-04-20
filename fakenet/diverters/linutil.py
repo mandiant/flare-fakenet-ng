@@ -1,11 +1,24 @@
+import os
 import re
 import glob
 import socket
+import struct
 import logging
+import binascii
 import threading
 import subprocess
 import netfilterqueue
 
+# Debug print levels for fine-grained debug trace output control
+DNFQUEUE = (1 << 0) # netfilterqueue
+DGENPKT = (1 << 1)  # Generic packet handling
+DPROCFS = (1 << 2)  # procfs
+DIPTBLS = (1 << 3)  # iptables
+DNONLOC = (1 << 4)  # Nonlocal-destined datagrams
+DDPF = (1 << 5)     # DPF (Dynamic Port Forwarding)
+DIPNAT = (1 << 6)   # IP redirection for nonlocal-destined datagrams
+DMISC = (1 << 31)   # Miscellaneous
+DEVERY = 0xffffffff # Log anything/everything
 
 class IptCmdTemplate:
     """For managing insertion and removal of iptables rules.
@@ -149,7 +162,6 @@ class LinUtilMixin():
     """Automate addition/removal of iptables rules, checking interface names,
     checking available netfilter queue numbers, etc.
     """
-
     def check_active_ethernet_adapters(self):
         return (len(self._linux_get_ifaces()) > 0)
 
@@ -187,7 +199,7 @@ class LinUtilMixin():
                     line = line.strip()
                     if line:
                         queue_nr = int(line.split()[0], 10)
-                        self.logger.debug(('Found NFQUEUE #' + str(queue_nr) +
+                        self.pdebug(DNFQUEUE, ('Found NFQUEUE #' + str(queue_nr) +
                                            ' per ') + procfs_path)
                         qnos.append(queue_nr)
         except IOError as e:
@@ -324,36 +336,47 @@ class LinUtilMixin():
                                'configuration: %s') % (resolvconf_path,
                                e.message))
 
-    def linux_find_processes(self, name):
+    def linux_find_processes(self, names):
         """Yeah great, but what if a blacklisted process spawns after we call
         this? We'd have to call this every time we do anything - expensive! Then again,
         """
         pids = []
 
         proc_pid_dirs = glob.glob('/proc/[0-9]*/')
+        comm_file = ''
 
         for proc_pid_dir in proc_pid_dirs:
+            comm_file = os.path.join(proc_pid_dir, 'comm')
             try:
-                comm_file = os.path.join(proc_pid_dir, 'comm')
                 with open(comm_file, 'r') as f:
-                    try:
-                        comm = f.read()
-                        if comm == name:
-                            pid = int(proc_pid_dir.split('/')[-2], 10)
-                            pids.append(pid)
-                    except IOError as e:
-                        # Silently ignore
-                        pass
+                    comm = f.read().strip()
+                    if comm in names:
+                        pid = int(proc_pid_dir.split('/')[-2], 10)
+                        pids.append(pid)
             except IOError as e:
                 # Silently ignore
                 pass
 
         return pids
 
-    def linux_find_sock_by_endpoint(self, ipver, proto, ip, port, local=True):
-        """Search /proc/net/tcp for a socket whose local (field 1) or remote
-        (field 2) address matches ip:port and return the corresponding inode
-        (field 9).
+    def _port_for_proc_net_tcp(self, port):
+        return ':%s' % (hex(port).lstrip('0x').zfill(4).upper())
+
+    def _ip_port_for_proc_net_tcp(self, ipver, ip_dotdecimal, port):
+        # IPv6 untested
+        af = socket.AF_INET6 if ipver == 6 else socket.AF_INET
+        ip_pton = socket.inet_pton(af, ip_dotdecimal)
+
+        ip_str = binascii.hexlify(ip_pton[::-1]).upper()
+        port_str = self._port_for_proc_net_tcp(port)
+
+        return '%s:%s' % (ip_str, port_str)
+
+    def linux_find_sock_by_endpoint(self, ipver, proto_name, ip, port,
+            local=True):
+        """Search /proc/net/tcp for a socket whose local (field 1, zero-based)
+        or remote (field 2) address matches ip:port and return the
+        corresponding inode (field 9).
 
         Fields referenced above are zero-based.
 
@@ -379,30 +402,150 @@ class LinUtilMixin():
 
         Returns inode
         """
-        procfs_path = '/proc/net/tcp'
-        pass
+        INODE_COLUMN = 9
 
-    def linux_find_process_connections(self, name, inode_sought=None):
+        # IPv6 untested
+        suffix = '6' if (ipver == 6) else ''
+
+        procfs_path = '/proc/net/' + proto_name.lower() + suffix
+
+        inode = None
+
+        port_tag = self._port_for_proc_net_tcp(port)
+
+        match_column = 1 if local else 2
+        local_column = 1
+        remote_column = 2
+
+        try:
+            with open(procfs_path) as f:
+                f.readline()  # Discard header
+                while True:
+                    line = f.readline()
+                    if not len(line):
+                        break
+
+                    fields = line.split()
+
+                    # Local matches can be made based on port only
+                    if local and fields[local_column].endswith(port_tag):
+                        inode = int(fields[INODE_COLUMN], 10)
+                        self.pdebug(DPROCFS, 'MATCHING CONNECTION: %s' %
+                                (line.strip()))
+                        break
+                    # Untested: Remote matches must be more specific and
+                    # include the IP address. Hence, an "endpoint tag" is
+                    # constructed to match what would appear in
+                    # /proc/net/{tcp,udp}{,6}
+                    elif not local:
+                        endpoint_tag = self._ip_port_for_proc_net_tcp(ipver,
+                                                                      ip, port)
+                        if fields[remote_column] == endpoint_tag:
+                            inode = int(fields[INODE_COLUMN], 10)
+                            self.pdebug(DPROCFS, 'MATCHING CONNECTION: %s' %
+                                    (line.strip()))
+        except IOError as e:
+            self.logger.error('No such protocol/IP ver (%s) or error: %s' %
+                    (procfs_path, e.message))
+
+        return inode
+
+    def linux_find_process_connections(self, names, inode_sought=None):
         inodes = list()
 
-        for pid in linux_find_processes(name):
+        for pid in self.linux_find_processes(names):
 
             # Check all /proc/<pid>/fd/* to see if they are symlinks
             proc_fds_glob = '/proc/%d/fd/*' % (pid)
             proc_fd_paths = glob.glob(proc_fds_glob)
             for fd_path in proc_fd_paths:
-                if os.path.islink(fd_path):
-                    # If so, read the target and look for 'socket:[<inode>]'
-                    target = os.path.readlink(fd_path)
-                    m = re.match(r'socket:\[([0-9]+)\]', target)
-                    inode = int(m.group(1), 10)
-
-                    # If the search is constricted to one inode and there is
-                    # a match, then halt.
-                    if inode_sought is not None and inode == inode_sought:
+                inode = self._linux_get_inode_for_fd_file(fd_path)
+                if inode:
+                    if inode_sought is None:
+                        inodes.append(inode)
+                    elif inode == inode_sought:
+                        self.pdebug(DPROCFS, 'MATCHING FD %s -> socket:[%d]' %
+                                (fd_path, inode))
                         return [inode]
 
-                    # Otherwise, add it to the list and move on
-                    inodes.append(inode)
-
         return inodes
+
+    def _linux_get_inode_for_fd_file(self, fd_file_path):
+        inode = None
+
+        try:
+            target = os.readlink(fd_file_path)
+            m = re.match(r'socket:\[([0-9]+)\]', target)
+            if m:
+                inode = int(m.group(1), 10)
+        except OSError:
+            pass
+
+        return inode
+
+    def linux_get_comm_by_pid(self, pid):
+        comm = None
+
+        procfs_path = '/proc/%d/comm' % (pid)
+        try:
+            with open(procfs_path, 'r') as f:
+                comm = f.read().strip()
+        except IOError as e:
+            self.pdebug(DPROCFS, 'Failed to open %s: %s' %
+                        (procfs_path, e.message))
+        return comm
+
+    def linux_get_pid_comm_by_endpoint(self, ipver, proto_name, ip, port):
+        """Obtain a pid and executable name associated with an endpoint.
+
+        NOTE: procfs does not allow us to answer questions like "who just
+        called send()?"; only questions like "who owns a socket associated with
+        this local port?" Since fork() etc. can result in multiple ownership,
+        the real answer may be that multiple processes actually own the socket.
+        This implementation stops at the first match and hence may not give a
+        perfectly accurate answer in those cases. In practice, this may be
+        adequate, or it may need to be revisited to return a list of (pid,comm)
+        tuples to take into account cases where multiple processes have the
+        same inode open.
+        """
+        pid, comm = None, None
+
+        # 1. Find the inode number associated with this socket
+        inode = self.linux_find_sock_by_endpoint(ipver, proto_name, ip, port)
+
+        if inode:
+            # 2. Search for a /proc/<pid>/fd/<fd> that has this inode open.
+            proc_fds_glob = '/proc/[0-9]*/fd/*'
+            proc_fd_paths = glob.glob(proc_fds_glob)
+            for fd_path in proc_fd_paths:
+                candidate = self._linux_get_inode_for_fd_file(fd_path)
+                if candidate and (candidate == inode):
+
+                    # 3. Record the pid and executable name
+                    try:
+                        pid = int(fd_path.split('/')[-3], 10)
+                        comm = self.linux_get_comm_by_pid(pid)
+                    # Not interested in e.g.
+                    except ValueError:
+                        pass
+
+        return pid, comm
+
+    def linux_endpoint_owned_by_processes(self, ipver, proto_name, ip, port,
+            names):
+        inode = self.linux_find_sock_by_endpoint(ipver, proto_name, ip, port)
+        t = self._ip_port_for_proc_net_tcp(ipver, ip, port)
+
+        if inode:
+            self.pdebug(DPROCFS, 'inode %d found for %s:%s (%s)' %
+                              (inode, ip, port, t))
+            conns = self.linux_find_process_connections(names, inode)
+            if len(conns):
+                self.pdebug(DPROCFS, 'FOUND inode %d for %s' %
+                            (inode, str(names)))
+                return True
+        else:
+            self.pdebug(DPROCFS, 'No inode found for %s:%d (%s)' %
+                        (ip, port, t))
+
+        return False

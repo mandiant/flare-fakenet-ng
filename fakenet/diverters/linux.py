@@ -15,6 +15,7 @@ from netfilterqueue import NetfilterQueue
 
 def b2(x): return '1' if x else '0'
 
+
 class PacketHandler:
     """Used to encapsulate common patterns in packet hooks."""
 
@@ -61,7 +62,7 @@ class PacketHandler:
         else:
             proto_name = self.diverter.handled_protocols.get(self.proto)
 
-            self.logger.debug('%s %s' % (self.label,
+            self.diverter.pdebug(DGENPKT, '%s %s' % (self.label,
                                          self.diverter.hdr_to_str(proto_name,
                                                                    self.hdr)))
 
@@ -86,12 +87,18 @@ class PacketHandler:
                                                                self.dst_ip,
                                                                self.dport)
 
+                    pid, comm = self.diverter.linux_get_pid_comm_by_endpoint(
+                            self.ipver, proto_name, self.src_ip, self.sport)
+                    if pid:
+                        self.logger.info('  pid:  %d name: %s' %
+                                         (pid, comm if comm else 'Unknown'))
+
                     hdr_latest = self.hdr
                     modified = False
 
                     # 4: Layer 4 (Transport layer) callbacks
                     for trans_cb in self.callbacks4:
-                        hdr_mod = trans_cb(self.ipver, hdr_latest,
+                        hdr_mod = trans_cb(pid, comm, self.ipver, hdr_latest,
                                            proto_name,
                                            self.src_ip, self.sport, self.skey,
                                            self.dst_ip, self.dport, self.dkey)
@@ -107,7 +114,7 @@ class PacketHandler:
                         # 5Aii: Finalize changes with nfq
                         self.pkt.set_payload(hdr_latest.pack())
             else:
-                self.logger.debug('%s: Not handling protocol %s' %
+                self.diverter.pdebug(DGENPKT, '%s: Not handling protocol %s' %
                                   (self.label, self.proto))
 
         # 5B: NF_ACCEPT
@@ -120,8 +127,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.init_base(diverter_config, listeners_config, ip_addrs,
                        logging_level)
 
-        # TODO: Remove this after testing and development are complete
-        self.logger.setLevel(logging.DEBUG)
+        self.set_debug_level(0)
 
         self.init_diverter_linux()
 
@@ -160,9 +166,9 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.handled_protocols = {
             dpkt.ip.IP_PROTO_TCP: 'TCP',
             dpkt.ip.IP_PROTO_UDP: 'UDP',
-            # TODO: Incorporate ICMP so that it appears in pcap and logging
-            # dpkt.ip.IP_PROTO_ICMP: 'ICMP',
         }
+        # TODO: Incorporate ICMP so that it appears in pcap and logging but
+        # doesn't trigger layer4 processing: dpkt.ip.IP_PROTO_ICMP / 'ICMP'
 
         # Track iptables rules not associated with any nfqueue object
         self.rules_added = []
@@ -191,6 +197,10 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         callbacks = list()
 
+        # TODO: While we're documenting things, let's include:
+        # 1.) The components that compose the Linux Diverter
+        # 2.) The traffic flow relevant to conditions 1-4
+        #
         # EXPLAINING HOOK LOCATION CHOICES
         #
         # This can be moved into a TXT file and added to the git repo if this
@@ -303,7 +313,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         nhooks = len(callbacks)
 
-        self.logger.debug('Discovering the next %d available NFQUEUE numbers' %
+        self.pdebug(DNFQUEUE, 'Discovering the next %d available NFQUEUE numbers' %
                           (nhooks))
         qnos = self.linux_get_next_nfqueue_numbers(nhooks)
         if len(qnos) != nhooks:
@@ -311,13 +321,13 @@ class Diverter(DiverterBase, LinUtilMixin):
                               'netfilter queue numbers')
             sys.exit(1)
 
-        self.logger.debug('Next available NFQUEUE numbers: ' + str(qnos))
+        self.pdebug(DNFQUEUE, 'Next available NFQUEUE numbers: ' + str(qnos))
 
-        self.logger.debug('Enumerating queue numbers and hook ' +
+        self.pdebug(DNFQUEUE, 'Enumerating queue numbers and hook ' +
                           'specifications to create NFQUEUE objects')
         self.nfqueues = list()
         for qno, hk in zip(qnos, callbacks):
-            self.logger.debug(('Creating NFQUEUE object for chain %s / ' +
+            self.pdebug(DNFQUEUE, ('Creating NFQUEUE object for chain %s / ' +
                                'table %s / queue # %d => %s') % (hk.chain,
                                hk.table, qno, str(hk.callback)))
             q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback)
@@ -341,9 +351,9 @@ class Diverter(DiverterBase, LinUtilMixin):
         #   * # Stop DNS service (if stopdnsservice)
 
         if self.is_configured('linuxredirectnonlocal'):
-            self.logger.debug('Processing LinuxRedirectNonlocal')
+            self.pdebug(DMISC, 'Processing LinuxRedirectNonlocal')
             specified_ifaces = self.getconfigval('linuxredirectnonlocal')
-            self.logger.debug('Processing linuxredirectnonlocal on ' +
+            self.pdebug(DMISC, 'Processing linuxredirectnonlocal on ' +
                               'interfaces: %s' % (specified_ifaces))
             ok, rules = self.linux_iptables_redir_nonlocal(specified_ifaces)
 
@@ -360,20 +370,20 @@ class Diverter(DiverterBase, LinUtilMixin):
     def stop(self):
         self.logger.info('Stopping Linux Diverter...')
 
-        self.logger.debug('Notifying NFQUEUE objects of imminent stop')
+        self.pdebug(DNFQUEUE, 'Notifying NFQUEUE objects of imminent stop')
         for q in self.nfqueues:
             q.stop_nonblocking()
 
-        self.logger.debug('Removing iptables rules not associated with any ' +
+        self.pdebug(DIPTBLS, 'Removing iptables rules not associated with any ' +
                           'NFQUEUE object')
         self.linux_remove_iptables_rules(self.rules_added)
 
         for q in self.nfqueues:
-            self.logger.debug('Stopping NFQUEUE for %s' % (str(q)))
+            self.pdebug(DNFQUEUE, 'Stopping NFQUEUE for %s' % (str(q)))
             q.stop()
 
         if self.pcap:
-            self.logger.debug('Closing pcap file %s' % (self.pcap_filename))
+            self.pdebug(DMISC, 'Closing pcap file %s' % (self.pcap_filename))
             self.pcap.close()  # Only after all queues are stopped
 
         self.logger.info('Stopped Linux Diverter')
@@ -391,7 +401,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         hard-coded IP addresses.
         """
 
-        net_cbs = [self.check_log_nonlocal, ]
+        net_cbs = [self.check_log_nonlocal]
 
         h = PacketHandler(pkt, self, 'handle_nonlocal', net_cbs, [])
         h.handle_pkt()
@@ -408,7 +418,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         No return value.
         """
-        trans_cbs = [self.maybe_redir_port,]
+        trans_cbs = [self.maybe_redir_port]
 
         # IP redirection fix-ups are only for SingleHost mode
         if self.single_host_mode:
@@ -442,7 +452,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # nonlocal host communication.
         net_cbs = [self.check_log_nonlocal] if self.single_host_mode else []
 
-        trans_cbs = [self.maybe_fixup_sport,]
+        trans_cbs = [self.maybe_fixup_sport]
 
         # IP redirection is only for SingleHost mode
         if self.single_host_mode:
@@ -450,6 +460,17 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         h = PacketHandler(pkt, self, 'handle_outgoing', net_cbs, trans_cbs)
         h.handle_pkt()
+
+    def check_blacklisted_process(self, comm):
+        blacklisted = False
+
+        # Only perform process blacklist check in SingleHost mode and if at
+        # least one blacklisted process was configured.
+        if self.single_host_mode:
+            if len(self.blacklist_processes):
+                blacklisted = comm in self.blacklist_processes
+
+        return blacklisted
 
     def parse_ipv4(self, ipver, raw):
         hdr = dpkt.ip.IP(raw)
@@ -479,7 +500,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         """
         proto_name = self.handled_protocols.get(proto)
 
-        self.logger.debug('Nonlocal %s' % (self.hdr_to_str(proto_name, hdr)))
+        self.pdebug(DNONLOC, 'Nonlocal %s' % (self.hdr_to_str(proto_name, hdr)))
 
         first_sighting = (dst_ip not in self.nonlocal_ips_already_seen)
 
@@ -493,143 +514,8 @@ class Diverter(DiverterBase, LinUtilMixin):
                 'Received nonlocal IPv%d datagram destined for %s' %
                 (ipver, dst_ip))
 
-    def maybe_fixup_srcip(self, ipver, hdr, proto_name, src_ip, sport, skey,
-                           dst_ip, dport, dkey):
-        """Conditionally fix up the source IP address if the remote endpoint
-        had their connection IP-forwarded.
-
-        Check is based on whether the remote endpoint corresponds to a key in
-        the IP forwarding table.
-
-        Returns:
-            None - if unmodified
-            dpkt.ip.hdr - if modified
-        """
-        hdr_modified = None
-
-        # Condition 4: If the local endpoint (IP/port/proto) combo
-        # corresponds to an endpoint that initiated a conversation with a
-        # foreign endpoint in the past, then fix up the source IP for this
-        # incoming packet with the last destination IP that was requested
-        # by the endpoint.
-        self.logger.debug("Condition 4 test: was remote endpoint IP fwd'd?")
-        self.ip_fwd_table_lock.acquire()
-        try:
-            if self.single_host_mode and (dkey in self.ip_fwd_table):
-                self.logger.debug('Condition 4 satisfied')
-                self.logger.debug(' = FOUND ipfwd key entry: ' + dkey)
-                new_srcip = self.ip_fwd_table[dkey]
-                hdr_modified = self.mangle_srcip(
-                    hdr, proto_name, hdr.src, new_srcip)
-            else:
-                self.logger.debug(' ! NO SUCH ipfwd key entry: ' + dkey)
-        finally:
-            self.ip_fwd_table_lock.release()
-
-        return hdr_modified
-
-    def maybe_redir_port(self, ipver, hdr, proto_name, src_ip, sport, skey,
-                          dst_ip, dport, dkey):
-        hdr_modified = None
-
-        default = self.default_listener[proto_name]
-        bound_ports = self.diverted_ports.get(proto_name, [])
-
-        # Pre-condition: destination not present in port forwarding table
-        # (prevent masqueraded ports responding to unbound ports from being
-        # mistaken as starting a conversation with an unbound port)
-        self.port_fwd_table_lock.acquire()
-        found = False
-        try:
-            # Uses dkey to cross-reference
-            found = dkey in self.port_fwd_table
-        finally:
-            self.port_fwd_table_lock.release()
-
-        # Condition 2: If the packet is destined for an unbound port, then
-        # redirect it to a bound port and save the old destination IP in
-        # the port forwarding table keyed by the source endpoint identity.
-
-        self.logger.debug('Condition 2 test')
-
-        if (not found) and self.decide_redir_port(ipver, proto_name, default,
-                                                  bound_ports, src_ip, sport,
-                                                  dst_ip, dport):
-            # if self.decide_redir_port(ipver, proto_name, default,
-            # bound_ports, src_ip, sport, dst_ip, dport):
-            self.logger.debug('Condition 2 satisfied')
-
-            # Record the foreign endpoint and old destination port in the port
-            # forwarding table
-            self.logger.debug(' + ADDING portfwd key entry: ' + skey)
-            self.port_fwd_table_lock.acquire()
-            try:
-                self.port_fwd_table[skey] = dport
-            finally:
-                self.port_fwd_table_lock.release()
-
-            hdr_modified = self.mangle_dstport(hdr, proto_name, dport, default)
-
-        else:
-            # Delete any stale entries in the port forwarding table: If the
-            # foreign endpoint appears to be reusing a client port that was
-            # formerly used to connect to an unbound port on this server,
-            # remove the entry. This prevents the OUTPUT or other packet
-            # hook from faithfully overwriting the source port to conform
-            # to the foreign endpoint's stale connection port when the
-            # foreign host is reusing the port number to connect to an
-            # already-bound port on the FakeNet system.
-
-            self.port_fwd_table_lock.acquire()
-            try:
-                if skey in self.port_fwd_table:
-                    self.logger.debug(' - DELETING portfwd key entry: ' + skey)
-                    del self.port_fwd_table[skey]
-            finally:
-                self.port_fwd_table_lock.release()
-
-        return hdr_modified
-
-    def maybe_fixup_sport(self, ipver, hdr, proto_name, src_ip, sport, skey,
-                           dst_ip, dport, dkey):
-        """Conditionally fix up source port if the remote endpoint had their
-        connection port-forwarded.
-
-        Check is based on whether the remote endpoint corresponds to a key in
-        the port forwarding table.
-
-        Returns:
-            None - if unmodified
-            dpkt.ip.hdr - if modified
-        """
-        hdr_modified = None
-
-        # Condition 3: If the remote endpoint (IP/port/proto) combo
-        # corresponds to an endpoint that initiated a conversation with an
-        # unbound port in the past, then fix up the source port for this
-        # outgoing packet with the last destination port that was requested
-        # by that endpoint. The term "endpoint" is (ab)used loosely here to
-        # apply to UDP host/port/proto combos and any other protocol that
-        # may be supported in the future.
-        self.logger.debug("Condition 3 test: was remote endpoint port fwd'd?")
-        self.port_fwd_table_lock.acquire()
-        try:
-            if dkey in self.port_fwd_table:
-                self.logger.debug(
-                    'Condition 3 satisfied: must fix up source port')
-                self.logger.debug(' = FOUND portfwd key entry: ' + dkey)
-                new_sport = self.port_fwd_table[dkey]
-                hdr_modified = self.mangle_srcport(
-                    hdr, proto_name, hdr.data.sport, new_sport)
-            else:
-                self.logger.debug(' ! NO SUCH portfwd key entry: ' + dkey)
-        finally:
-            self.port_fwd_table_lock.release()
-
-        return hdr_modified
-
-    def maybe_redir_ip(self, ipver, hdr, proto_name, src_ip, sport, skey,
-                        dst_ip, dport, dkey):
+    def maybe_redir_ip(self, pid, comm, ipver, hdr, proto_name, src_ip, sport,
+            skey, dst_ip, dport, dkey):
         """Conditionally redirect foreign destination IPs to localhost.
 
         Used only under SingleHost mode.
@@ -638,13 +524,20 @@ class Diverter(DiverterBase, LinUtilMixin):
             None - if unmodified
             dpkt.ip.hdr - if modified
         """
-        self.logger.debug('Condition 1 test')
-        # Condition 1: If the remote IP address is foreign to this system,
-        # then redirect it to a local IP address.
         hdr_modified = None
 
+        # Pre-condition: originating process not in process blacklist
+        # (SingleHost mode only).
+        if self.check_blacklisted_process(comm):
+            self.logger.info('Ignoring IP redirection for %s:%d owned by %s' %
+                        (src_ip, sport, str(comm)))
+            return hdr_modified  # None
+
+        self.pdebug(DIPNAT, 'Condition 1 test')
+        # Condition 1: If the remote IP address is foreign to this system,
+        # then redirect it to a local IP address.
         if self.single_host_mode and (dst_ip not in self.ip_addrs[ipver]):
-            self.logger.debug('Condition 1 satisfied')
+            self.pdebug(DIPNAT, 'Condition 1 satisfied')
             self.ip_fwd_table_lock.acquire()
             try:
                 self.ip_fwd_table[skey] = dst_ip
@@ -669,10 +562,154 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.ip_fwd_table_lock.acquire()
             try:
                 if skey in self.ip_fwd_table:
-                    self.logger.debug(' - DELETING ipfwd key entry: ' + skey)
+                    self.pdebug(DIPNAT, ' - DELETING ipfwd key entry: ' + skey)
                     del self.ip_fwd_table[skey]
             finally:
                 self.ip_fwd_table_lock.release()
+
+        return hdr_modified
+
+    def maybe_fixup_srcip(self, pid, comm, ipver, hdr, proto_name, src_ip,
+            sport, skey, dst_ip, dport, dkey):
+        """Conditionally fix up the source IP address if the remote endpoint
+        had their connection IP-forwarded.
+
+        Check is based on whether the remote endpoint corresponds to a key in
+        the IP forwarding table.
+
+        Returns:
+            None - if unmodified
+            dpkt.ip.hdr - if modified
+        """
+        hdr_modified = None
+
+        # Condition 4: If the local endpoint (IP/port/proto) combo
+        # corresponds to an endpoint that initiated a conversation with a
+        # foreign endpoint in the past, then fix up the source IP for this
+        # incoming packet with the last destination IP that was requested
+        # by the endpoint.
+        self.pdebug(DIPNAT, "Condition 4 test: was remote endpoint IP fwd'd?")
+        self.ip_fwd_table_lock.acquire()
+        try:
+            if self.single_host_mode and (dkey in self.ip_fwd_table):
+                self.pdebug(DIPNAT, 'Condition 4 satisfied')
+                self.pdebug(DIPNAT, ' = FOUND ipfwd key entry: ' + dkey)
+                new_srcip = self.ip_fwd_table[dkey]
+                hdr_modified = self.mangle_srcip(
+                    hdr, proto_name, hdr.src, new_srcip)
+            else:
+                self.pdebug(DIPNAT, ' ! NO SUCH ipfwd key entry: ' + dkey)
+        finally:
+            self.ip_fwd_table_lock.release()
+
+        return hdr_modified
+
+    def maybe_redir_port(self, pid, comm, ipver, hdr, proto_name, src_ip,
+            sport, skey, dst_ip, dport, dkey):
+        hdr_modified = None
+
+        default = self.default_listener[proto_name]
+        bound_ports = self.diverted_ports.get(proto_name, [])
+
+        # Pre-condition 1: originating process not in process blacklist
+        # (SingleHost mode only).
+        if self.check_blacklisted_process(comm):
+            self.logger.info('Ignoring port forward for %s:%d owned by %s' %
+                        (src_ip, sport, str(comm)))
+            return hdr_modified  # None
+
+        # Pre-condition 2: destination not present in port forwarding table
+        # (prevent masqueraded ports responding to unbound ports from being
+        # mistaken as starting a conversation with an unbound port).
+        found = False
+        self.port_fwd_table_lock.acquire()
+        try:
+            # Uses dkey to cross-reference
+            found = dkey in self.port_fwd_table
+        finally:
+            self.port_fwd_table_lock.release()
+
+        if found:
+            return hdr_modified  # None
+
+        # Condition 2: If the packet is destined for an unbound port, then
+        # redirect it to a bound port and save the old destination IP in
+        # the port forwarding table keyed by the source endpoint identity.
+
+        self.pdebug(DDPF, 'Condition 2 test')
+
+        if self.decide_redir_port(ipver, proto_name, default, bound_ports,
+                                  src_ip, sport, dst_ip, dport):
+            # if self.decide_redir_port(ipver, proto_name, default,
+            # bound_ports, src_ip, sport, dst_ip, dport):
+            self.pdebug(DDPF, 'Condition 2 satisfied')
+
+            # Record the foreign endpoint and old destination port in the port
+            # forwarding table
+            self.pdebug(DDPF, ' + ADDING portfwd key entry: ' + skey)
+            self.port_fwd_table_lock.acquire()
+            try:
+                self.port_fwd_table[skey] = dport
+            finally:
+                self.port_fwd_table_lock.release()
+
+            hdr_modified = self.mangle_dstport(hdr, proto_name, dport, default)
+
+        else:
+            # Delete any stale entries in the port forwarding table: If the
+            # foreign endpoint appears to be reusing a client port that was
+            # formerly used to connect to an unbound port on this server,
+            # remove the entry. This prevents the OUTPUT or other packet
+            # hook from faithfully overwriting the source port to conform
+            # to the foreign endpoint's stale connection port when the
+            # foreign host is reusing the port number to connect to an
+            # already-bound port on the FakeNet system.
+
+            self.port_fwd_table_lock.acquire()
+            try:
+                if skey in self.port_fwd_table:
+                    self.pdebug(DDPF, ' - DELETING portfwd key entry: ' + skey)
+                    del self.port_fwd_table[skey]
+            finally:
+                self.port_fwd_table_lock.release()
+
+        return hdr_modified
+
+    def maybe_fixup_sport(self, pid, comm, ipver, hdr, proto_name, src_ip,
+            sport, skey, dst_ip, dport, dkey):
+        """Conditionally fix up source port if the remote endpoint had their
+        connection port-forwarded.
+
+        Check is based on whether the remote endpoint corresponds to a key in
+        the port forwarding table.
+
+        Returns:
+            None - if unmodified
+            dpkt.ip.hdr - if modified
+        """
+        hdr_modified = None
+
+        # Condition 3: If the remote endpoint (IP/port/proto) combo
+        # corresponds to an endpoint that initiated a conversation with an
+        # unbound port in the past, then fix up the source port for this
+        # outgoing packet with the last destination port that was requested
+        # by that endpoint. The term "endpoint" is (ab)used loosely here to
+        # apply to UDP host/port/proto combos and any other protocol that
+        # may be supported in the future.
+        self.pdebug(DDPF, "Condition 3 test: was remote endpoint port fwd'd?")
+        self.port_fwd_table_lock.acquire()
+        try:
+            if dkey in self.port_fwd_table:
+                self.pdebug(DDPF, 
+                    'Condition 3 satisfied: must fix up source port')
+                self.pdebug(DDPF, ' = FOUND portfwd key entry: ' + dkey)
+                new_sport = self.port_fwd_table[dkey]
+                hdr_modified = self.mangle_srcport(
+                    hdr, proto_name, hdr.data.sport, new_sport)
+            else:
+                self.pdebug(DDPF, ' ! NO SUCH portfwd key entry: ' + dkey)
+        finally:
+            self.port_fwd_table_lock.release()
 
         return hdr_modified
 
@@ -683,12 +720,12 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         if proto_name == 'TCP':
             if dport in self.getconfigval('blacklistportstcp'):
-                self.logger.debug(
+                self.pdebug(DDPF, 
                     'Not forwarding packet destined for tcp/%d' % (dport))
                 return False
         elif proto_name == 'UDP':
             if dport in self.getconfigval('blacklistportsudp'):
-                self.logger.debug(
+                self.pdebug(DDPF, 
                     'Not forwarding packet destined for udp/%d' % (dport))
                 return False
 
@@ -702,13 +739,13 @@ class Diverter(DiverterBase, LinUtilMixin):
         c = src_port_is_bound = sport in (bound_ports)
         d = dst_port_is_bound = dport in (bound_ports)
 
-        self.logger.debug('srcip: ' + str(src_ip) +
+        self.pdebug(DDPF, 'srcip: ' + str(src_ip) +
                           (' (local)' if a else ' (foreign)'))
-        self.logger.debug('dstip: ' + str(dst_ip) +
+        self.pdebug(DDPF, 'dstip: ' + str(dst_ip) +
                           (' (local)' if b else ' (foreign)'))
-        self.logger.debug('srcpt: ' + str(sport) +
+        self.pdebug(DDPF, 'srcpt: ' + str(sport) +
                           (' (bound)' if c else ' (unbound)'))
-        self.logger.debug('dstpt: ' + str(dport) +
+        self.pdebug(DDPF, 'dstpt: ' + str(dport) +
                           (' (bound)' if d else ' (unbound)'))
 
         result = (
@@ -718,13 +755,13 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         result = (b and not a and not d) or (a and not c and not d)
 
-        self.logger.debug('abcd = ' + b2(a) + b2(b) + b2(c) + b2(d))
+        self.pdebug(DDPF, 'abcd = ' + b2(a) + b2(b) + b2(c) + b2(d))
 
         return result
 
     def mangle_dstip(self, hdr, proto_name, dstip, newdstip):
         """Mangle destination IP for selected outgoing packets."""
-        self.logger.debug('REDIRECTING %s to IP %s' %
+        self.pdebug(DIPNAT, 'REDIRECTING %s to IP %s' %
                           (self.hdr_to_str(proto_name, hdr), newdstip))
         hdr.dst = socket.inet_aton(newdstip)
         self._calc_csums(hdr)
@@ -732,7 +769,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def mangle_srcip(self, hdr, proto_name, src_ip, new_srcip):
         """Mangle source IP for selected incoming packets."""
-        self.logger.debug('MASQUERADING %s from IP %s' %
+        self.pdebug(DIPNAT, 'MASQUERADING %s from IP %s' %
                           (self.hdr_to_str(proto_name, hdr), new_srcip))
         hdr.src = socket.inet_aton(new_srcip)
         self._calc_csums(hdr)
@@ -740,7 +777,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def mangle_dstport(self, hdr, proto_name, dstport, newdstport):
         """Mangle destination port for selected incoming packets."""
-        self.logger.debug('REDIRECTING %s to port %d' %
+        self.pdebug(DDPF, 'REDIRECTING %s to port %d' %
                           (self.hdr_to_str(proto_name, hdr), newdstport))
         hdr.data.dport = newdstport
         self._calc_csums(hdr)
@@ -748,7 +785,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def mangle_srcport(self, hdr, proto_name, srcport, newsrcport):
         """Mangle source port for selected outgoing packets."""
-        self.logger.debug('MASQUERADING %s from port %d' %
+        self.pdebug(DDPF, 'MASQUERADING %s from port %d' %
                           (self.hdr_to_str(proto_name, hdr), newsrcport))
         hdr.data.sport = newsrcport
         self._calc_csums(hdr)
