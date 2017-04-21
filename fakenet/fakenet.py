@@ -223,9 +223,14 @@ def get_ips(ipvers):
 
     for iface in netifaces.interfaces():
         for spec in specs:
-            for link in netifaces.ifaddresses(iface)[spec]:
-                if 'addr' in link:
-                    results.append(link['addr'])
+            addrs = netifaces.ifaddresses(iface)
+            # If an interface only has an IPv4 or IPv6 address, then 6 or 4
+            # respectively will be absent from the keys in the interface
+            # addresses dictionary.
+            if spec in addrs:
+                for link in addrs[spec]:
+                    if 'addr' in link:
+                        results.append(link['addr'])
 
     return results
 
