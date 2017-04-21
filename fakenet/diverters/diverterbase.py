@@ -14,6 +14,7 @@ class DiverterBase(fnconfig.Config):
         # debug output from DiverterBase. To see DiverterBase debug output,
         # pass logging.DEBUG as the logging_level argument to init_base.
         self.pdebug_level = 0
+        self.pdebug_labels = dict()
 
         self.ip_addrs = ip_addrs
 
@@ -107,16 +108,21 @@ class DiverterBase(fnconfig.Config):
         # OS-specific Diverters must initialize e.g. WinDivert,
         # libnetfilter_queue, pf/alf, etc.
 
-    def set_debug_level(self, lvl):
+    def set_debug_level(self, lvl, labels={}):
         """Enable debug output if necessary and set the debug output level."""
         if lvl:
             self.logger.setLevel(logging.DEBUG)
+
         self.pdebug_level = lvl
+
+        self.pdebug_labels = labels
 
     def pdebug(self, lvl, s):
         """Log only the debug trace messages that have been enabled."""
         if self.pdebug_level & lvl:
-            self.logger.debug(s)
+            label = self.pdebug_labels.get(lvl)
+            prefix = '[' + label + '] ' if label else ''
+            self.logger.debug(prefix + str(s))
 
     def parse_listeners_config(self, listeners_config):
 
@@ -257,12 +263,16 @@ class DiverterBase(fnconfig.Config):
                 self.default_listener['UDP'] = int( self.listeners_config[ self.getconfigval('defaultudplistener') ]['port'] )
                 self.logger.error('Using default listener %s on port %d', self.getconfigval('defaultudplistener'), self.default_listener['UDP'])
 
+            # Re-marshall these into a readily usable form...
+
             # Do not redirect blacklisted TCP ports
             if self.is_configured('blacklistportstcp'):
+                self.blacklist_ports['TCP'] = self.getconfigval('blacklistportstcp')
                 self.logger.debug('Blacklisted TCP ports: %s', ', '.join([str(p) for p in self.getconfigval('BlackListPortsTCP')]))
 
             # Do not redirect blacklisted UDP ports
             if self.is_configured('blacklistportsudp'):
+                self.blacklist_ports['UDP'] = self.getconfigval('blacklistportsudp')
                 self.logger.debug('Blacklisted UDP ports: %s', ', '.join([str(p) for p in self.getconfigval('BlackListPortsUDP')]))
 
         # Redirect only specific traffic, build the filter dynamically

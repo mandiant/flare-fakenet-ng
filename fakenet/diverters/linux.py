@@ -127,7 +127,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.init_base(diverter_config, listeners_config, ip_addrs,
                        logging_level)
 
-        self.set_debug_level(0)
+        self.set_debug_level(DIGN, DLABELS)
 
         self.init_diverter_linux()
 
@@ -461,17 +461,6 @@ class Diverter(DiverterBase, LinUtilMixin):
         h = PacketHandler(pkt, self, 'handle_outgoing', net_cbs, trans_cbs)
         h.handle_pkt()
 
-    def check_blacklisted_process(self, comm):
-        blacklisted = False
-
-        # Only perform process blacklist check in SingleHost mode and if at
-        # least one blacklisted process was configured.
-        if self.single_host_mode:
-            if len(self.blacklist_processes):
-                blacklisted = comm in self.blacklist_processes
-
-        return blacklisted
-
     def parse_ipv4(self, ipver, raw):
         hdr = dpkt.ip.IP(raw)
         if hdr.hl < 5:
@@ -514,6 +503,64 @@ class Diverter(DiverterBase, LinUtilMixin):
                 'Received nonlocal IPv%d datagram destined for %s' %
                 (ipver, dst_ip))
 
+    def check_should_ignore(self, pid, comm, ipver, hdr, proto_name, src_ip,
+            sport, dst_ip, dport):
+
+        # SingleHost mode checks
+        if self.single_host_mode:
+            if comm and comm in self.blacklist_processes:
+                self.pdebug(DIGN, 'Ignoring %s packet from process %s in the process blacklist.' % (proto_name, comm))
+                self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+                return True
+        # MultiHost mode checks
+        else:
+            pass  # None as of yet
+
+        # Checks independent of mode
+
+        if set(self.blacklist_ports[proto_name]).intersection([sport, dport]):
+            self.pdebug(DIGN, 'Forwarding blacklisted port %s packet:' % (proto_name))
+            self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+            return True
+
+        global_host_blacklist = self.getconfigval('hostblacklist')
+        if global_host_blacklist and dst_ip in global_host_blacklist:
+            self.pdebug(DIGN, 'Ignoring %s packet to %s in the host blacklist.' % (proto_name, dst_ip))
+            self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+            return True
+
+        if comm:
+            # Check per-listener whitelisted process list
+            if dport in self.port_process_whitelist:
+                # If program does NOT match whitelist
+                if not comm in self.port_process_whitelist[dport]:
+                    self.pdebug(DIGN, 'Ignoring %s request packet from process %s not in the listener process whitelist.' % (proto_name, process_name))
+                    self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+                    return True
+
+            # Check per-listener blacklisted process list
+            if dport in self.port_process_blacklist:
+                # If program DOES match blacklist
+                if comm in self.port_process_blacklist[dport]:
+                    self.pdebug(DIGN, 'Ignoring %s request packet from process %s in the listener process blacklist.' % (proto_name, process_name))
+                    self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+
+                    return True
+
+        if dport in self.port_host_whitelist:
+            # If host does NOT match whitelist
+            if not dst_ip in self.port_host_whitelist:
+                self.pdebug(DIGN, 'Ignoring %s request packet to %s not in the listener host whitelist.', proto_name, packet.dst_addr)
+                self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+                return True
+
+        if dport in self.port_host_blacklist:
+            # If host DOES match blacklist
+            if dst_ip in self.port_host_blacklist:
+                self.pdebug(DIGN, 'Ignoring %s request packet to %s in the listener host blacklist.', proto_name, packet.dst_addr)
+                self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+                return True
+
     def maybe_redir_ip(self, pid, comm, ipver, hdr, proto_name, src_ip, sport,
             skey, dst_ip, dport, dkey):
         """Conditionally redirect foreign destination IPs to localhost.
@@ -526,11 +573,8 @@ class Diverter(DiverterBase, LinUtilMixin):
         """
         hdr_modified = None
 
-        # Pre-condition: originating process not in process blacklist
-        # (SingleHost mode only).
-        if self.check_blacklisted_process(comm):
-            self.logger.info('Ignoring IP redirection for %s:%d owned by %s' %
-                        (src_ip, sport, str(comm)))
+        if self.check_should_ignore(pid, comm, ipver, hdr, proto_name, src_ip,
+                sport, dst_ip, dport):
             return hdr_modified  # None
 
         self.pdebug(DIPNAT, 'Condition 1 test')
@@ -608,15 +652,12 @@ class Diverter(DiverterBase, LinUtilMixin):
             sport, skey, dst_ip, dport, dkey):
         hdr_modified = None
 
+        if self.check_should_ignore(pid, comm, ipver, hdr, proto_name, src_ip,
+                sport, dst_ip, dport):
+            return hdr_modified  # None
+
         default = self.default_listener[proto_name]
         bound_ports = self.diverted_ports.get(proto_name, [])
-
-        # Pre-condition 1: originating process not in process blacklist
-        # (SingleHost mode only).
-        if self.check_blacklisted_process(comm):
-            self.logger.info('Ignoring port forward for %s:%d owned by %s' %
-                        (src_ip, sport, str(comm)))
-            return hdr_modified  # None
 
         # Pre-condition 2: destination not present in port forwarding table
         # (prevent masqueraded ports responding to unbound ports from being
@@ -717,17 +758,6 @@ class Diverter(DiverterBase, LinUtilMixin):
                           src_ip, sport, dst_ip, dport):
         if not self.is_set('redirectalltraffic'):
             return False
-
-        if proto_name == 'TCP':
-            if dport in self.getconfigval('blacklistportstcp'):
-                self.pdebug(DDPF, 
-                    'Not forwarding packet destined for tcp/%d' % (dport))
-                return False
-        elif proto_name == 'UDP':
-            if dport in self.getconfigval('blacklistportsudp'):
-                self.pdebug(DDPF, 
-                    'Not forwarding packet destined for udp/%d' % (dport))
-                return False
 
         # A, B, C, and D are for easy calculation of sum-of-products logical
         # result Full names are present for readability

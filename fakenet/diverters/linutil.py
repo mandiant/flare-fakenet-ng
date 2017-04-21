@@ -8,6 +8,7 @@ import binascii
 import threading
 import subprocess
 import netfilterqueue
+from collections import defaultdict
 
 # Debug print levels for fine-grained debug trace output control
 DNFQUEUE = (1 << 0) # netfilterqueue
@@ -17,8 +18,21 @@ DIPTBLS = (1 << 3)  # iptables
 DNONLOC = (1 << 4)  # Nonlocal-destined datagrams
 DDPF = (1 << 5)     # DPF (Dynamic Port Forwarding)
 DIPNAT = (1 << 6)   # IP redirection for nonlocal-destined datagrams
+DIGN = (1 << 7)     # Packet redirect ignore conditions
 DMISC = (1 << 31)   # Miscellaneous
 DEVERY = 0xffffffff # Log anything/everything
+
+DLABELS = {
+    DNFQUEUE: 'NFQUEUE',
+    DGENPKT: 'GENPKT',
+    DPROCFS: 'PROCFS',
+    DIPTBLS: 'IPTABLES',
+    DNONLOC: 'NONLOCAL',
+    DDPF: 'DPF',
+    DIPNAT: 'IPNAT',
+    DIGN: 'IGNORE',
+    DMISC: 'MISC',
+}
 
 class IptCmdTemplate:
     """For managing insertion and removal of iptables rules.
