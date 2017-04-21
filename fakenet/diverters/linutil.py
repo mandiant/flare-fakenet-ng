@@ -473,7 +473,7 @@ class LinUtilMixin():
             proc_fds_glob = '/proc/%d/fd/*' % (pid)
             proc_fd_paths = glob.glob(proc_fds_glob)
             for fd_path in proc_fd_paths:
-                inode = self._linux_get_inode_for_fd_file(fd_path)
+                inode = self._linux_get_sk_ino_for_fd_file(fd_path)
                 if inode:
                     if inode_sought is None:
                         inodes.append(inode)
@@ -484,7 +484,7 @@ class LinUtilMixin():
 
         return inodes
 
-    def _linux_get_inode_for_fd_file(self, fd_file_path):
+    def _linux_get_sk_ino_for_fd_file(self, fd_file_path):
         inode = None
 
         try:
@@ -532,7 +532,7 @@ class LinUtilMixin():
             proc_fds_glob = '/proc/[0-9]*/fd/*'
             proc_fd_paths = glob.glob(proc_fds_glob)
             for fd_path in proc_fd_paths:
-                candidate = self._linux_get_inode_for_fd_file(fd_path)
+                candidate = self._linux_get_sk_ino_for_fd_file(fd_path)
                 if candidate and (candidate == inode):
 
                     # 3. Record the pid and executable name
