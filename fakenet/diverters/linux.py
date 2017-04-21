@@ -127,7 +127,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.init_base(diverter_config, listeners_config, ip_addrs,
                        logging_level)
 
-        self.set_debug_level(DIGN, DLABELS)
+        self.set_debug_level(0, DLABELS)
 
         self.init_diverter_linux()
 
@@ -189,6 +189,11 @@ class Diverter(DiverterBase, LinUtilMixin):
         # communicate with other machines e.g. via hard-coded C2 IP addresses.
         self.ip_fwd_table = dict()
         self.ip_fwd_table_lock = threading.Lock()
+
+        # NOTE: Constraining cache size via LRU or similar is a non-requirement
+        # due to the short anticipated runtime of FakeNet-NG. If you see your
+        # FakeNet-NG consuming large amounts of memory, contact your doctor to
+        # find out if Ctrl+C is right for you.
 
     def start(self):
         self.logger.info('Starting Linux Diverter...')
@@ -560,6 +565,8 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.pdebug(DIGN, 'Ignoring %s request packet to %s in the listener host blacklist.', proto_name, packet.dst_addr)
                 self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
                 return True
+
+        return False
 
     def maybe_redir_ip(self, pid, comm, ipver, hdr, proto_name, src_ip, sport,
             skey, dst_ip, dport, dkey):
