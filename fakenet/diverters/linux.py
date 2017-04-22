@@ -343,6 +343,10 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.stop()
                 sys.exit(1)
 
+        if self.is_set('fixgateway'):
+            if not self.linux_get_default_gw():
+                self.linux_set_default_gw()
+
         if self.is_set('modifylocaldns'):
             self.linux_modifylocaldns_ephemeral()
 
@@ -351,9 +355,6 @@ class Diverter(DiverterBase, LinUtilMixin):
             ret = subprocess.call(cmd.split())
             if ret != 0:
                 self.logger.error('Failed to flush DNS cache.')
-
-        # TODO: Duplicate windows.Diverter code for
-        #   * # Stop DNS service (if stopdnsservice)
 
         if self.is_configured('linuxredirectnonlocal'):
             self.pdebug(DMISC, 'Processing LinuxRedirectNonlocal')
@@ -395,9 +396,6 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         if self.is_set('modifylocaldns'):
             self.linux_restore_local_dns()
-
-        # TODO: Duplicate windows.Diverter code for
-        #   * # Restart DNS service (if stopdnsservice)
 
     def handle_nonlocal(self, pkt):
         """Handle comms sent to IP addresses that are not bound to any adapter.

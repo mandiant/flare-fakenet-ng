@@ -172,6 +172,57 @@ class LinuxDiverterNfqueue:
             self._rule.remove()  # Shell out to iptables to remove the rule
 
 
+class ProcfsReader:
+    def __init__(self, path, skip, cb):
+        self.path = path
+        self.skip = skip
+        self.cb = cb
+    
+    def parse(self, multi=False, max_col=None):
+        """Rip through the file and call cb to extract field(s).
+        
+        Specify multi if you want to collect an aray instead of exiting the
+        first time the callback returns anything.
+
+        Only specify max_col if you are uncertain that the maximum column
+        number you will access may exist. For procfs files, this should remain
+        None.
+        """
+        retval = list() if multi else None
+
+        try:
+            with open(self.path, 'r') as f:
+                while True:
+                    line = f.readline()
+
+                    # EOF case
+                    if not len(line):
+                        break
+
+                    # Insufficient columns => ValueError
+                    if max_col and (len(line) < max_col):
+                        raise ValueError('Line %d in %s has less than %d columns' %
+                                         (n, self.path, max_col))
+                    # Skip header lines
+                    if self.skip:
+                        self.skip -= 1
+                        continue
+
+                    cb_retval = self.cb(line.split())
+
+                    if cb_retval:
+                        if multi:
+                            retval.append(cb_retval)
+                        else:
+                            retval = cb_retval
+                            break
+        except IOError as e:
+            self.logger.error('Failed accessing %s: %s' % (path, e.message))
+            # All or nothing
+            retval = [] if multi else None
+
+        return retval
+
 class LinUtilMixin():
     """Automate addition/removal of iptables rules, checking interface names,
     checking available netfilter queue numbers, etc.
@@ -333,7 +384,10 @@ class LinUtilMixin():
         if self.old_dns:
             try:
                 with open(resolvconf_path, 'w') as f:
-                    f.write('nameserver 127.0.0.1\n')
+                    ip = self.linux_first_nonlo_ip()
+                    if not ip:
+                        ip = '127.0.0.1'
+                    f.write('nameserver %s\n' % (ip))
             except IOError as e:
                 self.logger.error(('Failed to open %s to modify DNS ' +
                                    'configuration: %s') % (resolvconf_path,
@@ -463,6 +517,39 @@ class LinUtilMixin():
                     (procfs_path, e.message))
 
         return inode
+
+    def linux_get_default_gw(self):
+        DEST_COLUMN = 1
+        GW_COLUMN = 2
+        MASK_COLUMN = 7
+
+        dgw = None
+
+        def scan_for_default_gw(fields):
+            if fields[DEST_COLUMN] == '00000000':
+                s = fields[GW_COLUMN]
+                return socket.inet_ntoa(binascii.unhexlify(s)[::-1])
+
+        
+        r = ProcfsReader('/proc/net/route', 1, scan_for_default_gw)
+        dgw = r.parse()
+
+        return dgw
+
+    def linux_first_nonlo_ip(self):
+        for ip in self.ip_addrs[4]:
+            if not ip.startswith('127.'):
+                return ip
+        return None
+
+    def linux_set_default_gw(self, ip=None):
+        ip = self.linux_first_nonlo_ip()
+        if not ip:
+            return False
+
+        cmd = 'route add default gw %s' % (ip)
+        ret = subprocess.call(cmd.split())
+        return ret == 0
 
     def linux_find_process_connections(self, names, inode_sought=None):
         inodes = list()
