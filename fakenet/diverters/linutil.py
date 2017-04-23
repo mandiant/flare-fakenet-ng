@@ -536,6 +536,12 @@ class LinUtilMixin():
 
         return dgw
 
+    def linux_redir_icmp(self):
+        fmt = 'iptables -t nat %s OUTPUT -p icmp -j REDIRECT'
+        rule = IptCmdTemplate(fmt)
+        ret = rule.add()
+        return (ret == 0), rule
+
     def linux_first_nonlo_ip(self):
         for ip in self.ip_addrs[4]:
             if not ip.startswith('127.'):
