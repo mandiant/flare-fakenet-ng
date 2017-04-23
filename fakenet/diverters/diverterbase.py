@@ -1,3 +1,4 @@
+import sys
 import time
 import dpkt
 import socket
@@ -28,7 +29,7 @@ class DiverterBase(fnconfig.Config):
         portlists = ['BlackListPortsTCP','BlackListPortsUDP']
         stringlists = ['HostBlackList',]
         self.configure(diverter_config, portlists, stringlists)
-        self.listeners_config = listeners_config
+        self.listeners_config = dict((k.lower(), v) for k, v in listeners_config.iteritems())
 
         # Local IP address
         self.external_ip = socket.gethostbyname(socket.gethostname())
@@ -248,20 +249,23 @@ class DiverterBase(fnconfig.Config):
                 self.logger.error('ERROR: No default UDP listener specified in the configuration.')
                 sys.exit(1)
 
-            elif not self.getconfigval('defaulttcplistener') in self.listeners_config:
+            elif not self.getconfigval('defaulttcplistener').lower() in self.listeners_config:
                 self.logger.error('ERROR: No configuration exists for default TCP listener %s', self.getconfigval('defaulttcplistener'))
                 sys.exit(1)
 
-            elif not self.getconfigval('defaultudplistener') in self.listeners_config:
+            elif not self.getconfigval('defaultudplistener').lower() in self.listeners_config:
                 self.logger.error('ERROR: No configuration exists for default UDP listener %s', self.getconfigval('defaultudplistener'))
                 sys.exit(1)
 
             else:
-                self.default_listener['TCP'] = int( self.listeners_config[ self.getconfigval('defaulttcplistener') ]['port'] )
-                self.logger.error('Using default listener %s on port %d', self.getconfigval('defaulttcplistener'), self.default_listener['TCP'])
+                self.default_listener['TCP'] = int( self.listeners_config[ self.getconfigval('defaulttcplistener').lower() ]['port'] )
+                self.default_listener['TCP'] = int( self.listeners_config[ self.getconfigval('defaulttcplistener').lower() ]['port'] )
 
-                self.default_listener['UDP'] = int( self.listeners_config[ self.getconfigval('defaultudplistener') ]['port'] )
-                self.logger.error('Using default listener %s on port %d', self.getconfigval('defaultudplistener'), self.default_listener['UDP'])
+                self.default_listener['TCP'] = int( self.listeners_config[ self.getconfigval('defaulttcplistener').lower() ]['port'] )
+                self.logger.error('Using default listener %s on port %d', self.getconfigval('defaulttcplistener').lower(), self.default_listener['TCP'])
+
+                self.default_listener['UDP'] = int( self.listeners_config[ self.getconfigval('defaultudplistener').lower() ]['port'] )
+                self.logger.error('Using default listener %s on port %d', self.getconfigval('defaultudplistener').lower(), self.default_listener['UDP'])
 
             # Re-marshall these into a readily usable form...
 
@@ -305,60 +309,60 @@ class DiverterBase(fnconfig.Config):
 
 def test_redir_logic(diverter_factory):
     diverter_config = dict()
-    diverter_config['DumpPackets'] = 'Yes'
-    diverter_config['DumpPacketsFilePrefix'] = 'packets'
-    diverter_config['ModifyLocalDNS'] = 'No'
-    diverter_config['StopDNSService'] = 'Yes'
-    diverter_config['RedirectAllTraffic'] = 'Yes'
-    diverter_config['DefaultTCPListener'] = 'RawTCPListener'
-    diverter_config['DefaultUDPListener'] = 'RawUDPListener'
-    diverter_config['BlackListPortsTCP'] = [139]
-    diverter_config['BlackListPortsUDP'] = [67, 68, 137, 138, 1900, 5355]
+    diverter_config['dumppackets'] = 'Yes'
+    diverter_config['dumppacketsfileprefix'] = 'packets'
+    diverter_config['modifylocaldns'] = 'No'
+    diverter_config['stopdnsservice'] = 'Yes'
+    diverter_config['redirectalltraffic'] = 'Yes'
+    diverter_config['defaulttcplistener'] = 'RawTCPListener'
+    diverter_config['defaultudplistener'] = 'RawUDPListener'
+    diverter_config['blacklistportstcp'] = '139'
+    diverter_config['blacklistportsudp'] = '67, 68, 137, 138, 1900, 5355'
 
     listeners_config = OrderedDict()
 
-    listeners_config['DummyTCP'] = dict()
-    listeners_config['DummyTCP']['Enabled'] = 'True'
-    listeners_config['DummyTCP']['Port'] = '65535'
-    listeners_config['DummyTCP']['Protocol'] = 'TCP'
-    listeners_config['DummyTCP']['Listener'] = 'RawListener'
-    listeners_config['DummyTCP']['UseSSL'] = 'No'
-    listeners_config['DummyTCP']['Timeout'] = '10'
+    listeners_config['dummytcp'] = dict()
+    listeners_config['dummytcp']['enabled'] = 'True'
+    listeners_config['dummytcp']['port'] = '65535'
+    listeners_config['dummytcp']['protocol'] = 'TCP'
+    listeners_config['dummytcp']['listener'] = 'RawListener'
+    listeners_config['dummytcp']['usessl'] = 'No'
+    listeners_config['dummytcp']['timeout'] = '10'
 
-    listeners_config['RawTCPListener'] = dict()
-    listeners_config['RawTCPListener']['Enabled'] = 'True'
-    listeners_config['RawTCPListener']['Port'] = '1337'
-    listeners_config['RawTCPListener']['Protocol'] = 'TCP'
-    listeners_config['RawTCPListener']['Listener'] = 'RawListener'
-    listeners_config['RawTCPListener']['UseSSL'] = 'No'
-    listeners_config['RawTCPListener']['Timeout'] = '10'
+    listeners_config['rawtcplistener'] = dict()
+    listeners_config['rawtcplistener']['enabled'] = 'True'
+    listeners_config['rawtcplistener']['port'] = '1337'
+    listeners_config['rawtcplistener']['protocol'] = 'TCP'
+    listeners_config['rawtcplistener']['listener'] = 'RawListener'
+    listeners_config['rawtcplistener']['usessl'] = 'No'
+    listeners_config['rawtcplistener']['timeout'] = '10'
 
-    listeners_config['DummyUDP'] = dict()
-    listeners_config['DummyUDP']['Enabled'] = 'True'
-    listeners_config['DummyUDP']['Port'] = '65535'
-    listeners_config['DummyUDP']['Protocol'] = 'UDP'
-    listeners_config['DummyUDP']['Listener'] = 'RawListener'
-    listeners_config['DummyUDP']['UseSSL'] = 'No'
-    listeners_config['DummyUDP']['Timeout'] = '10'
+    listeners_config['dummyudp'] = dict()
+    listeners_config['dummyudp']['enabled'] = 'True'
+    listeners_config['dummyudp']['port'] = '65535'
+    listeners_config['dummyudp']['protocol'] = 'UDP'
+    listeners_config['dummyudp']['listener'] = 'RawListener'
+    listeners_config['dummyudp']['usessl'] = 'No'
+    listeners_config['dummyudp']['timeout'] = '10'
 
-    listeners_config['RawUDPListener'] = dict()
-    listeners_config['RawUDPListener']['Enabled'] = 'True'
-    listeners_config['RawUDPListener']['Port'] = '1337'
-    listeners_config['RawUDPListener']['Protocol'] = 'UDP'
-    listeners_config['RawUDPListener']['Listener'] = 'RawListener'
-    listeners_config['RawUDPListener']['UseSSL'] = 'No'
-    listeners_config['RawUDPListener']['Timeout'] = '10'
+    listeners_config['rawudplistener'] = dict()
+    listeners_config['rawudplistener']['enabled'] = 'True'
+    listeners_config['rawudplistener']['port'] = '1337'
+    listeners_config['rawudplistener']['protocol'] = 'UDP'
+    listeners_config['rawudplistener']['listener'] = 'RawListener'
+    listeners_config['rawudplistener']['usessl'] = 'No'
+    listeners_config['rawudplistener']['timeout'] = '10'
 
-    listeners_config['HTTPListener80'] = dict()
-    listeners_config['HTTPListener80']['Enabled'] = 'True'
-    listeners_config['HTTPListener80']['Port'] = '80'
-    listeners_config['HTTPListener80']['Protocol'] = 'TCP'
-    listeners_config['HTTPListener80']['Listener'] = 'HTTPListener'
-    listeners_config['HTTPListener80']['UseSSL'] = 'No'
-    listeners_config['HTTPListener80']['Webroot'] = 'defaultFiles/'
-    listeners_config['HTTPListener80']['Timeout'] = '10'
-    listeners_config['HTTPListener80']['DumpHTTPPosts'] = 'Yes'
-    listeners_config['HTTPListener80']['DumpHTTPPostsFilePrefix'] = 'http'
+    listeners_config['httplistener80'] = dict()
+    listeners_config['httplistener80']['enabled'] = 'True'
+    listeners_config['httplistener80']['port'] = '80'
+    listeners_config['httplistener80']['protocol'] = 'TCP'
+    listeners_config['httplistener80']['listener'] = 'HTTPListener'
+    listeners_config['httplistener80']['usessl'] = 'No'
+    listeners_config['httplistener80']['webroot'] = 'defaultFiles/'
+    listeners_config['httplistener80']['timeout'] = '10'
+    listeners_config['httplistener80']['dumphttpposts'] = 'Yes'
+    listeners_config['httplistener80']['dumphttppostsfileprefix'] = 'http'
 
     ip_addrs = dict()
     ip_addrs[4] = ['192.168.19.222', '127.0.0.1']
@@ -375,7 +379,7 @@ def test_redir_logic(diverter_factory):
 
     bound_ports = []
     for k, v in listeners_config.iteritems():
-        bound_ports.append(int(v['Port'], 10))
+        bound_ports.append(int(v['port'], 10))
 
     testcases = [
         testcase(foreign, unbound, LOCAL, unbound, True),
@@ -395,7 +399,10 @@ def test_redir_logic(diverter_factory):
     ]
 
     for tc in testcases:
-        r = div.decide_redir(4, 1337, bound_ports, tc.src, tc.sport, tc.dst, tc.dport)
+        r = div.decide_redir_port(4, 'TCP', 1337, bound_ports, tc.src, tc.sport, tc.dst, tc.dport)
         if r != tc.expect:
-            print('Test case failed: %s:%d -> %s:%d expected %d got %d' %
+            print('TEST CASE FAILED: %s:%d -> %s:%d expected %d got %d' %
+                  (tc.src, tc.sport, tc.dst, tc.dport, tc.expect, r))
+        else:
+            print('Test case passed: %s:%d -> %s:%d expected %d got %d' %
                   (tc.src, tc.sport, tc.dst, tc.dport, tc.expect, r))

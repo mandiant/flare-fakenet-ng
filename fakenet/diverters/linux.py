@@ -13,9 +13,6 @@ from diverterbase import DiverterBase
 from netfilterqueue import NetfilterQueue
 
 
-def b2(x): return '1' if x else '0'
-
-
 class PacketHandler:
     """Used to encapsulate common patterns in packet hooks."""
 
@@ -769,38 +766,91 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def decide_redir_port(self, ipver, proto_name, default_port, bound_ports,
                           src_ip, sport, dst_ip, dport):
+        """Decide whether to redirect a port.
+
+        Optimized logic derived by truth table + k-map. See below for details.
+
+        Truth table key:
+            src     source IP address
+            sport   source port
+            dst     source IP address
+            dport   source port
+            lsrc    src is local
+            ldst    dst is local
+            bsport  sport is in the set of ports bound by FakeNet-NG listeners
+            bdport  dport is in the set of ports bound by FakeNet-NG listeners
+            R?      Redirect?
+            m       Minterm (R? == 1)
+
+        Short names for convenience --> A       B       C       D       R
+        src     sport   dst     dport   lsrc    ldst    bsport  dsport  R?  m
+        -----------------------------------------------------------------------
+        Foreign Unbound Foreign Unbound 0       0       0       0       1   *
+        Foreign Unbound Foreign Bound   0       0       0       0       0
+        Foreign Bound   Foreign Unbound 0       0       0       0       1   *
+        Foreign Bound   Foreign Bound   0       0       0       0       0
+        Foreign Unbound Local   Unbound 0       0       0       0       1   *
+        Foreign Unbound Local   Bound   0       0       0       0       0
+        Foreign Bound   Local   Unbound 0       0       0       0       1   *
+        Foreign Bound   Local   Bound   0       0       0       0       0
+
+        (Rationale: When a foreign host is trying to talk to us or anyone else
+        in MultiHost mode, ensure unbound ports get redirected to a listener)
+
+        Local   Unbound Foreign Unbound 0       0       0       0       1   *
+        Local   Unbound Foreign Bound   0       0       0       0       0
+        Local   Bound   Foreign Unbound 0       0       0       0       0
+        Local   Bound   Foreign Bound   0       0       0       0       0
+        Local   Unbound Local   Unbound 0       0       0       0       1   *
+        Local   Unbound Local   Bound   0       0       0       0       0
+        Local   Bound   Local   Unbound 0       0       0       0       0
+        Local   Bound   Local   Bound   0       0       0       0       0
+
+        (Rationale: In SingleHost mode, the local machine will wind up talking
+        to itself if it tries to get out to a foreign IP. When the local
+        machine is talking to itself in SingleHost mode, ensure unbound
+        destination ports are redirected /except/ when the packet originates
+        from a bound port. )
+
+        Karnaugh map (zeroes omitted for readability):
+                 CD
+           AB \  00   01   11   10
+               +-------------------.
+            00 |  1 |    |    |  1 | -> A'D'
+               +----+----+----+----+
+            01 |  1 |    |    |  1 |
+               +----+----+----+----+
+            11 |  1 |    |    |    |
+               +----+----+----+----+
+            10 |  1 |    |    |    |
+               +----+----+----+----+
+                 |
+                 V
+                C'D'
+
+        Minimized sum-of-products logic function:
+            R(A, B, C, D) = A'D' + C'D'
+        """
         if not self.is_set('redirectalltraffic'):
             return False
 
-        # A, B, C, and D are for easy calculation of sum-of-products logical
-        # result Full names are present for readability
-        # TODO: Add commentation explaining minterms and SOP logic derived from
-        # redir_logic.xlsx
-        a = src_ip_is_local = (src_ip in self.ip_addrs[ipver])
-        b = dst_ip_is_local = (dst_ip in self.ip_addrs[ipver])
+        # A, B, C, D for easy manipulation; full names for readability only.
+        a = src_local = (src_ip in self.ip_addrs[ipver])
+        c = sport_bound = sport in (bound_ports)
+        d = dport_bound = dport in (bound_ports)
 
-        c = src_port_is_bound = sport in (bound_ports)
-        d = dst_port_is_bound = dport in (bound_ports)
+        if self.pdebug_level & DDPF:
+            # Unused logic term not calculated except for debug output
+            b = dst_local = (dst_ip in self.ip_addrs[ipver])
 
-        self.pdebug(DDPF, 'srcip: ' + str(src_ip) +
-                          (' (local)' if a else ' (foreign)'))
-        self.pdebug(DDPF, 'dstip: ' + str(dst_ip) +
-                          (' (local)' if b else ' (foreign)'))
-        self.pdebug(DDPF, 'srcpt: ' + str(sport) +
-                          (' (bound)' if c else ' (unbound)'))
-        self.pdebug(DDPF, 'dstpt: ' + str(dport) +
-                          (' (bound)' if d else ' (unbound)'))
+            self.pdebug(DDPF, 'src %s (%s)' %(str(src_ip), ['foreign','local'][a]))
+            self.pdebug(DDPF, 'dst %s (%s)' %(str(dst_ip), ['foreign','local'][b]))
+            self.pdebug(DDPF, 'sport %s (%sbound)' %(str(sport), ['un', ''][c]))
+            self.pdebug(DDPF, 'dport %s (%sbound)' %(str(sport), ['un', ''][d]))
+            def bn(x): return '1' if x else '0'  # Bool -> binary
+            self.pdebug(DDPF, 'abcd = ' + bn(a) + bn(b) + bn(c) + bn(d))
 
-        result = (
-            (dst_ip_is_local and not src_ip_is_local and not dst_port_is_bound) or
-            (src_ip_is_local and not src_port_is_bound and not dst_port_is_bound)
-        )
-
-        result = (b and not a and not d) or (a and not c and not d)
-
-        self.pdebug(DDPF, 'abcd = ' + b2(a) + b2(b) + b2(c) + b2(d))
-
-        return result
+        return (not a and not d) or (not c and not d)
 
     def mangle_dstip(self, hdr, proto_name, dstip, newdstip):
         """Mangle destination IP for selected outgoing packets."""
