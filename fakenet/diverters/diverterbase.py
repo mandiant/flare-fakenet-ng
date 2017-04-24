@@ -248,9 +248,6 @@ class DiverterBase(fnconfig.Config):
         # Redirect all traffic
         self.default_listener = dict()
         if self.is_set('redirectalltraffic'):
-            # TODO: Refactor WinDivert cruft
-            self.filter = "outbound and ip and (icmp or tcp or udp)"
-
             if self.is_unconfigured('defaulttcplistener'):
                 self.logger.error('ERROR: No default TCP listener specified in the configuration.')
                 sys.exit(1)
@@ -285,26 +282,6 @@ class DiverterBase(fnconfig.Config):
             if self.is_configured('blacklistportsudp'):
                 self.blacklist_ports['UDP'] = self.getconfigval('blacklistportsudp')
                 self.logger.debug('Blacklisted UDP ports: %s', ', '.join([str(p) for p in self.getconfigval('BlackListPortsUDP')]))
-
-        # Redirect only specific traffic, build the filter dynamically
-        else:
-            # TODO: Refactor more WinDivert cruft
-            filter_diverted_ports = list()
-            
-            if self.diverted_ports.get('TCP') != None:
-                for tcp_port in self.diverted_ports.get('TCP'):
-                    filter_diverted_ports.append("tcp.DstPort == %s" % tcp_port)
-                    filter_diverted_ports.append("tcp.SrcPort == %s" % tcp_port)
-
-            if self.diverted_ports.get('UDP') != None:
-                for udp_port in self.diverted_ports.get('UDP'):
-                    filter_diverted_ports.append("udp.DstPort == %s" % udp_port)
-                    filter_diverted_ports.append("udp.SrcPort == %s" % udp_port)
-
-            if len(filter_diverted_ports) > 0:
-                self.filter = "outbound and ip and (icmp or %s)" % " or ".join(filter_diverted_ports)
-            else:
-                self.filter = "outbound and ip"
 
     def write_pcap(self, data):
         if self.pcap and self.pcap_lock:
