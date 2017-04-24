@@ -123,7 +123,7 @@ class DiverterBase(fnconfig.Config):
         """Log only the debug trace messages that have been enabled."""
         if self.pdebug_level & lvl:
             label = self.pdebug_labels.get(lvl)
-            prefix = '[' + label + '] ' if label else ''
+            prefix = '[' + label + '] ' if label else '[some component] '
             self.logger.debug(prefix + str(s))
 
     def parse_listeners_config(self, listeners_config):

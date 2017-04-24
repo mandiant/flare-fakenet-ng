@@ -19,12 +19,17 @@ DNONLOC = (1 << 4)  # Nonlocal-destined datagrams
 DDPF = (1 << 5)     # DPF (Dynamic Port Forwarding)
 DIPNAT = (1 << 6)   # IP redirection for nonlocal-destined datagrams
 DIGN = (1 << 7)     # Packet redirect ignore conditions
-DMISC = (1 << 31)   # Miscellaneous
-DEVERY = 0xffffffff # Log anything/everything
+DMISC = (1 << 27)   # Miscellaneous
+
+DVERBOSE = (1 << 31)# OR with any of the above to get ALL messages
+DCOMP = 0x0fffffff  # Component mask
+DFLAG = 0xf0000000  # Flag mask
+DEVERY = 0x8fffffff # Log everything, complete verbosity
 
 DLABELS = {
     DNFQUEUE: 'NFQUEUE',
     DGENPKT: 'GENPKT',
+    DGENPKT|DVERBOSE: 'GENPKT-VERBOSE',
     DPROCFS: 'PROCFS',
     DIPTBLS: 'IPTABLES',
     DNONLOC: 'NONLOCAL',

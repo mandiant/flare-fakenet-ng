@@ -68,9 +68,16 @@ class PacketHandler:
             self.dst_ip = socket.inet_ntoa(self.hdr.dst)
 
             # 2: Call layer 3 (network) callbacks
-            for net_cb in self.callbacks3:
-                net_cb(self.hdr, self.ipver, self.proto, proto_name,
+            for cb in self.callbacks3:
+                # These debug outputs are useful for figuring out which
+                # callback is responsible for an exception that was masked by
+                # python-netfilterqueue's global callback.
+                self.diverter.pdebug(DGENPKT|DVERBOSE, 'Calling %s' % (cb))
+
+                cb(self.hdr, self.ipver, self.proto, proto_name,
                        self.src_ip, self.dst_ip)
+
+                self.diverter.pdebug(DGENPKT|DVERBOSE, '%s finished' % (cb))
 
             if proto_name:
                 if len(self.callbacks4):
@@ -94,14 +101,24 @@ class PacketHandler:
                     modified = False
 
                     # 4: Layer 4 (Transport layer) callbacks
-                    for trans_cb in self.callbacks4:
-                        hdr_mod = trans_cb(pid, comm, self.ipver, hdr_latest,
+                    for cb in self.callbacks4:
+                        # These debug outputs are useful for figuring out which
+                        # callback is responsible for an exception that was
+                        # masked by python-netfilterqueue's global callback.
+                        self.diverter.pdebug(DGENPKT|DVERBOSE,
+                                             'Calling %s' % (cb))
+
+                        hdr_mod = cb(pid, comm, self.ipver, hdr_latest,
                                            proto_name,
                                            self.src_ip, self.sport, self.skey,
                                            self.dst_ip, self.dport, self.dkey)
+
                         if hdr_mod:
                             hdr_latest = hdr_mod
                             modified = True
+
+                        self.diverter.pdebug(DGENPKT|DVERBOSE,
+                                             '%s finished' % (cb))
 
                     if modified:
                         # 5Ai: Double write mangled packets to represent changes
@@ -124,7 +141,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.init_base(diverter_config, listeners_config, ip_addrs,
                        logging_level)
 
-        self.set_debug_level(DIGN, DLABELS)
+        self.set_debug_level(0, DLABELS)
 
         self.init_diverter_linux()
         self.init_linux_mixin()
@@ -704,9 +721,6 @@ class Diverter(DiverterBase, LinUtilMixin):
                 sport, dst_ip, dport):
             return hdr_modified  # None
 
-        default = self.default_listener[proto_name]
-        bound_ports = self.diverted_ports.get(proto_name, [])
-
         # Pre-condition 2: destination not present in port forwarding table
         # (prevent masqueraded ports responding to unbound ports from being
         # mistaken as starting a conversation with an unbound port).
@@ -720,6 +734,14 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         if found:
             return hdr_modified  # None
+
+        # Get default listener port for this proto, or bail if none
+        default = None
+        if not proto_name in self.default_listener:
+            return hdr_modified  # None
+        default = self.default_listener[proto_name]
+
+        bound_ports = self.diverted_ports.get(proto_name, [])
 
         # Condition 2: If the packet is destined for an unbound port, then
         # redirect it to a bound port and save the old destination IP in
