@@ -433,7 +433,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         hard-coded IP addresses.
         """
 
-        net_cbs = [self.check_log_nonlocal]
+        net_cbs = [self.check_log_nonlocal, self.check_log_icmp]
 
         h = PacketHandler(pkt, self, 'handle_nonlocal', net_cbs, [])
         h.handle_pkt()
@@ -451,12 +451,14 @@ class Diverter(DiverterBase, LinUtilMixin):
         No return value.
         """
         trans_cbs = [self.maybe_redir_port]
+        net_cbs = []
 
         # IP redirection fix-ups are only for SingleHost mode
         if self.single_host_mode:
             trans_cbs.append(self.maybe_fixup_srcip)
+            net_cbs.append(self.check_log_icmp)
 
-        h = PacketHandler(pkt, self, 'handle_incoming', [], trans_cbs)
+        h = PacketHandler(pkt, self, 'handle_incoming', net_cbs, trans_cbs)
         h.handle_pkt()
 
     def handle_outgoing(self, pkt):
@@ -507,10 +509,19 @@ class Diverter(DiverterBase, LinUtilMixin):
         """e.g. 192.168.19.132:tcp/3030"""
         return str(ip) + ':' + str(proto_name) + '/' + str(port)
 
+    def check_log_icmp(self, hdr, ipver, proto, proto_name, src_ip,
+            dst_ip):
+        if proto == dpkt.ip.IP_PROTO_ICMP:
+            self.logger.info('ICMP type %d code %d %s' % (hdr.data.type, hdr.data.code, self.hdr_to_str(None, hdr)))
+
+        return None
+
     def check_log_nonlocal(self, hdr, ipver, proto, proto_name, src_ip,
-                            dst_ip):
+            dst_ip):
         if dst_ip not in self.ip_addrs[ipver]:
             self._maybe_log_nonlocal(hdr, ipver, proto, dst_ip)
+
+        return None
 
     def _maybe_log_nonlocal(self, hdr, ipver, proto, dst_ip):
         """Conditionally log packets having a foreign destination.
@@ -949,7 +960,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             return '%s %s:%d->%s:%d' % (proto_name, src_ip, hdr.data.sport,
                                         dst_ip, hdr.data.dport)
         else:
-            return 'unknown protocol %s->%s' % (src_ip, dst_ip)
+            return '%s->%s' % (src_ip, dst_ip)
 
     def _calc_csums(self, hdr):
         """The roundabout dance of inducing dpkt to recalculate checksums."""
