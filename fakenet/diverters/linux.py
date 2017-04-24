@@ -289,10 +289,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # and implements a rich library of protocol modules for reaching above
         # the network layer to recognize connections for protocols such as IRC,
         # FTP, etc. We're not going to do a better job than that, and we don't
-        # want to reinvent the wheel if we can avoid it. In fact, TODO: we
-        # ought to revisit the SingleHost implementation to see if we can
-        # benefit from using an iptables OUTPUT/REDIRECT rule there to replace
-        # our current packet mangling implementation.
+        # want to reinvent the wheel if we can avoid it.
         #
         # In any event, here are the locations where it is okay to place the
         # incoming and outgoing packet hooks so that we don't disrupt
