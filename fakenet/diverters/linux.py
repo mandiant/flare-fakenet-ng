@@ -691,8 +691,6 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         if self.decide_redir_port(ipver, proto_name, default, bound_ports,
                                   src_ip, sport, dst_ip, dport):
-            # if self.decide_redir_port(ipver, proto_name, default,
-            # bound_ports, src_ip, sport, dst_ip, dport):
             self.pdebug(DDPF, 'Condition 2 satisfied')
 
             # Record the foreign endpoint and old destination port in the port
