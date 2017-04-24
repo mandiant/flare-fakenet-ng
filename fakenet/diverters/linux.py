@@ -660,7 +660,6 @@ class Diverter(DiverterBase, LinUtilMixin):
             finally:
                 self.ip_fwd_table_lock.release()
 
-            # TODO: Try 127.0.0.1, but may need this to be 192.168.x.x
             newdst = '127.0.0.1'
             hdr_modified = self.mangle_dstip(hdr, proto_name, dst_ip, newdst)
 
