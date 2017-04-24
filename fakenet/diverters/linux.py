@@ -198,7 +198,6 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         ret = self.linux_capture_iptables()
         if ret != 0:
-            self.logger.error('Failed to capture iptables, returned %d')
             sys.exit(1)
 
         hookspec = namedtuple('hookspec', ['chain', 'table', 'callback'])
@@ -393,7 +392,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         self.pdebug(DIPTBLS, 'Removing iptables rules not associated with any ' +
                           'NFQUEUE object')
-        # self.linux_remove_iptables_rules(self.rules_added)
+        self.linux_remove_iptables_rules(self.rules_added)
 
         for q in self.nfqueues:
             self.pdebug(DNFQUEUE, 'Stopping NFQUEUE for %s' % (str(q)))
