@@ -219,6 +219,10 @@ class DiverterBase(fnconfig.Config):
                     self.logger.debug('Port %d (%s) ExecuteCmd: %s', port, protocol, self.port_execute[protocol][port] )
 
     def parse_diverter_config(self):
+        if self.getconfigval('processwhitelist') and self.getconfigval('processblacklist'):
+            self.logger.error('ERROR: Diverter can\'t have both process whitelist and blacklist.')
+            sys.exit(1)
+
 
         if self.is_set('dumppackets'):
             self.pcap_filename = '%s_%s.pcap' % (self.getconfigval('dumppacketsfileprefix', 'packets'), time.strftime('%Y%m%d_%H%M%S'))
@@ -230,6 +234,11 @@ class DiverterBase(fnconfig.Config):
         if self.is_configured('processblacklist'):
             self.blacklist_processes = [process.strip() for process in self.getconfigval('processblacklist').split(',')]
             self.logger.debug('Blacklisted processes: %s', ', '.join([str(p) for p in self.blacklist_processes]))
+
+        # Only redirect whitelisted processes
+        if self.is_configured('processwhitelist'):
+            self.whitelisted_processes = [process.strip() for process in self.getconfigval('processwhitelist').split(',')]
+            self.logger.debug('Whitelisted processes: %s', ', '.join([str(p) for p in self.whitelisted_processes]))
 
         # Do not redirect blacklisted hosts
         if self.is_configured('hostblacklist'):

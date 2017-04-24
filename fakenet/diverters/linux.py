@@ -124,7 +124,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.init_base(diverter_config, listeners_config, ip_addrs,
                        logging_level)
 
-        self.set_debug_level(0, DLABELS)
+        self.set_debug_level(DIGN, DLABELS)
 
         self.init_diverter_linux()
         self.init_linux_mixin()
@@ -523,10 +523,17 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         # SingleHost mode checks
         if self.single_host_mode:
-            if comm and comm in self.blacklist_processes:
-                self.pdebug(DIGN, 'Ignoring %s packet from process %s in the process blacklist.' % (proto_name, comm))
-                self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
-                return True
+            if comm:
+                if comm in self.blacklist_processes:
+                    self.pdebug(DIGN, 'Ignoring %s packet from process %s in the process blacklist.' % (proto_name, comm))
+                    self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+                    return True
+                elif (len(self.whitelisted_processes) and (comm not in
+                        self.whitelisted_processes)):
+                    self.pdebug(DIGN, 'Ignoring %s packet from process %s not in the process whitelist.' % (proto_name, comm))
+                    self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+                    return True
+
         # MultiHost mode checks
         else:
             pass  # None as of yet
