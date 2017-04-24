@@ -592,6 +592,8 @@ class Diverter(DiverterBase, LinUtilMixin):
         # listener.  NOTE: Additional testing can be performed to check if this
         # is actually a SYN packet
 
+        # TODO: FTP hack only works in MultiHost mode, need to fix for
+        # SingleHost mode.
         if ( (pid == os.getpid()) and ((dst_ip in self.ip_addrs[ipver]) and
                     (not dst_ip.startswith('127.'))) and ((src_ip in
                     self.ip_addrs[ipver]) and (not dst_ip.startswith('127.')))
