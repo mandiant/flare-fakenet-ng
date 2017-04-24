@@ -40,6 +40,9 @@ class IptCmdTemplate:
     Standardizes, centralizes, and de-duplicates code used frequently
     throughout the Linux Diverter to construct and execute iptables command
     lines to add (-I or -A) and remove (-D) rules.
+
+    The removal half of this is now redundant with
+    LinUtilMixin.linux_{capture,restore}_iptables().
     """
 
     def __init__(self, fmt, args=[], add='-I', rem='-D', add_idx=0, rem_idx=0):
@@ -227,6 +230,9 @@ class LinUtilMixin():
     """Automate addition/removal of iptables rules, checking interface names,
     checking available netfilter queue numbers, etc.
     """
+    def init_linux_mixin(self):
+        self.iptables_captured = ''
+
     def check_active_ethernet_adapters(self):
         return (len(self._linux_get_ifaces()) > 0)
 
@@ -237,6 +243,41 @@ class LinUtilMixin():
     def check_dns_servers(self):
         # TODO: Implement
         return True
+
+    def linux_capture_iptables(self):
+        self.iptables_captured = ''
+        ret = None
+
+        try:
+            p = subprocess.Popen(['iptables-save'], stdout=subprocess.PIPE)
+            while True:
+                buf = p.stdout.read()
+                if buf == '':
+                    break
+                self.iptables_captured += buf
+
+            if self.iptables_captured == '':
+                self.logger.error('Null iptables-save output, likely not ' +
+                                  'privileged')
+            ret = p.wait()
+        except OSError as e:
+            self.logger.error('Error executing iptables-save: %s' %
+                              (e.message))
+
+        return ret
+
+    def linux_restore_iptables(self):
+        ret = None
+
+        try:
+            p = subprocess.Popen(['iptables-restore'], stdin=subprocess.PIPE)
+            p.communicate(self.iptables_captured)
+            ret = p.wait()
+        except OSError as e:
+            self.logger.error('Error executing iptables-restore: %s' %
+                              (e.message))
+
+        return ret
 
     def linux_get_current_nfnlq_bindings(self):
         """Determine what NFQUEUE queue numbers (if any) are already bound by

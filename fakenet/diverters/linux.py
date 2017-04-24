@@ -127,6 +127,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.set_debug_level(0, DLABELS)
 
         self.init_diverter_linux()
+        self.init_linux_mixin()
 
     def init_diverter_linux(self):
         """Linux-specific Diverter initialization."""
@@ -194,6 +195,11 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def start(self):
         self.logger.info('Starting Linux Diverter...')
+
+        ret = self.linux_capture_iptables()
+        if ret != 0:
+            self.logger.error('Failed to capture iptables, returned %d')
+            sys.exit(1)
 
         hookspec = namedtuple('hookspec', ['chain', 'table', 'callback'])
 
@@ -387,7 +393,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         self.pdebug(DIPTBLS, 'Removing iptables rules not associated with any ' +
                           'NFQUEUE object')
-        self.linux_remove_iptables_rules(self.rules_added)
+        # self.linux_remove_iptables_rules(self.rules_added)
 
         for q in self.nfqueues:
             self.pdebug(DNFQUEUE, 'Stopping NFQUEUE for %s' % (str(q)))
@@ -401,6 +407,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         if self.is_set('modifylocaldns'):
             self.linux_restore_local_dns()
+
+        self.linux_restore_iptables()
 
     def handle_nonlocal(self, pkt):
         """Handle comms sent to IP addresses that are not bound to any adapter.
