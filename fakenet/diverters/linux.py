@@ -569,6 +569,28 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
                 return True
 
+        # Duplicated from diverters/windows.py:
+        # HACK: FTP Passive Mode Handling
+        # Check if a listener is initiating a new connection from a
+        # non-diverted port and add it to blacklist. This is done to handle a
+        # special use-case of FTP ACTIVE mode where FTP server is initiating a
+        # new connection for which the response may be redirected to a default
+        # listener.  NOTE: Additional testing can be performed to check if this
+        # is actually a SYN packet
+
+        if ( (pid == os.getpid()) and ((dst_ip in self.ip_addrs[ipver]) and
+                    (not dst_ip.startswith('127.'))) and ((src_ip in
+                    self.ip_addrs[ipver]) and (not dst_ip.startswith('127.')))
+                    and (not set([sport,
+                    dport]).intersection(self.diverted_ports.keys()))
+            ):
+            self.pdebug(DIGN, 'Listener initiated %s connection' %
+                    (proto_name))
+            self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+            self.pdebug(DIGN, '  Blacklisting port %d' % (sport))
+            self.blacklist_ports[proto_name].append(sport)
+            return True
+
         return False
 
     def maybe_redir_ip(self, pid, comm, ipver, hdr, proto_name, src_ip, sport,
