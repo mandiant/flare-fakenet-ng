@@ -268,9 +268,6 @@ class DiverterBase(fnconfig.Config):
 
             else:
                 self.default_listener['TCP'] = int( self.listeners_config[ self.getconfigval('defaulttcplistener').lower() ]['port'] )
-                self.default_listener['TCP'] = int( self.listeners_config[ self.getconfigval('defaulttcplistener').lower() ]['port'] )
-
-                self.default_listener['TCP'] = int( self.listeners_config[ self.getconfigval('defaulttcplistener').lower() ]['port'] )
                 self.logger.error('Using default listener %s on port %d', self.getconfigval('defaulttcplistener').lower(), self.default_listener['TCP'])
 
                 self.default_listener['UDP'] = int( self.listeners_config[ self.getconfigval('defaultudplistener').lower() ]['port'] )
