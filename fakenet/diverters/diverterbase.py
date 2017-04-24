@@ -80,6 +80,7 @@ class DiverterBase(fnconfig.Config):
         # Global process blacklist
         # TODO: Allow PIDs
         self.blacklist_processes = []
+        self.whitelist_processes = []
 
         # Global host blacklist
         # TODO: Allow domain resolution
@@ -237,8 +238,8 @@ class DiverterBase(fnconfig.Config):
 
         # Only redirect whitelisted processes
         if self.is_configured('processwhitelist'):
-            self.whitelisted_processes = [process.strip() for process in self.getconfigval('processwhitelist').split(',')]
-            self.logger.debug('Whitelisted processes: %s', ', '.join([str(p) for p in self.whitelisted_processes]))
+            self.whitelist_processes = [process.strip() for process in self.getconfigval('processwhitelist').split(',')]
+            self.logger.debug('Whitelisted processes: %s', ', '.join([str(p) for p in self.whitelist_processes]))
 
         # Do not redirect blacklisted hosts
         if self.is_configured('hostblacklist'):
