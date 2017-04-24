@@ -182,8 +182,6 @@ class Diverter(DiverterBase, LinUtilMixin):
             dpkt.ip.IP_PROTO_TCP: 'TCP',
             dpkt.ip.IP_PROTO_UDP: 'UDP',
         }
-        # TODO: Incorporate ICMP so that it appears in pcap and logging but
-        # doesn't trigger layer4 processing: dpkt.ip.IP_PROTO_ICMP / 'ICMP'
 
         # Track iptables rules not associated with any nfqueue object
         self.rules_added = []
