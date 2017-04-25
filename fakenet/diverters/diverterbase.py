@@ -297,6 +297,7 @@ class DiverterBase(fnconfig.Config):
         DETACHED_PROCESS = 0x00000008
         cflags = DETACHED_PROCESS if winders else 0
         cfds = False if winders else True
+        shl = False if winders else True
 
         def ign_sigint():
             # Prevent KeyboardInterrupt in FakeNet-NG's console from
@@ -306,7 +307,8 @@ class DiverterBase(fnconfig.Config):
         # import pdb
         # pdb.set_trace()
         try:
-            pid = subprocess.Popen(execute_cmd.split(), creationflags=cflags,
+            pid = subprocess.Popen(execute_cmd, creationflags=cflags,
+                                   shell=shl,
                                    close_fds = cfds,
                                    preexec_fn = ign_sigint).pid
         except Exception, e:
