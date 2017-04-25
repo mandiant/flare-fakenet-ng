@@ -60,8 +60,8 @@ class PacketHandler:
             proto_name = self.diverter.handled_protocols.get(self.proto)
 
             self.diverter.pdebug(DGENPKT, '%s %s' % (self.label,
-                                         self.diverter.hdr_to_str(proto_name,
-                                                                   self.hdr)))
+                                 self.diverter.hdr_to_str(proto_name,
+                                 self.hdr)))
 
             # 1B: Parse IP packet (actually done in ctor)
             self.src_ip = socket.inet_ntoa(self.hdr.src)
@@ -72,12 +72,12 @@ class PacketHandler:
                 # These debug outputs are useful for figuring out which
                 # callback is responsible for an exception that was masked by
                 # python-netfilterqueue's global callback.
-                self.diverter.pdebug(DGENPKT|DVERBOSE, 'Calling %s' % (cb))
+                self.diverter.pdebug(DGENPKT | DVERBOSE, 'Calling %s' % (cb))
 
                 cb(self.hdr, self.ipver, self.proto, proto_name,
-                       self.src_ip, self.dst_ip)
+                   self.src_ip, self.dst_ip)
 
-                self.diverter.pdebug(DGENPKT|DVERBOSE, '%s finished' % (cb))
+                self.diverter.pdebug(DGENPKT | DVERBOSE, '%s finished' % (cb))
 
             if proto_name:
                 if len(self.callbacks4):
@@ -92,7 +92,7 @@ class PacketHandler:
                                                                self.dport)
 
                     pid, comm = self.diverter.linux_get_pid_comm_by_endpoint(
-                            self.ipver, proto_name, self.src_ip, self.sport)
+                        self.ipver, proto_name, self.src_ip, self.sport)
                     if pid:
                         self.logger.info('  pid:  %d name: %s' %
                                          (pid, comm if comm else 'Unknown'))
@@ -105,19 +105,19 @@ class PacketHandler:
                         # These debug outputs are useful for figuring out which
                         # callback is responsible for an exception that was
                         # masked by python-netfilterqueue's global callback.
-                        self.diverter.pdebug(DGENPKT|DVERBOSE,
+                        self.diverter.pdebug(DGENPKT | DVERBOSE,
                                              'Calling %s' % (cb))
 
                         hdr_mod = cb(pid, comm, self.ipver, hdr_latest,
-                                           proto_name,
-                                           self.src_ip, self.sport, self.skey,
-                                           self.dst_ip, self.dport, self.dkey)
+                                     proto_name,
+                                     self.src_ip, self.sport, self.skey,
+                                     self.dst_ip, self.dport, self.dkey)
 
                         if hdr_mod:
                             hdr_latest = hdr_mod
                             modified = True
 
-                        self.diverter.pdebug(DGENPKT|DVERBOSE,
+                        self.diverter.pdebug(DGENPKT | DVERBOSE,
                                              '%s finished' % (cb))
 
                     if modified:
@@ -129,7 +129,7 @@ class PacketHandler:
                         self.pkt.set_payload(hdr_latest.pack())
             else:
                 self.diverter.pdebug(DGENPKT, '%s: Not handling protocol %s' %
-                                  (self.label, self.proto))
+                                     (self.label, self.proto))
 
         # 5B: NF_ACCEPT
         self.pkt.accept()
@@ -261,7 +261,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # packet's remote endpoint corresponds to a port forwarding table
         # entry, the source port is fixed up so that the remote TCP stack does
         # not perceive any issue with FakeNet-NG's replies.
-        # 
+        #
         # Meanwhile, in MultiHost mode, IP NAT via the iptables REDIRECT target
         # works by using conntrack to record tuples of information about
         # packets going in one direction so that reply packets going in the
@@ -296,7 +296,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # conntrack:
         #
         #         Incoming                          Outgoing
-        # Chain             Tables          Chain           Tables          
+        # Chain             Tables          Chain           Tables
         # ---------------------------------------------------------------------
         # PREROUTING        raw             OUTPUT          mangle,nat,filter
         #                                   POSTROUTING     (any)
@@ -332,8 +332,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         nhooks = len(callbacks)
 
-        self.pdebug(DNFQUEUE, 'Discovering the next %d available NFQUEUE numbers' %
-                          (nhooks))
+        self.pdebug(DNFQUEUE, ('Discovering the next %d available NFQUEUE ' +
+                    'numbers') % (nhooks))
         qnos = self.linux_get_next_nfqueue_numbers(nhooks)
         if len(qnos) != nhooks:
             self.logger.error('Could not procure a sufficient number of ' +
@@ -343,12 +343,12 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.pdebug(DNFQUEUE, 'Next available NFQUEUE numbers: ' + str(qnos))
 
         self.pdebug(DNFQUEUE, 'Enumerating queue numbers and hook ' +
-                          'specifications to create NFQUEUE objects')
+                    'specifications to create NFQUEUE objects')
         self.nfqueues = list()
         for qno, hk in zip(qnos, callbacks):
             self.pdebug(DNFQUEUE, ('Creating NFQUEUE object for chain %s / ' +
-                               'table %s / queue # %d => %s') % (hk.chain,
-                               hk.table, qno, str(hk.callback)))
+                        'table %s / queue # %d => %s') % (hk.chain, hk.table,
+                        qno, str(hk.callback)))
             q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback)
             self.nfqueues.append(q)
             ok = q.start()
@@ -374,7 +374,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.pdebug(DMISC, 'Processing LinuxRedirectNonlocal')
             specified_ifaces = self.getconfigval('linuxredirectnonlocal')
             self.pdebug(DMISC, 'Processing linuxredirectnonlocal on ' +
-                              'interfaces: %s' % (specified_ifaces))
+                        'interfaces: %s' % (specified_ifaces))
             ok, rules = self.linux_iptables_redir_nonlocal(specified_ifaces)
 
             # Irrespective of whether this failed, we want to add any
@@ -403,7 +403,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             q.stop_nonblocking()
 
         self.pdebug(DIPTBLS, 'Removing iptables rules not associated with any ' +
-                          'NFQUEUE object')
+                    'NFQUEUE object')
         self.linux_remove_iptables_rules(self.rules_added)
 
         for q in self.nfqueues:
@@ -505,14 +505,15 @@ class Diverter(DiverterBase, LinUtilMixin):
         return str(ip) + ':' + str(proto_name) + '/' + str(port)
 
     def check_log_icmp(self, hdr, ipver, proto, proto_name, src_ip,
-            dst_ip):
+                       dst_ip):
         if proto == dpkt.ip.IP_PROTO_ICMP:
-            self.logger.info('ICMP type %d code %d %s' % (hdr.data.type, hdr.data.code, self.hdr_to_str(None, hdr)))
+            self.logger.info('ICMP type %d code %d %s' % (
+                hdr.data.type, hdr.data.code, self.hdr_to_str(None, hdr)))
 
         return None
 
     def check_log_nonlocal(self, hdr, ipver, proto, proto_name, src_ip,
-            dst_ip):
+                           dst_ip):
         if dst_ip not in self.ip_addrs[ipver]:
             self._maybe_log_nonlocal(hdr, ipver, proto, dst_ip)
 
@@ -527,7 +528,8 @@ class Diverter(DiverterBase, LinUtilMixin):
         """
         proto_name = self.handled_protocols.get(proto)
 
-        self.pdebug(DNONLOC, 'Nonlocal %s' % (self.hdr_to_str(proto_name, hdr)))
+        self.pdebug(DNONLOC, 'Nonlocal %s' %
+                    (self.hdr_to_str(proto_name, hdr)))
 
         first_sighting = (dst_ip not in self.nonlocal_ips_already_seen)
 
@@ -542,19 +544,25 @@ class Diverter(DiverterBase, LinUtilMixin):
                 (ipver, dst_ip))
 
     def check_should_ignore(self, pid, comm, ipver, hdr, proto_name, src_ip,
-            sport, dst_ip, dport):
+                            sport, dst_ip, dport):
 
         # SingleHost mode checks
         if self.single_host_mode:
             if comm:
                 if comm in self.blacklist_processes:
-                    self.pdebug(DIGN, 'Ignoring %s packet from process %s in the process blacklist.' % (proto_name, comm))
-                    self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+                    self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
+                                'in the process blacklist.') % (proto_name,
+                                comm))
+                    self.pdebug(DIGN, '  %s' %
+                                (self.hdr_to_str(proto_name, hdr)))
                     return True
                 elif (len(self.whitelist_processes) and (comm not in
-                        self.whitelist_processes)):
-                    self.pdebug(DIGN, 'Ignoring %s packet from process %s not in the process whitelist.' % (proto_name, comm))
-                    self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+                      self.whitelist_processes)):
+                    self.pdebug(DIGN, 'Ignoring %s packet from process %s ' +
+                                'not in the process whitelist.' % (proto_name,
+                                comm))
+                    self.pdebug(DIGN, '  %s' %
+                                (self.hdr_to_str(proto_name, hdr)))
                     return True
 
         # MultiHost mode checks
@@ -564,13 +572,15 @@ class Diverter(DiverterBase, LinUtilMixin):
         # Checks independent of mode
 
         if set(self.blacklist_ports[proto_name]).intersection([sport, dport]):
-            self.pdebug(DIGN, 'Forwarding blacklisted port %s packet:' % (proto_name))
+            self.pdebug(DIGN, 'Forwarding blacklisted port %s packet:' %
+                        (proto_name))
             self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
             return True
 
         global_host_blacklist = self.getconfigval('hostblacklist')
         if global_host_blacklist and dst_ip in global_host_blacklist:
-            self.pdebug(DIGN, 'Ignoring %s packet to %s in the host blacklist.' % (proto_name, dst_ip))
+            self.pdebug(DIGN, ('Ignoring %s packet to %s in the host ' +
+                        'blacklist.') % (proto_name, dst_ip))
             self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
             return True
 
@@ -579,30 +589,40 @@ class Diverter(DiverterBase, LinUtilMixin):
             if dport in self.port_process_whitelist:
                 # If program does NOT match whitelist
                 if not comm in self.port_process_whitelist[dport]:
-                    self.pdebug(DIGN, 'Ignoring %s request packet from process %s not in the listener process whitelist.' % (proto_name, process_name))
-                    self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+                    self.pdebug(DIGN, ('Ignoring %s request packet from ' +
+                                'process %s not in the listener process ' +
+                                'whitelist.') % (proto_name, process_name))
+                    self.pdebug(DIGN, '  %s' %
+                                (self.hdr_to_str(proto_name, hdr)))
                     return True
 
             # Check per-listener blacklisted process list
             if dport in self.port_process_blacklist:
                 # If program DOES match blacklist
                 if comm in self.port_process_blacklist[dport]:
-                    self.pdebug(DIGN, 'Ignoring %s request packet from process %s in the listener process blacklist.' % (proto_name, process_name))
-                    self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
+                    self.pdebug(DIGN, ('Ignoring %s request packet from ' +
+                                'process %s in the listener process ' +
+                                'blacklist.') % (proto_name, process_name))
+                    self.pdebug(DIGN, '  %s' %
+                                (self.hdr_to_str(proto_name, hdr)))
 
                     return True
 
         if dport in self.port_host_whitelist:
             # If host does NOT match whitelist
             if not dst_ip in self.port_host_whitelist:
-                self.pdebug(DIGN, 'Ignoring %s request packet to %s not in the listener host whitelist.', proto_name, packet.dst_addr)
+                self.pdebug(DIGN, 'Ignoring %s request packet to %s not in ' +
+                            'the listener host whitelist.' % (proto_name,
+                            packet.dst_addr))
                 self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
                 return True
 
         if dport in self.port_host_blacklist:
             # If host DOES match blacklist
             if dst_ip in self.port_host_blacklist:
-                self.pdebug(DIGN, 'Ignoring %s request packet to %s in the listener host blacklist.', proto_name, packet.dst_addr)
+                self.pdebug(DIGN, ('Ignoring %s request packet to %s in the ' +
+                            'listener host blacklist.') % (proto_name,
+                            packet.dst_addr))
                 self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
                 return True
 
@@ -617,14 +637,14 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         # TODO: FTP hack only works in MultiHost mode, need to fix for
         # SingleHost mode.
-        if ( (pid == os.getpid()) and ((dst_ip in self.ip_addrs[ipver]) and
+        if ((pid == os.getpid()) and ((dst_ip in self.ip_addrs[ipver]) and
                     (not dst_ip.startswith('127.'))) and ((src_ip in
                     self.ip_addrs[ipver]) and (not dst_ip.startswith('127.')))
                     and (not set([sport,
                     dport]).intersection(self.diverted_ports.keys()))
-            ):
+                ):
             self.pdebug(DIGN, 'Listener initiated %s connection' %
-                    (proto_name))
+                        (proto_name))
             self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
             self.pdebug(DIGN, '  Blacklisting port %d' % (sport))
             self.blacklist_ports[proto_name].append(sport)
@@ -633,7 +653,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         return False
 
     def maybe_redir_ip(self, pid, comm, ipver, hdr, proto_name, src_ip, sport,
-            skey, dst_ip, dport, dkey):
+                       skey, dst_ip, dport, dkey):
         """Conditionally redirect foreign destination IPs to localhost.
 
         Used only under SingleHost mode.
@@ -645,7 +665,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         hdr_modified = None
 
         if self.check_should_ignore(pid, comm, ipver, hdr, proto_name, src_ip,
-                sport, dst_ip, dport):
+                                    sport, dst_ip, dport):
             return hdr_modified  # None
 
         self.pdebug(DIPNAT, 'Condition 1 test')
@@ -684,7 +704,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         return hdr_modified
 
     def maybe_fixup_srcip(self, pid, comm, ipver, hdr, proto_name, src_ip,
-            sport, skey, dst_ip, dport, dkey):
+                          sport, skey, dst_ip, dport, dkey):
         """Conditionally fix up the source IP address if the remote endpoint
         had their connection IP-forwarded.
 
@@ -719,11 +739,11 @@ class Diverter(DiverterBase, LinUtilMixin):
         return hdr_modified
 
     def maybe_redir_port(self, pid, comm, ipver, hdr, proto_name, src_ip,
-            sport, skey, dst_ip, dport, dkey):
+                         sport, skey, dst_ip, dport, dkey):
         hdr_modified = None
 
         if self.check_should_ignore(pid, comm, ipver, hdr, proto_name, src_ip,
-                sport, dst_ip, dport):
+                                    sport, dst_ip, dport):
             return hdr_modified  # None
 
         # Pre-condition 2: destination not present in port forwarding table
@@ -790,7 +810,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         return hdr_modified
 
     def maybe_fixup_sport(self, pid, comm, ipver, hdr, proto_name, src_ip,
-            sport, skey, dst_ip, dport, dkey):
+                          sport, skey, dst_ip, dport, dkey):
         """Conditionally fix up source port if the remote endpoint had their
         connection port-forwarded.
 
@@ -814,8 +834,8 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.port_fwd_table_lock.acquire()
         try:
             if dkey in self.port_fwd_table:
-                self.pdebug(DDPF, 
-                    'Condition 3 satisfied: must fix up source port')
+                self.pdebug(DDPF, 'Condition 3 satisfied: must fix up ' +
+                            'source port')
                 self.pdebug(DDPF, ' = FOUND portfwd key entry: ' + dkey)
                 new_sport = self.port_fwd_table[dkey]
                 hdr_modified = self.mangle_srcport(
@@ -906,10 +926,15 @@ class Diverter(DiverterBase, LinUtilMixin):
             # Unused logic term not calculated except for debug output
             b = dst_local = (dst_ip in self.ip_addrs[ipver])
 
-            self.pdebug(DDPF, 'src %s (%s)' %(str(src_ip), ['foreign','local'][a]))
-            self.pdebug(DDPF, 'dst %s (%s)' %(str(dst_ip), ['foreign','local'][b]))
-            self.pdebug(DDPF, 'sport %s (%sbound)' %(str(sport), ['un', ''][c]))
-            self.pdebug(DDPF, 'dport %s (%sbound)' %(str(sport), ['un', ''][d]))
+            self.pdebug(DDPF, 'src %s (%s)' %
+                        (str(src_ip), ['foreign', 'local'][a]))
+            self.pdebug(DDPF, 'dst %s (%s)' %
+                        (str(dst_ip), ['foreign', 'local'][b]))
+            self.pdebug(DDPF, 'sport %s (%sbound)' %
+                        (str(sport), ['un', ''][c]))
+            self.pdebug(DDPF, 'dport %s (%sbound)' %
+                        (str(sport), ['un', ''][d]))
+
             def bn(x): return '1' if x else '0'  # Bool -> binary
             self.pdebug(DDPF, 'abcd = ' + bn(a) + bn(b) + bn(c) + bn(d))
 
@@ -918,7 +943,7 @@ class Diverter(DiverterBase, LinUtilMixin):
     def mangle_dstip(self, hdr, proto_name, dstip, newdstip):
         """Mangle destination IP for selected outgoing packets."""
         self.pdebug(DIPNAT, 'REDIRECTING %s to IP %s' %
-                          (self.hdr_to_str(proto_name, hdr), newdstip))
+                    (self.hdr_to_str(proto_name, hdr), newdstip))
         hdr.dst = socket.inet_aton(newdstip)
         self._calc_csums(hdr)
         return hdr
@@ -926,7 +951,7 @@ class Diverter(DiverterBase, LinUtilMixin):
     def mangle_srcip(self, hdr, proto_name, src_ip, new_srcip):
         """Mangle source IP for selected incoming packets."""
         self.pdebug(DIPNAT, 'MASQUERADING %s from IP %s' %
-                          (self.hdr_to_str(proto_name, hdr), new_srcip))
+                    (self.hdr_to_str(proto_name, hdr), new_srcip))
         hdr.src = socket.inet_aton(new_srcip)
         self._calc_csums(hdr)
         return hdr
@@ -961,6 +986,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         hdr.sum = 0
         hdr.data.sum = 0
         str(hdr)  # This has the side-effect of invoking dpkt.in_cksum() et al
+
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(message)s')

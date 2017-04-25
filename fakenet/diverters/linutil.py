@@ -11,25 +11,25 @@ import netfilterqueue
 from collections import defaultdict
 
 # Debug print levels for fine-grained debug trace output control
-DNFQUEUE = (1 << 0) # netfilterqueue
-DGENPKT = (1 << 1)  # Generic packet handling
-DPROCFS = (1 << 2)  # procfs
-DIPTBLS = (1 << 3)  # iptables
-DNONLOC = (1 << 4)  # Nonlocal-destined datagrams
-DDPF = (1 << 5)     # DPF (Dynamic Port Forwarding)
-DIPNAT = (1 << 6)   # IP redirection for nonlocal-destined datagrams
-DIGN = (1 << 7)     # Packet redirect ignore conditions
-DMISC = (1 << 27)   # Miscellaneous
+DNFQUEUE = (1 << 0)     # netfilterqueue
+DGENPKT = (1 << 1)      # Generic packet handling
+DPROCFS = (1 << 2)      # procfs
+DIPTBLS = (1 << 3)      # iptables
+DNONLOC = (1 << 4)      # Nonlocal-destined datagrams
+DDPF = (1 << 5)         # DPF (Dynamic Port Forwarding)
+DIPNAT = (1 << 6)       # IP redirection for nonlocal-destined datagrams
+DIGN = (1 << 7)         # Packet redirect ignore conditions
+DMISC = (1 << 27)       # Miscellaneous
 
-DVERBOSE = (1 << 31)# OR with any of the above to get ALL messages
-DCOMP = 0x0fffffff  # Component mask
-DFLAG = 0xf0000000  # Flag mask
-DEVERY = 0x8fffffff # Log everything, complete verbosity
+DVERBOSE = (1 << 31)    # OR with any of the above to get ALL messages
+DCOMP = 0x0fffffff      # Component mask
+DFLAG = 0xf0000000      # Flag mask
+DEVERY = 0x8fffffff     # Log everything, complete verbosity
 
 DLABELS = {
     DNFQUEUE: 'NFQUEUE',
     DGENPKT: 'GENPKT',
-    DGENPKT|DVERBOSE: 'GENPKT-VERBOSE',
+    DGENPKT | DVERBOSE: 'GENPKT-VERBOSE',
     DPROCFS: 'PROCFS',
     DIPTBLS: 'IPTABLES',
     DNONLOC: 'NONLOCAL',
@@ -38,6 +38,7 @@ DLABELS = {
     DIGN: 'IGNORE',
     DMISC: 'MISC',
 }
+
 
 class IptCmdTemplate:
     """For managing insertion and removal of iptables rules.
@@ -185,10 +186,10 @@ class ProcfsReader:
         self.path = path
         self.skip = skip
         self.cb = cb
-    
+
     def parse(self, multi=False, max_col=None):
         """Rip through the file and call cb to extract field(s).
-        
+
         Specify multi if you want to collect an aray instead of exiting the
         first time the callback returns anything.
 
@@ -231,10 +232,12 @@ class ProcfsReader:
 
         return retval
 
+
 class LinUtilMixin():
     """Automate addition/removal of iptables rules, checking interface names,
     checking available netfilter queue numbers, etc.
     """
+
     def init_linux_mixin(self):
         self.iptables_captured = ''
 
@@ -309,8 +312,8 @@ class LinUtilMixin():
                     line = line.strip()
                     if line:
                         queue_nr = int(line.split()[0], 10)
-                        self.pdebug(DNFQUEUE, ('Found NFQUEUE #' + str(queue_nr) +
-                                           ' per ') + procfs_path)
+                        self.pdebug(DNFQUEUE, ('Found NFQUEUE #' +
+                                    str(queue_nr) + ' per ') + procfs_path)
                         qnos.append(queue_nr)
         except IOError as e:
             self.logger.warning(('Failed to open %s to enumerate netfilter ' +
@@ -423,8 +426,8 @@ class LinUtilMixin():
                 self.old_dns = f.read()
         except IOError as e:
             self.logger.error(('Failed to open %s to save DNS ' +
-                               'configuration: %s') % (resolvconf_path,
-                               e.message))
+                              'configuration: %s') % (resolvconf_path,
+                              e.message))
 
         if self.old_dns:
             try:
@@ -435,8 +438,8 @@ class LinUtilMixin():
                     f.write('nameserver %s\n' % (ip))
             except IOError as e:
                 self.logger.error(('Failed to open %s to modify DNS ' +
-                                   'configuration: %s') % (resolvconf_path,
-                                   e.message))
+                                  'configuration: %s') % (resolvconf_path,
+                                  e.message))
 
     def linux_restore_local_dns(self):
         resolvconf_path = '/etc/resolv.conf'
@@ -446,8 +449,8 @@ class LinUtilMixin():
                 self.old_dns = None
         except IOError as e:
             self.logger.error(('Failed to open %s to restore DNS ' +
-                               'configuration: %s') % (resolvconf_path,
-                               e.message))
+                              'configuration: %s') % (resolvconf_path,
+                              e.message))
 
     def linux_find_processes(self, names):
         """Yeah great, but what if a blacklisted process spawns after we call
@@ -486,7 +489,7 @@ class LinUtilMixin():
         return '%s:%s' % (ip_str, port_str)
 
     def linux_find_sock_by_endpoint(self, ipver, proto_name, ip, port,
-            local=True):
+                                    local=True):
         """Search /proc/net/tcp for a socket whose local (field 1, zero-based)
         or remote (field 2) address matches ip:port and return the
         corresponding inode (field 9).
@@ -544,7 +547,7 @@ class LinUtilMixin():
                     if local and fields[local_column].endswith(port_tag):
                         inode = int(fields[INODE_COLUMN], 10)
                         self.pdebug(DPROCFS, 'MATCHING CONNECTION: %s' %
-                                (line.strip()))
+                                    (line.strip()))
                         break
                     # Untested: Remote matches must be more specific and
                     # include the IP address. Hence, an "endpoint tag" is
@@ -556,10 +559,10 @@ class LinUtilMixin():
                         if fields[remote_column] == endpoint_tag:
                             inode = int(fields[INODE_COLUMN], 10)
                             self.pdebug(DPROCFS, 'MATCHING CONNECTION: %s' %
-                                    (line.strip()))
+                                        (line.strip()))
         except IOError as e:
             self.logger.error('No such protocol/IP ver (%s) or error: %s' %
-                    (procfs_path, e.message))
+                              (procfs_path, e.message))
 
         return inode
 
@@ -575,7 +578,6 @@ class LinUtilMixin():
                 s = fields[GW_COLUMN]
                 return socket.inet_ntoa(binascii.unhexlify(s)[::-1])
 
-        
         r = ProcfsReader('/proc/net/route', 1, scan_for_default_gw)
         dgw = r.parse()
 
@@ -617,7 +619,7 @@ class LinUtilMixin():
                         inodes.append(inode)
                     elif inode == inode_sought:
                         self.pdebug(DPROCFS, 'MATCHING FD %s -> socket:[%d]' %
-                                (fd_path, inode))
+                                    (fd_path, inode))
                         return [inode]
 
         return inodes
@@ -684,13 +686,13 @@ class LinUtilMixin():
         return pid, comm
 
     def linux_endpoint_owned_by_processes(self, ipver, proto_name, ip, port,
-            names):
+                                          names):
         inode = self.linux_find_sock_by_endpoint(ipver, proto_name, ip, port)
         t = self._ip_port_for_proc_net_tcp(ipver, ip, port)
 
         if inode:
             self.pdebug(DPROCFS, 'inode %d found for %s:%s (%s)' %
-                              (inode, ip, port, t))
+                        (inode, ip, port, t))
             conns = self.linux_find_process_connections(names, inode)
             if len(conns):
                 self.pdebug(DPROCFS, 'FOUND inode %d for %s' %
