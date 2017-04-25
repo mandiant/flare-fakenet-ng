@@ -12,8 +12,8 @@ FakeNet-NG supported MultiHost clients:
 * Windows
 * Linux
 
-Each platform and mode is tested in each applicable suite against all supported
-clients, as follows:
+Each platform and mode is tested in each applicable test suite (below) against
+all supported clients, as follows:
 * Windows SingleHost
 	* General - Port and IP Redirection
 	* General - Listeners
