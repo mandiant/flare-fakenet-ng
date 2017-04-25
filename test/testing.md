@@ -24,9 +24,9 @@ Applies to:
 	* Test DNS host / bound port e.g. `echo hi | nc -u -v www.fireeye.com 1337`
 	* Test DNS host / unbound port e.g. `echo hi | nc -u -v www.fireeye.com 1338`
 0. ICMP
-	* ping <fakenet> e.g. ping 192.168.x.x
-	* ping <arbitrary> e.g. ping 1.1.1.1
-	* ping <DNS> e.g. ping 1.1.1.1
+	* ping <fakenet> e.g. `ping 192.168.x.x`
+	* ping <arbitrary> e.g. `ping 1.1.1.1`
+	* ping <DNS> e.g. `ping 1.1.1.1`
 	* (Verify these are logged as well)
 
 ### Listeners
