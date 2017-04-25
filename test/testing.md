@@ -8,6 +8,10 @@ FakeNet-NG supported operating modes:
 * SingleHost
 * MultiHost (Linux only as of this writing)
 
+FakeNet-NG supported MultiHost clients:
+* Windows
+* Linux
+
 Each platform and mode is tested in each applicable suite, as follows:
 * Windows SingleHost
 	* General - Port and IP Redirection
@@ -17,7 +21,11 @@ Each platform and mode is tested in each applicable suite, as follows:
 	* General - Port and IP Redirection
 	* General - Listeners
 	* SingleHost Mode
-* Linux MultiHost
+* Linux MultiHost (Linux client)
+	* General - Port and IP Redirection
+	* General - Listeners
+	* MultiHost Mode
+* Linux MultiHost (Windows client)
 	* General - Port and IP Redirection
 	* General - Listeners
 	* MultiHost Mode
