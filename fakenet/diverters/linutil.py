@@ -242,8 +242,7 @@ class LinUtilMixin():
         return (len(self._linux_get_ifaces()) > 0)
 
     def check_gateways(self):
-        # TODO: Implement
-        return True
+        return True if self.linux_get_default_gw() else False
 
     def check_dns_servers(self):
         # TODO: Implement
