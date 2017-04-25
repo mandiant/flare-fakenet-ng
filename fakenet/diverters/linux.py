@@ -193,7 +193,8 @@ class Diverter(DiverterBase, LinUtilMixin):
         # Port forwarding table, for looking up original unbound service ports
         # when sending replies to foreign endpoints that have attempted to
         # communicate with unbound ports. Allows fixing up source ports in
-        # response packets.
+        # response packets. Similar to the `sessions` member of the Windows
+        # Diverter implementation.
         self.port_fwd_table = dict()
         self.port_fwd_table_lock = threading.Lock()
 
