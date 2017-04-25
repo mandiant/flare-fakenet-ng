@@ -1,10 +1,12 @@
 import sys
 import time
 import dpkt
+import signal
 import socket
 import logging
 import fnconfig
 import threading
+import subprocess
 from collections import namedtuple
 from collections import OrderedDict
 
@@ -240,6 +242,18 @@ class DiverterBase(fnconfig.Config):
                 ###############################################################
                 # Execute command configuration
                 if 'executecmd' in listener_config:
+                    template = listener_config['executecmd'].strip()
+
+                    # Would prefer not to get into the middle of a debug
+                    # session and learn that a typo has ruined the day, so we
+                    # test beforehand by 
+                    test = self._build_cmd(template, 0, 'test', '1.2.3.4',
+                                           12345, '4.3.2.1', port)
+                    if not test:
+                        self.logger.error(('Terminating due to incorrectly ' +
+                                          'configured ExecuteCmd for ' +
+                                          'listener %s') % (listener_name))
+                        sys.exit(1)
 
                     if not protocol in self.port_execute:
                         self.port_execute[protocol] = dict()
@@ -249,6 +263,69 @@ class DiverterBase(fnconfig.Config):
                     self.logger.debug('Port %d (%s) ExecuteCmd: %s', port,
                                       protocol,
                                       self.port_execute[protocol][port])
+
+    def _build_cmd(self, tmpl, pid, comm, src_ip, sport, dst_ip, dport):
+        cmd = None
+
+        try:
+            cmd = tmpl.format(
+                pid = str(pid),
+                procname = str(comm),
+                src_addr = str(src_ip),
+                src_port = str(sport),
+                dst_addr = str(dst_ip),
+                dst_port = str(dport))
+        except KeyError as e:
+            self.logger.error(('Failed to build ExecuteCmd for port %d due ' +
+                              'to erroneous format key: %s') %
+                              (dport, e.message))
+
+        return cmd
+
+    ###########################################################################
+    # Execute process and detach
+    def execute_detached(self, execute_cmd, winders=False):
+        """Supposedly OS-agnostic asynchronous subprocess creation.
+
+        Written in anticipation of re-factoring diverters into a common class
+        parentage.
+
+        Not tested on Windows. Override or fix this if it does not work, for
+        instance to use the Popen creationflags argument or omit the close_fds
+        argument on Windows.
+        """
+        DETACHED_PROCESS = 0x00000008
+        cflags = DETACHED_PROCESS if winders else 0
+        cfds = False if winders else True
+
+        def ign_sigint():
+            # Prevent KeyboardInterrupt in FakeNet-NG's console from
+            # terminating child processes
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+        # import pdb
+        # pdb.set_trace()
+        try:
+            pid = subprocess.Popen(execute_cmd.split(), creationflags=cflags,
+                                   close_fds = cfds,
+                                   preexec_fn = ign_sigint).pid
+        except Exception, e:
+            self.logger.error('Error: Failed to execute command: %s', execute_cmd)
+            self.logger.error('       %s', e)
+        else:
+            return pid
+
+    def build_cmd(self, proto_name, pid, comm, src_ip, sport, dst_ip, dport):
+        cmd = None
+
+        if ((proto_name in self.port_execute) and
+                (dport in self.port_execute[proto_name])
+           ):
+            template = self.port_execute[proto_name][dport]
+            cmd = self._build_cmd(template, pid, comm, src_ip, sport, dst_ip,
+                                  dport)
+
+        return cmd
 
     def parse_diverter_config(self):
         if self.getconfigval('processwhitelist') and self.getconfigval('processblacklist'):
