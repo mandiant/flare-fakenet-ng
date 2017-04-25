@@ -1,6 +1,14 @@
 # Testing
 
-Procedure:
+FakeNet-NG currently supported platforms (2):
+* Windows
+* Linux
+
+FakeNet-NG supported operating modes:
+* SingleHost
+* MultiHost
+
+Each platform and mode is tested in each applicable suite, as follows:
 * Windows
 	* General - Port and IP Redirection
 	* General - Listeners
@@ -13,6 +21,8 @@ Procedure:
 	* General - Port and IP Redirection
 	* General - Listeners
 	* MultiHost Mode
+
+# Test Suites
 
 ## General
 
