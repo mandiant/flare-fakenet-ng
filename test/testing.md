@@ -24,7 +24,7 @@ Each platform and mode is tested in each applicable suite, as follows:
 
 # Test Suites
 
-## General
+## General Test Suite
 
 Applies to:
 * Windows
@@ -68,7 +68,7 @@ Applies to:
 0. Raw
 0. SMTP
 
-## MultiHost Mode (Linux only)
+## MultiHost Mode Test Suite (Linux only)
 
 Applies to:
 * Linux MultiHost
@@ -77,7 +77,7 @@ Applies to:
 	* NetworkMode: MultiHost (Linux only)
 	* LinuxRedirectNonlocal (Linux only) - redirects foreign-bound packets to localhost
 
-## SingleHost Mode
+## SingleHost Mode Test Suite
 
 Applies to:
 * Windows SingleHost
