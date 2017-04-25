@@ -1,15 +1,15 @@
 # Testing
 
-FakeNet-NG currently supported platforms (2):
+FakeNet-NG currently supported platforms as of this writing (2):
 * Windows
 * Linux
 
 FakeNet-NG supported operating modes:
 * SingleHost
-* MultiHost
+* MultiHost (Linux only as of this writing)
 
 Each platform and mode is tested in each applicable suite, as follows:
-* Windows
+* Windows SingleHost
 	* General - Port and IP Redirection
 	* General - Listeners
 	* SingleHost Mode
