@@ -33,6 +33,7 @@ Applies to:
 
 ### Port and IP Redirection
 
+Test cases:
 0. TCP
 	* Test <fakenet> @ bound port e.g. `echo hi | nc -v 192.168.x.x 1337`
 	* Test <fakenet> @ unbound port e.g. `echo hi | nc -v 192.168.x.x 1338`
@@ -55,6 +56,7 @@ Applies to:
 
 ### Listeners
 
+Test cases:
 0. DNS - nslookup <anyname> e.g. `nslookup fireeye.com`
 0. HTTP - wget localhost 
 0. FTP
@@ -73,6 +75,7 @@ Applies to:
 Applies to:
 * Linux MultiHost
 
+Test cases:
 0. Diverter Settings
 	* NetworkMode: MultiHost (Linux only)
 	* LinuxRedirectNonlocal (Linux only) - redirects foreign-bound packets to localhost
@@ -83,6 +86,7 @@ Applies to:
 * Windows SingleHost
 * Linux SingleHost
 
+Test cases:
 0. Diverter Settings
 	* NetworkMode: SingleHost (Linux only)
 	* DumpPackets - causes pcaps to be written
