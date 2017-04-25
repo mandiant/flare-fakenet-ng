@@ -818,8 +818,9 @@ class Diverter(DiverterBase, LinUtilMixin):
             if pid and (dst_ip in self.ip_addrs[ipver]):
                 cmd = self.build_cmd(proto_name, pid, comm, src_ip,
                                      sport, dst_ip, dport)
-                self.logger.info('Executing command: %s', cmd)
-                self.execute_detached(cmd)
+                if cmd:
+                    self.logger.info('Executing command: %s', cmd)
+                    self.execute_detached(cmd)
 
         return hdr_modified
 
