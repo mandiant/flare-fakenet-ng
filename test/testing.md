@@ -1,18 +1,18 @@
 # Testing
 
 Procedure:
-    * Windows
-        * General - Port and IP Redirection
-        * General - Listeners
-        * SingleHost Mode
-    * Linux SingleHost
-        * General - Port and IP Redirection
-        * General - Listeners
-        * SingleHost Mode
-    * Linux MultiHost
-        * General - Port and IP Redirection
-        * General - Listeners
-        * MultiHost Mode
+* Windows
+	* General - Port and IP Redirection
+	* General - Listeners
+	* SingleHost Mode
+* Linux SingleHost
+	* General - Port and IP Redirection
+	* General - Listeners
+	* SingleHost Mode
+* Linux MultiHost
+	* General - Port and IP Redirection
+	* General - Listeners
+	* MultiHost Mode
 
 ## General
 
