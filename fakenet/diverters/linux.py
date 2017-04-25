@@ -557,6 +557,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                     self.pdebug(DIGN, '  %s' %
                                 (self.hdr_to_str(proto_name, hdr)))
                     return True
+
                 elif (len(self.whitelist_processes) and (comm not in
                       self.whitelist_processes)):
                     self.pdebug(DIGN, 'Ignoring %s packet from process %s ' +
@@ -564,6 +565,29 @@ class Diverter(DiverterBase, LinUtilMixin):
                                 comm))
                     self.pdebug(DIGN, '  %s' %
                                 (self.hdr_to_str(proto_name, hdr)))
+                    return True
+
+                # Check per-listener whitelisted process list
+                elif dport in self.port_process_whitelist:
+                    # If program does NOT match whitelist
+                    if not comm in self.port_process_whitelist[dport]:
+                        self.pdebug(DIGN, ('Ignoring %s request packet from ' +
+                                    'process %s not in the listener process ' +
+                                    'whitelist.') % (proto_name, process_name))
+                        self.pdebug(DIGN, '  %s' %
+                                    (self.hdr_to_str(proto_name, hdr)))
+                        return True
+
+                # Check per-listener blacklisted process list
+                elif dport in self.port_process_blacklist:
+                    # If program DOES match blacklist
+                    if comm in self.port_process_blacklist[dport]:
+                        self.pdebug(DIGN, ('Ignoring %s request packet from ' +
+                                    'process %s in the listener process ' +
+                                    'blacklist.') % (proto_name, process_name))
+                        self.pdebug(DIGN, '  %s' %
+                                    (self.hdr_to_str(proto_name, hdr)))
+
                     return True
 
         # MultiHost mode checks
@@ -584,30 +608,6 @@ class Diverter(DiverterBase, LinUtilMixin):
                         'blacklist.') % (proto_name, dst_ip))
             self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
             return True
-
-        if comm:
-            # Check per-listener whitelisted process list
-            if dport in self.port_process_whitelist:
-                # If program does NOT match whitelist
-                if not comm in self.port_process_whitelist[dport]:
-                    self.pdebug(DIGN, ('Ignoring %s request packet from ' +
-                                'process %s not in the listener process ' +
-                                'whitelist.') % (proto_name, process_name))
-                    self.pdebug(DIGN, '  %s' %
-                                (self.hdr_to_str(proto_name, hdr)))
-                    return True
-
-            # Check per-listener blacklisted process list
-            if dport in self.port_process_blacklist:
-                # If program DOES match blacklist
-                if comm in self.port_process_blacklist[dport]:
-                    self.pdebug(DIGN, ('Ignoring %s request packet from ' +
-                                'process %s in the listener process ' +
-                                'blacklist.') % (proto_name, process_name))
-                    self.pdebug(DIGN, '  %s' %
-                                (self.hdr_to_str(proto_name, hdr)))
-
-                    return True
 
         if dport in self.port_host_whitelist:
             # If host does NOT match whitelist
@@ -638,16 +638,20 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         # TODO: FTP hack only works in MultiHost mode, need to fix for
         # SingleHost mode.
-        if ((pid == os.getpid()) and ((dst_ip in self.ip_addrs[ipver]) and
-                    (not dst_ip.startswith('127.'))) and ((src_ip in
-                    self.ip_addrs[ipver]) and (not dst_ip.startswith('127.')))
-                    and (not set([sport,
-                    dport]).intersection(self.diverted_ports.keys()))
-                ):
+        if (
+            (pid == os.getpid()) and
+            ((dst_ip in self.ip_addrs[ipver]) and
+            (not dst_ip.startswith('127.'))) and
+            ((src_ip in self.ip_addrs[ipver]) and
+            (not dst_ip.startswith('127.'))) and
+            (not set([sport, dport]).intersection(self.diverted_ports[proto_name]))
+            ):
+
             self.pdebug(DIGN, 'Listener initiated %s connection' %
                         (proto_name))
             self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
             self.pdebug(DIGN, '  Blacklisting port %d' % (sport))
+            print('Adding port ' + str(sport) + ' to blacklist_ports[%s]' % (proto_name))
             self.blacklist_ports[proto_name].append(sport)
             return True
 
