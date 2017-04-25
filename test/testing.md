@@ -68,7 +68,7 @@ Applies to:
 0. Raw
 0. SMTP
 
-## MultiHost Mode Test Suite (Linux only)
+## MultiHost Mode Test Suite
 
 Applies to:
 * Linux MultiHost
