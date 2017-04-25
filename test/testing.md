@@ -50,8 +50,8 @@ Applies to:
 * Linux MultiHost
 
 0. Diverter Settings
-	0. NetworkMode: MultiHost (Linux only)
-	0. LinuxRedirectNonlocal (Linux only) - redirects foreign-bound packets to localhost
+	* NetworkMode: MultiHost (Linux only)
+	* LinuxRedirectNonlocal (Linux only) - redirects foreign-bound packets to localhost
 
 ## SingleHost Mode
 
@@ -60,26 +60,26 @@ Applies to:
 * Linux SingleHost
 
 0. Diverter Settings
-	0. NetworkMode: SingleHost (Linux only)
-	0. DumpPackets - causes pcaps to be written
-	0. DumpPacketsFilePrefix - changes pcap name prefix
-    0. FixGateway seting
-    0. FixDNS (Windows only) sets to x.x.x.254 IF it was not already set
-    0. ModifyLocalDNS unconditionally sets to local IP (not 127.x.x.x)
-	0. LinuxFlushDNSCommand (Linux only)
-	0. StopDNSService (Windows only)
-	0. RedirectAllTraffic - disabling stops port redirection
-	0. DefaultTCPListener - TODO: Devise test
-	0. DefaultUDPListener - TODO: Devise test
-	0. BlacklistPortsUDP
-	0. BlacklistPortsTCP
-    0. ProcessBlackList (global)
-    0. ProcessWhiteList (global)
-	0. HostBlackList (global)
+	* NetworkMode: SingleHost (Linux only)
+	* DumpPackets - causes pcaps to be written
+	* DumpPacketsFilePrefix - changes pcap name prefix
+    * FixGateway seting
+    * FixDNS (Windows only) sets to x.x.x.254 IF it was not already set
+    * ModifyLocalDNS unconditionally sets to local IP (not 127.x.x.x)
+	* LinuxFlushDNSCommand (Linux only)
+	* StopDNSService (Windows only)
+	* RedirectAllTraffic - disabling stops port redirection
+	* DefaultTCPListener - TODO: Devise test
+	* DefaultUDPListener - TODO: Devise test
+	* BlacklistPortsUDP
+	* BlacklistPortsTCP
+    * ProcessBlackList (global)
+    * ProcessWhiteList (global)
+	* HostBlackList (global)
 
 0. Listener Settings
-	0. ProcessBlackList (per-listener)
-	0. ProcessWhiteList (per-listener)
-	0. HostWhiteList (per-listener)
-	0. HostBlackList (per-listener)
-	0. ExecuteCmd
+	* ProcessBlackList (per-listener)
+	* ProcessWhiteList (per-listener)
+	* HostWhiteList (per-listener)
+	* HostBlackList (per-listener)
+	* ExecuteCmd
