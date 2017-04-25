@@ -82,4 +82,4 @@ Applies to:
 	* ProcessWhiteList (per-listener)
 	* HostWhiteList (per-listener)
 	* HostBlackList (per-listener)
-	* ExecuteCmd
+	* ExecuteCmd - e.g. `echo "Process {procname} ({pid}) {src_addr}:{src_port}->{dst_addr}:{dst_port}" 1> ~whoever/flag.txt`
