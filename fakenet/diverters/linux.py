@@ -651,7 +651,6 @@ class Diverter(DiverterBase, LinUtilMixin):
                         (proto_name))
             self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
             self.pdebug(DIGN, '  Blacklisting port %d' % (sport))
-            print('Adding port ' + str(sport) + ' to blacklist_ports[%s]' % (proto_name))
             self.blacklist_ports[proto_name].append(sport)
             return True
 
