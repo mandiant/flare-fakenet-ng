@@ -183,7 +183,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.init_base(diverter_config, listeners_config, ip_addrs,
                        logging_level)
 
-        self.set_debug_level(DIGN, DLABELS)
+        self.set_debug_level(0, DLABELS)
 
         self.init_diverter_linux()
         self.init_linux_mixin()
