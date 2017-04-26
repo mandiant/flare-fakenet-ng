@@ -56,7 +56,6 @@ Test cases:
         * e.g. `wget -T 10 8.8.8.8` should time out
     * Enable LinuxRedirectNonlocal e.g. `LinuxRedirectNonlocal: *` - redirects foreign-bound packets to localhost
         * e.g. `wget -T 10 8.8.8.8` should retrieve page
-    * LinuxRedirectNonlocal - redirects foreign-bound packets to localhost
 
 ## SingleHost Mode Test Suite
 
@@ -84,20 +83,37 @@ Test cases:
         * Windows: stops DNS service
         * Linux: no change
     * ProcessBlackList (global)
-        * Use netcat to transmit and receive echoes at a non-standard IP; observe normal operation
-        * Use netcat to transmit and receive echoes at a non-standard port; observe normal operation
+		* Set the default TCP listener to HTTPListener80 for these tests: `DefaultTCPListener: HTTPListener80`
         * Add netcat to the global process blacklist e.g. `ProcessBlackList: nc` (or `nc.exe` on Windows)
-        * Use netcat to transmit and receive echoes at a non-standard IP; observe quiet failure (returns one) or `No route to host` message if `-v` specified on Linux
-        * Use netcat to transmit and receive echoes at a non-standard port; observe failure
+		* Use netcat to make HTTP requests, e.g. `echo GET / HTTP/1.0 | nc -v host port`
+			* Arbitrary IP - observe normal operation - observe **failure**
+			* Non-standard port - observe **failure**
+			* Start a listener on a non-standard port and connect to it - observe normal operation with exception of connection never closing on client end (standing issue)
+			* Both - observe **failure**
+		* Use wget to make HTTP requests, e.g. `wget host:port`
+			* Arbitrary IP - observe normal operation
+			* Non-standard port - observe normal operation
+			* Both - observe normal operation
     * ProcessWhiteList (global)
+		* Set the default TCP listener to HTTPListener80 for these tests: `DefaultTCPListener: HTTPListener80`
+        * Add netcat to the global process whitelist e.g. `ProcessWhiteList: nc` (or `nc.exe` on Windows)
+		* Use netcat to make HTTP requests, e.g. `echo GET / HTTP/1.0 | nc -v host port`
+			* Arbitrary IP - observe normal operation - observe **failure**
+			* Non-standard port - observe **failure**
+			* Start a listener on a non-standard port and connect to it - observe normal operation with exception of connection never closing on client end (standing issue)
+			* Both - observe **failure**
+		* Use wget to make HTTP requests, e.g. `wget host:port`
+			* Arbitrary IP - observe normal operation
+			* Non-standard port - observe normal operation
+			* Both - observe normal operation
     * HostBlackList (global)
 
 0. Listener Settings
+    * ExecuteCmd - e.g. `echo "Process {procname} ({pid}) {src_addr}:{src_port}->{dst_addr}:{dst_port}" 1> ~whoever/flag.txt`
     * ProcessBlackList (per-listener)
     * ProcessWhiteList (per-listener)
     * HostWhiteList (per-listener)
     * HostBlackList (per-listener)
-    * ExecuteCmd - e.g. `echo "Process {procname} ({pid}) {src_addr}:{src_port}->{dst_addr}:{dst_port}" 1> ~whoever/flag.txt`
 
 ## General Test Suite
 
@@ -147,6 +163,7 @@ Test cases:
         * Should work: `echo asdf | nc -v localhost 1337` (no port or IP redirection necessary)
         * Should **fail**: `echo asdf | nc -v anyname.com 1337` (IP redirection is disabled)
         * Should **fail**: `echo asdf | nc -v localhost 1339` (port redirection is disabled)
+        * Should **fail**: `echo asdf | nc -v anyname.com 1339` (IP and port redirection are disabled)
     * DefaultTCPListener - `DefaultTCPListener: HTTPListener80` (`wget blah.com 9999`)
     * DefaultUDPListener - `DefaultUDPListener: DNS Server` (nslookup: `set port=12345`)
     * BlacklistPortsUDP
@@ -158,7 +175,7 @@ Test cases:
 
 0. DNS - nslookup anyname e.g. `nslookup www.isightpartners.com`
 0. HTTP - wget anyhost e.g. `wget www.example.com`
-0. FTP
+0. FTP (works with non-localhost e.g. `ftp ftp.fireeye.com` but not with localhost)
     * user
     * pass
     * ls
