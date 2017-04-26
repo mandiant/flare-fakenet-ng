@@ -31,6 +31,11 @@ all supported clients, as follows:
     * General - Port and IP Redirection
     * General - Listeners
 
+Any order in which the test suites are arranged will engender some jumping
+around between different sections of the configuration. If you think a test is
+missing, be sure to check the General Test Suite or the appropriate
+mode-specific test suite before adding it.
+
 # Pre-conditions:
 
 Optional:
@@ -66,11 +71,24 @@ Test cases:
     * DumpPackets - causes pcaps to be written
     * DumpPacketsFilePrefix - changes pcap name prefix
     * FixGateway setting
-    * FixDNS (Windows only) sets to x.x.x.254 IF it was not already set
+        * MultiHost mode: makes no change
+        * SingleHost mode: when disabled, makes no change
+        * SingleHost mode: when enabled, sets default route to a non-loopback interface IP
+        * When FakeNet-NG exits: the route need not be actively removed - this is the meaning of the "fix" semantic
+    * FixDN
+        * Windows: sets to x.x.x.254 IF it was not already set
+        * Linux: no change
     * ModifyLocalDNS unconditionally sets to local IP (not 127.x.x.x)
     * LinuxFlushDNSCommand (Linux only)
-    * StopDNSService (Windows only)
+    * StopDNSService
+        * Windows: stops DNS service
+        * Linux: no change
     * ProcessBlackList (global)
+        * Use netcat to transmit and receive echoes at a non-standard IP; observe normal operation
+        * Use netcat to transmit and receive echoes at a non-standard port; observe normal operation
+        * Add netcat to the global process blacklist e.g. `ProcessBlackList: nc` (or `nc.exe` on Windows)
+        * Use netcat to transmit and receive echoes at a non-standard IP; observe quiet failure (returns one) or `No route to host` message if `-v` specified on Linux
+        * Use netcat to transmit and receive echoes at a non-standard port; observe failure
     * ProcessWhiteList (global)
     * HostBlackList (global)
 
