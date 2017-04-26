@@ -186,6 +186,13 @@ class LinuxDiverterNfqueue:
 
 
 class ProcfsReader:
+    """Standard row/field reading for proc files.
+
+    The Python procfs module is a really neat way to access procfs! But it
+    doesn't seem to handle /proc/net/netfilter/nfnetlink_queue, and it seems
+    like it might handle a file with only a header row (and no data rows)
+    differently than a file that has data.
+    """
     def __init__(self, path, skip, cb):
         self.path = path
         self.skip = skip
