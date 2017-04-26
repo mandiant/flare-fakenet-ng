@@ -653,21 +653,22 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
             return True
 
-        if dport in self.port_host_whitelist:
+        if ((proto_name in self.port_host_whitelist) and
+                (dport in self.port_host_whitelist[proto_name])):
             # If host does NOT match whitelist
-            if not dst_ip in self.port_host_whitelist:
-                self.pdebug(DIGN, 'Ignoring %s request packet to %s not in ' +
-                            'the listener host whitelist.' % (proto_name,
-                            packet.dst_addr))
+            if not dst_ip in self.port_host_whitelist[proto_name][dport]:
+                self.pdebug(DIGN, ('Ignoring %s request packet to %s not in ' +
+                            'the listener host whitelist.') % (proto_name,
+                            dst_ip))
                 self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
                 return True
 
-        if dport in self.port_host_blacklist:
+        if ((proto_name in self.port_host_blacklist) and
+                (dport in self.port_host_blacklist[proto_name])):
             # If host DOES match blacklist
-            if dst_ip in self.port_host_blacklist:
+            if dst_ip in self.port_host_blacklist[proto_name][dport]:
                 self.pdebug(DIGN, ('Ignoring %s request packet to %s in the ' +
-                            'listener host blacklist.') % (proto_name,
-                            packet.dst_addr))
+                            'listener host blacklist.') % (proto_name, dst_ip))
                 self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
                 return True
 
