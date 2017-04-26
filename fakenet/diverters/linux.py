@@ -602,8 +602,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
                 elif (len(self.whitelist_processes) and (comm not in
                       self.whitelist_processes)):
-                    self.pdebug(DIGN, 'Ignoring %s packet from process %s ' +
-                                'not in the process whitelist.' % (proto_name,
+                    self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
+                                'not in the process whitelist.') % (proto_name,
                                 comm))
                     self.pdebug(DIGN, '  %s' %
                                 (self.hdr_to_str(proto_name, hdr)))
