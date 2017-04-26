@@ -107,9 +107,12 @@ class PacketHandler:
                         ack = (tcp.flags & dpkt.tcp.TH_ACK) != 0
                         fin = (tcp.flags & dpkt.tcp.TH_FIN) != 0
                         psh = (tcp.flags & dpkt.tcp.TH_PUSH) != 0
+                        rst = (tcp.flags & dpkt.tcp.TH_RST) != 0
 
                         sa = 'Seq=%d, Ack=%d' % (tcp.seq, tcp.ack)
                         f = []
+                        if rst:
+                            f.append('RST')
                         if syn:
                             f.append('SYN')
                         if ack:
