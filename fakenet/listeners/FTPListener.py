@@ -170,7 +170,7 @@ def test(config):
 def main():
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
 
-    config = {'port': '21', 'usessl': 'No', 'protocol': 'tcp', 'ftproot': '..\defaultFiles'}
+    config = {'port': '21', 'usessl': 'No', 'protocol': 'tcp', 'ftproot': os.path.join('..', 'defaultFiles')}
 
     listener = FTPListener(config)
     listener.start()
