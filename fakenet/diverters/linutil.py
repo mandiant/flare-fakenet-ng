@@ -13,29 +13,33 @@ from collections import defaultdict
 # Debug print levels for fine-grained debug trace output control
 DNFQUEUE = (1 << 0)     # netfilterqueue
 DGENPKT = (1 << 1)      # Generic packet handling
-DPROCFS = (1 << 2)      # procfs
-DIPTBLS = (1 << 3)      # iptables
-DNONLOC = (1 << 4)      # Nonlocal-destined datagrams
-DDPF = (1 << 5)         # DPF (Dynamic Port Forwarding)
-DIPNAT = (1 << 6)       # IP redirection for nonlocal-destined datagrams
-DIGN = (1 << 7)         # Packet redirect ignore conditions
+DGENPKTV = (1 << 2)     # Generic packet handling with TCP analysis
+DCB = (1 << 3)          # Packet handlign callbacks
+DPROCFS = (1 << 4)      # procfs
+DIPTBLS = (1 << 5)      # iptables
+DNONLOC = (1 << 6)      # Nonlocal-destined datagrams
+DDPF = (1 << 7)         # DPF (Dynamic Port Forwarding)
+DIPNAT = (1 << 8)       # IP redirection for nonlocal-destined datagrams
+DIGN = (1 << 9)         # Packet redirect ignore conditions
+DFTP = (1 << 10)         # FTP checks
 DMISC = (1 << 27)       # Miscellaneous
 
-DVERBOSE = (1 << 31)    # OR with any of the above to get ALL messages
 DCOMP = 0x0fffffff      # Component mask
 DFLAG = 0xf0000000      # Flag mask
-DEVERY = 0x8fffffff     # Log everything, complete verbosity
+DEVERY = 0x0fffffff     # Log everything, low verbosity
+DEVERY2 = 0x8fffffff    # Log everything, complete verbosity
 
 DLABELS = {
     DNFQUEUE: 'NFQUEUE',
     DGENPKT: 'GENPKT',
-    DGENPKT | DVERBOSE: 'GENPKT-VERBOSE',
+    DGENPKTV: 'GENPKTV',
     DPROCFS: 'PROCFS',
     DIPTBLS: 'IPTABLES',
-    DNONLOC: 'NONLOCAL',
+    DNONLOC: 'NONLOC',
     DDPF: 'DPF',
     DIPNAT: 'IPNAT',
-    DIGN: 'IGNORE',
+    DIGN: 'IGN',
+    DIGN | DFTP: 'IGN-FTP',
     DMISC: 'MISC',
 }
 
