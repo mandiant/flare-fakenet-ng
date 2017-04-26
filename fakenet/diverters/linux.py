@@ -183,7 +183,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.init_base(diverter_config, listeners_config, ip_addrs,
                        logging_level)
 
-        self.set_debug_level(0, DLABELS)
+        self.set_debug_level(DIGN, DLABELS)
 
         self.init_diverter_linux()
         self.init_linux_mixin()
@@ -589,6 +589,10 @@ class Diverter(DiverterBase, LinUtilMixin):
     def check_should_ignore(self, pid, comm, ipver, hdr, proto_name, src_ip,
                             sport, dst_ip, dport):
 
+        if not self.is_set('redirectalltraffic'):
+            self.pdebug(DIGN, 'Ignoring %s packet %s' % (proto_name, self.hdr_to_str(proto_name, hdr)))
+            return True
+
         # SingleHost mode checks
         if self.single_host_mode:
             if comm:
@@ -978,9 +982,6 @@ class Diverter(DiverterBase, LinUtilMixin):
         Minimized sum-of-products logic function:
             R(A, B, C, D) = A'D' + C'D'
         """
-        if not self.is_set('redirectalltraffic'):
-            return False
-
         # A, B, C, D for easy manipulation; full names for readability only.
         a = src_local = (src_ip in self.ip_addrs[ipver])
         c = sport_bound = sport in (bound_ports)
