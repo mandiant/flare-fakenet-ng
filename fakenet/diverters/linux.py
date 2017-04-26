@@ -609,28 +609,30 @@ class Diverter(DiverterBase, LinUtilMixin):
                                 (self.hdr_to_str(proto_name, hdr)))
                     return True
 
-                # Check per-listener whitelisted process list
-                elif dport in self.port_process_whitelist:
-                    # If program does NOT match whitelist
-                    if not comm in self.port_process_whitelist[dport]:
-                        self.pdebug(DIGN, ('Ignoring %s request packet from ' +
-                                    'process %s not in the listener process ' +
-                                    'whitelist.') % (proto_name, process_name))
-                        self.pdebug(DIGN, '  %s' %
-                                    (self.hdr_to_str(proto_name, hdr)))
-                        return True
-
                 # Check per-listener blacklisted process list
-                elif dport in self.port_process_blacklist:
+                elif ((proto_name in self.port_process_blacklist) and
+                        (dport in self.port_process_blacklist[proto_name])):
                     # If program DOES match blacklist
-                    if comm in self.port_process_blacklist[dport]:
+                    if comm in self.port_process_blacklist[proto_name][dport]:
                         self.pdebug(DIGN, ('Ignoring %s request packet from ' +
                                     'process %s in the listener process ' +
-                                    'blacklist.') % (proto_name, process_name))
+                                    'blacklist.') % (proto_name, comm))
                         self.pdebug(DIGN, '  %s' %
                                     (self.hdr_to_str(proto_name, hdr)))
 
                     return True
+
+                # Check per-listener whitelisted process list
+                elif ((proto_name in self.port_process_whitelist) and
+                        (dport in self.port_process_whitelist[proto_name])):
+                    # If program does NOT match whitelist
+                    if not comm in self.port_process_whitelist[proto_name][dport]:
+                        self.pdebug(DIGN, ('Ignoring %s request packet from ' +
+                                    'process %s not in the listener process ' +
+                                    'whitelist.') % (proto_name, comm))
+                        self.pdebug(DIGN, '  %s' %
+                                    (self.hdr_to_str(proto_name, hdr)))
+                        return True
 
         # MultiHost mode checks
         else:
