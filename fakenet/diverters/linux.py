@@ -400,11 +400,11 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.stop()
                 sys.exit(1)
 
-        if self.is_set('fixgateway'):
+        if self.single_host_mode and self.is_set('fixgateway'):
             if not self.linux_get_default_gw():
                 self.linux_set_default_gw()
 
-        if self.is_set('modifylocaldns'):
+        if self.single_host_mode and self.is_set('modifylocaldns'):
             self.linux_modifylocaldns_ephemeral()
 
         if self.is_configured('linuxflushdnscommand'):
