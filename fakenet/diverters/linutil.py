@@ -250,6 +250,7 @@ class LinUtilMixin():
     """
 
     def init_linux_mixin(self):
+        self.old_dns = None
         self.iptables_captured = ''
 
     def check_active_ethernet_adapters(self):
@@ -454,14 +455,15 @@ class LinUtilMixin():
 
     def linux_restore_local_dns(self):
         resolvconf_path = '/etc/resolv.conf'
-        try:
-            with open(resolvconf_path, 'w') as f:
-                f.write(self.old_dns)
-                self.old_dns = None
-        except IOError as e:
-            self.logger.error(('Failed to open %s to restore DNS ' +
-                              'configuration: %s') % (resolvconf_path,
-                              e.message))
+        if self.old_dns:
+            try:
+                with open(resolvconf_path, 'w') as f:
+                    f.write(self.old_dns)
+                    self.old_dns = None
+            except IOError as e:
+                self.logger.error(('Failed to open %s to restore DNS ' +
+                                  'configuration: %s') % (resolvconf_path,
+                                  e.message))
 
     def linux_find_processes(self, names):
         """Yeah great, but what if a blacklisted process spawns after we call

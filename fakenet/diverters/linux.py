@@ -459,7 +459,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         self.logger.info('Stopped Linux Diverter')
 
-        if self.is_set('modifylocaldns'):
+        if self.single_host_mode and self.is_set('modifylocaldns'):
             self.linux_restore_local_dns()
 
         self.linux_restore_iptables()
