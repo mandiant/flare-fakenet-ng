@@ -160,7 +160,8 @@ Test cases:
     * Observe decryption of SSL into app
 0. Diverter
     * RedirectAllTraffic - disabling stops port redirection
-        * Should work: `echo asdf | nc -v localhost 1337` (no port or IP redirection necessary)
+        * Should work: `echo asdf | nc -v 192.168.x.x 1337` (no port or IP redirection necessary)
+        * Will **fail** on Windows: `echo asdf | nc -v localhost 1337` (IP redirection is disabled)
         * Should **fail**: `echo asdf | nc -v anyname.com 1337` (IP redirection is disabled)
         * Should **fail**: `echo asdf | nc -v localhost 1339` (port redirection is disabled)
         * Should **fail**: `echo asdf | nc -v anyname.com 1339` (IP and port redirection are disabled)
