@@ -588,11 +588,6 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def check_should_ignore(self, pid, comm, ipver, hdr, proto_name, src_ip,
                             sport, dst_ip, dport):
-
-        if not self.is_set('redirectalltraffic'):
-            self.pdebug(DIGN, 'Ignoring %s packet %s' % (proto_name, self.hdr_to_str(proto_name, hdr)))
-            return True
-
         # SingleHost mode checks
         if self.single_host_mode:
             if comm:
@@ -796,11 +791,28 @@ class Diverter(DiverterBase, LinUtilMixin):
                          src_ip, sport, skey, dst_ip, dport, dkey):
         hdr_modified = None
 
+        # Get default listener port for this proto, or bail if none
+        default = None
+        if not proto_name in self.default_listener:
+            return hdr_modified  # None
+        default = self.default_listener[proto_name]
+
+        # Pre-condition 1: RedirectAllTraffic: Yes
+        # NOTE: This only applies to port redirection in the Windows Diverter;
+        # IP addresses will be modified by the Windows Diverter when
+        # RedirectAllTraffic is disabled. So, the Linux Diverter implementation
+        # will follow suit.
+        if not self.is_set('redirectalltraffic'):
+            self.pdebug(DIGN, 'Ignoring %s packet %s' %
+                        (proto_name, self.hdr_to_str(proto_name, hdr)))
+            return hdr_modified  # None
+
+        # Pre-condition 2: General ignore conditions are not met.
         if self.check_should_ignore(pid, comm, ipver, hdr, proto_name, src_ip,
                                     sport, dst_ip, dport):
             return hdr_modified  # None
 
-        # Pre-condition 2: destination not present in port forwarding table
+        # Pre-condition 3: destination not present in port forwarding table
         # (prevent masqueraded ports responding to unbound ports from being
         # mistaken as starting a conversation with an unbound port).
         found = False
@@ -813,12 +825,6 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         if found:
             return hdr_modified  # None
-
-        # Get default listener port for this proto, or bail if none
-        default = None
-        if not proto_name in self.default_listener:
-            return hdr_modified  # None
-        default = self.default_listener[proto_name]
 
         bound_ports = self.diverted_ports.get(proto_name, [])
 
