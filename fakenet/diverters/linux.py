@@ -137,7 +137,8 @@ class PacketHandler:
                             )
                         self.diverter.pdebug(DGENPKTV, logline)
 
-                    if pid and not (self.diverter.pdebug_level & DGENPKTV):
+                    if ((not (self.diverter.pdebug_level & DGENPKTV)) and
+                        pid and (pid != os.getpid())):
                         self.logger.info('  pid:  %d name: %s' %
                                          (pid, comm if comm else 'Unknown'))
 
@@ -239,6 +240,12 @@ class Diverter(DiverterBase, LinUtilMixin):
         # Diverter implementation.
         self.port_fwd_table = dict()
         self.port_fwd_table_lock = threading.Lock()
+
+        # Track conversations that will be ignored so that e.g. an RST response
+        # from a closed port does not erroneously trigger port forwarding and
+        # silence later replies to legitimate clients.
+        self.ignore_table = dict()
+        self.ignore_table_lock = threading.Lock()
 
         # IP forwarding table, for looking up original foreign destination IPs
         # when sending replies to local endpoints that have attempted to
@@ -807,14 +814,9 @@ class Diverter(DiverterBase, LinUtilMixin):
                         (proto_name, self.hdr_to_str(proto_name, hdr)))
             return hdr_modified  # None
 
-        # Pre-condition 2: General ignore conditions are not met.
-        if self.check_should_ignore(pid, comm, ipver, hdr, proto_name, src_ip,
-                                    sport, dst_ip, dport):
-            return hdr_modified  # None
-
-        # Pre-condition 3: destination not present in port forwarding table
-        # (prevent masqueraded ports responding to unbound ports from being
-        # mistaken as starting a conversation with an unbound port).
+        # Pre-condition 1: destination must not be present in port forwarding
+        # table (prevents masqueraded ports responding to unbound ports from
+        # being mistaken as starting a conversation with an unbound port).
         found = False
         self.port_fwd_table_lock.acquire()
         try:
@@ -832,15 +834,49 @@ class Diverter(DiverterBase, LinUtilMixin):
         # redirect it to a bound port and save the old destination IP in
         # the port forwarding table keyed by the source endpoint identity.
 
-        self.pdebug(DDPF, 'Condition 2 test')
+        self.pdebug(DDPFV, 'Condition 2 test')
 
         if self.decide_redir_port(ipver, proto_name, default, bound_ports,
                                   src_ip, sport, dst_ip, dport):
-            self.pdebug(DDPF, 'Condition 2 satisfied')
+            self.pdebug(DDPFV, 'Condition 2 satisfied')
+
+            # Post-condition 1: General ignore conditions are not met, or this
+            # is part of a conversation that is already being ignored.
+            #
+            # Placed after the decision to redirect for three reasons:
+            # 1.) We want to ensure that the else condition below has a chance
+            #     to check whether to delete a stale port forwarding table
+            #     entry.
+            # 2.) Checking these conditions is, on average, more expensive than
+            #     checking if the packet would be redirected in the first
+            #     place.
+            # 3.) Reporting of packets that are being ignored (i.e. not
+            #     redirected), which is integrated into this check, should only
+            #     appear when packets would otherwise have been redirected.
+            
+            # Is this conversation already being ignored for DPF purposes?
+            self.ignore_table_lock.acquire()
+            try:
+                if dkey in self.ignore_table and self.ignore_table[dkey] == sport:
+                    # This is a reply (e.g. a TCP RST) from the
+                    # non-port-forwarded server that the non-port-forwarded
+                    # client was trying to talk to. Leave it alone.
+                    return hdr_modified  # None
+            finally:
+                self.ignore_table_lock.release()
+
+            if self.check_should_ignore(pid, comm, ipver, hdr, proto_name,
+                                        src_ip, sport, dst_ip, dport):
+                self.ignore_table_lock.acquire()
+                try:
+                    self.ignore_table[skey] = dport
+                finally:
+                    self.ignore_table_lock.release()
+                return hdr_modified  # None
 
             # Record the foreign endpoint and old destination port in the port
             # forwarding table
-            self.pdebug(DDPF, ' + ADDING portfwd key entry: ' + skey)
+            self.pdebug(DDPFV, ' + ADDING portfwd key entry: ' + skey)
             self.port_fwd_table_lock.acquire()
             try:
                 self.port_fwd_table[skey] = dport
@@ -862,13 +898,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             # foreign host is reusing the port number to connect to an
             # already-bound port on the FakeNet system.
 
-            self.port_fwd_table_lock.acquire()
-            try:
-                if skey in self.port_fwd_table:
-                    self.pdebug(DDPF, ' - DELETING portfwd key entry: ' + skey)
-                    del self.port_fwd_table[skey]
-            finally:
-                self.port_fwd_table_lock.release()
+            self.delete_stale_port_fwd_key(skey)
 
         if not (sport in self.sessions and self.sessions[sport] == (dst_ip,
                 dport)):
@@ -882,6 +912,15 @@ class Diverter(DiverterBase, LinUtilMixin):
                     self.execute_detached(cmd)
 
         return hdr_modified
+
+    def delete_stale_port_fwd_key(self, skey):
+        self.port_fwd_table_lock.acquire()
+        try:
+            if skey in self.port_fwd_table:
+                self.pdebug(DDPFV, ' - DELETING portfwd key entry: ' + skey)
+                del self.port_fwd_table[skey]
+        finally:
+            self.port_fwd_table_lock.release()
 
     def maybe_fixup_sport(self, label, pid, comm, ipver, hdr, proto_name,
                           src_ip, sport, skey, dst_ip, dport, dkey):
@@ -904,18 +943,18 @@ class Diverter(DiverterBase, LinUtilMixin):
         # by that endpoint. The term "endpoint" is (ab)used loosely here to
         # apply to UDP host/port/proto combos and any other protocol that
         # may be supported in the future.
-        self.pdebug(DDPF, "Condition 3 test: was remote endpoint port fwd'd?")
+        self.pdebug(DDPFV, "Condition 3 test: was remote endpoint port fwd'd?")
         self.port_fwd_table_lock.acquire()
         try:
             if dkey in self.port_fwd_table:
-                self.pdebug(DDPF, 'Condition 3 satisfied: must fix up ' +
+                self.pdebug(DDPFV, 'Condition 3 satisfied: must fix up ' +
                             'source port')
-                self.pdebug(DDPF, ' = FOUND portfwd key entry: ' + dkey)
+                self.pdebug(DDPFV, ' = FOUND portfwd key entry: ' + dkey)
                 new_sport = self.port_fwd_table[dkey]
                 hdr_modified = self.mangle_srcport(
                     hdr, proto_name, hdr.data.sport, new_sport)
             else:
-                self.pdebug(DDPF, ' ! NO SUCH portfwd key entry: ' + dkey)
+                self.pdebug(DDPFV, ' ! NO SUCH portfwd key entry: ' + dkey)
         finally:
             self.port_fwd_table_lock.release()
 
@@ -993,21 +1032,21 @@ class Diverter(DiverterBase, LinUtilMixin):
         c = sport_bound = sport in (bound_ports)
         d = dport_bound = dport in (bound_ports)
 
-        if self.pdebug_level & DDPF:
+        if self.pdebug_level & DDPFV:
             # Unused logic term not calculated except for debug output
             b = dst_local = (dst_ip in self.ip_addrs[ipver])
 
-            self.pdebug(DDPF, 'src %s (%s)' %
+            self.pdebug(DDPFV, 'src %s (%s)' %
                         (str(src_ip), ['foreign', 'local'][a]))
-            self.pdebug(DDPF, 'dst %s (%s)' %
+            self.pdebug(DDPFV, 'dst %s (%s)' %
                         (str(dst_ip), ['foreign', 'local'][b]))
-            self.pdebug(DDPF, 'sport %s (%sbound)' %
+            self.pdebug(DDPFV, 'sport %s (%sbound)' %
                         (str(sport), ['un', ''][c]))
-            self.pdebug(DDPF, 'dport %s (%sbound)' %
-                        (str(sport), ['un', ''][d]))
+            self.pdebug(DDPFV, 'dport %s (%sbound)' %
+                        (str(dport), ['un', ''][d]))
 
             def bn(x): return '1' if x else '0'  # Bool -> binary
-            self.pdebug(DDPF, 'abcd = ' + bn(a) + bn(b) + bn(c) + bn(d))
+            self.pdebug(DDPFV, 'abcd = ' + bn(a) + bn(b) + bn(c) + bn(d))
 
         return (not a and not d) or (not c and not d)
 
