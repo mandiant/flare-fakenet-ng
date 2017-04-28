@@ -49,9 +49,8 @@ DLABELS = {
 class IptCmdTemplate:
     """For managing insertion and removal of iptables rules.
 
-    Standardizes, centralizes, and de-duplicates code used frequently
-    throughout the Linux Diverter to construct and execute iptables command
-    lines to add (-I or -A) and remove (-D) rules.
+    Construct and execute iptables command lines to add (-I or -A) and remove
+    (-D) rules.
 
     The removal half of this is now redundant with
     LinUtilMixin.linux_{capture,restore}_iptables().
@@ -189,13 +188,7 @@ class LinuxDiverterNfqueue:
 
 
 class ProcfsReader:
-    """Standard row/field reading for proc files.
-
-    The Python procfs module is a really neat way to access procfs! But it
-    doesn't seem to handle /proc/net/netfilter/nfnetlink_queue, and it seems
-    like it might handle a file with only a header row (and no data rows)
-    differently than a file that has data.
-    """
+    """Standard row/field reading for proc files."""
     def __init__(self, path, skip, cb):
         self.path = path
         self.skip = skip

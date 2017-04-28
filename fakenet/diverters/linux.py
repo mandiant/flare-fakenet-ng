@@ -301,106 +301,8 @@ class Diverter(DiverterBase, LinUtilMixin):
         # 1.) The components that compose the Linux Diverter
         # 2.) The traffic flow relevant to conditions 1-4
         #
-        # EXPLAINING HOOK LOCATION CHOICES
-        #
-        # This can be moved into a TXT file and added to the git repo if this
-        # implementation remains relevant.
-        #
-        # Observing packets destined for non-local IP addresses
-        # -----------------------------------------------------
-        #
-        # In MultiHost mode, when foreign packets come in having a non-local
-        # destination IP, they have to be examined in the PREROUTING chain in
-        # order to observe the non-local address before it is mangled into a
-        # local IP address by the IP NAT (PREROUTING/REDIRECT) rule added by
-        # the LinuxRedirectNonlocal configuration setting.
-        #
-        # In contrast, when using FakeNet-NG under SingleHost mode, packets
-        # originated by processes within the system that are destined for
-        # foreign IP addresses never hit the PREROUTING chain, making this hook
-        # superfluous. That is why it is not applied when FakeNet-NG is in
-        # SingleHost mode. Instead, the logging for IP addresses having
-        # non-local destination IP addresses is performed within the hook for
-        # outgoing packets.
-        #
-        # Dynamic port forwarding in concert with IP NAT
-        # ----------------------------------------------
-        #
-        # In both MultiHost and SingleHost mode, FakeNet-NG implements dynamic
-        # port forwarding (DPF) by mangling packets on their way in and out of
-        # the system. Incoming packets destined for an unbound port are
-        # modified to point to a default destination port and the packet
-        # checksums are recalculated. The remote endpoint's IP address,
-        # protocol, and port are saved in a port forwarding lookup table - much
-        # like Netfilter's NAT implementation that will be explained
-        # subsequently - to be able to recognize outgoing reply packets and
-        # mangle them to provide the illusion that the remote host is
-        # communicating with the port that it asked for. If an outgoing
-        # packet's remote endpoint corresponds to a port forwarding table
-        # entry, the source port is fixed up so that the remote TCP stack does
-        # not perceive any issue with FakeNet-NG's replies.
-        #
-        # Meanwhile, in MultiHost mode, IP NAT via the iptables REDIRECT target
-        # works by using conntrack to record tuples of information about
-        # packets going in one direction so that reply packets going in the
-        # opposite direction can be recognized. By recording and referring to
-        # this information, conntrack is able to likewise correctly fix up the
-        # IP addresses in reply packets. The conntrack module uses information
-        # like TCP ports to recognize what packets need to be fixed up.
-        # Therefore, it is necessary to perform all DPF-related mangling of TCP
-        # ports on one side or the other of the NAT so that conntrack
-        # symmetrically and uniformly observes either client-side or
-        # DPF-mangled port numbers whenever it is calculating tuples to
-        # determine a NAT match and mangle the packet to reflect the correct
-        # source IP address. Incorrect chain/table placement of incoming and
-        # outgoing packet hooks will result in IP NAT failing to recognize and
-        # fix up reply packets. On the client side, this can be observed to
-        # manifest itself as (1) TCP SYN/ACK packets coming from the FakeNet-NG
-        # host that do not mirror the arbitrary IP addresses that the client is
-        # asking to talk to, and consequently (2) TCP RST packets from the
-        # client due to the erroneous SYN/ACK responses it is receiving: no
-        # three-way handshake, no TCP connection, and no exchange of data.
-        #
-        # Why not implement IP NAT ourselves? We are already using
-        # python-netfilterqueue to manipulate and observe packet traversal.
-        # Well, conntrack handles protocols other than TCP/IP (such as ICMP)
-        # and implements a rich library of protocol modules for reaching above
-        # the network layer to recognize connections for protocols such as IRC,
-        # FTP, etc. We're not going to do a better job than that, and we don't
-        # want to reinvent the wheel if we can avoid it.
-        #
-        # In any event, here are the locations where it is okay to place the
-        # incoming and outgoing packet hooks so that we don't disrupt
-        # conntrack:
-        #
-        #         Incoming                          Outgoing
-        # Chain             Tables          Chain           Tables
-        # ---------------------------------------------------------------------
-        # PREROUTING        raw             OUTPUT          mangle,nat,filter
-        #                                   POSTROUTING     (any)
-        #
-        # INPUT             (any)           OUTPUT          raw
-        #
-        # A handy graphic depicting Netfilter chains and tables in detail can
-        # be found at:
-        #
-        # https://upload.wikimedia.org/wikipedia/commons/3/37/Netfilter-packet-
-        # flow.svg
-        #
-        # Code relating to NAT redirection and connection tracking can be found
-        # in the Linux kernel in the following files/functions (both IPv4 and
-        # IPv6 information are available but only IPv4 is mentioned here):
-        #
-        # net/netfilter/xt_REDIRECT.c: redirect_tg4()
-        # net/netfilter/nf_nat_redirect.c: nf_nat_redirect_ipv4()
-        # net/netfilter/nf_nat_core.c: nf_nat_setup_info()
-        #
-        # Documentation relating to NAT redirection and connection tracking can
-        # be found at:
-        #
-        # https://www.netfilter.org/documentation/HOWTO/netfilter-hacking-HOWTO
-        # -4.html#toc4.4
-
+        # See the section of docs/internals.md titled Explaining Hook Location
+        # Choices for an explanation.
         if not self.single_host_mode:
             callbacks.append(hookspec('PREROUTING', 'raw',
                                       self.handle_nonlocal))
@@ -992,68 +894,8 @@ class Diverter(DiverterBase, LinUtilMixin):
                           src_ip, sport, dst_ip, dport):
         """Decide whether to redirect a port.
 
-        Optimized logic derived by truth table + k-map. See below for details.
-
-        Truth table key:
-            src     source IP address
-            sport   source port
-            dst     source IP address
-            dport   source port
-            lsrc    src is local
-            ldst    dst is local
-            bsport  sport is in the set of ports bound by FakeNet-NG listeners
-            bdport  dport is in the set of ports bound by FakeNet-NG listeners
-            R?      Redirect?
-            m       Minterm (R? == 1)
-
-        Short names for convenience --> A       B       C       D       R
-        src     sport   dst     dport   lsrc    ldst    bsport  dsport  R?  m
-        -----------------------------------------------------------------------
-        Foreign Unbound Foreign Unbound 0       0       0       0       1   *
-        Foreign Unbound Foreign Bound   0       0       0       0       0
-        Foreign Bound   Foreign Unbound 0       0       0       0       1   *
-        Foreign Bound   Foreign Bound   0       0       0       0       0
-        Foreign Unbound Local   Unbound 0       0       0       0       1   *
-        Foreign Unbound Local   Bound   0       0       0       0       0
-        Foreign Bound   Local   Unbound 0       0       0       0       1   *
-        Foreign Bound   Local   Bound   0       0       0       0       0
-
-        (Rationale: When a foreign host is trying to talk to us or anyone else
-        in MultiHost mode, ensure unbound ports get redirected to a listener)
-
-        Local   Unbound Foreign Unbound 0       0       0       0       1   *
-        Local   Unbound Foreign Bound   0       0       0       0       0
-        Local   Bound   Foreign Unbound 0       0       0       0       0
-        Local   Bound   Foreign Bound   0       0       0       0       0
-        Local   Unbound Local   Unbound 0       0       0       0       1   *
-        Local   Unbound Local   Bound   0       0       0       0       0
-        Local   Bound   Local   Unbound 0       0       0       0       0
-        Local   Bound   Local   Bound   0       0       0       0       0
-
-        (Rationale: In SingleHost mode, the local machine will wind up talking
-        to itself if it tries to get out to a foreign IP. When the local
-        machine is talking to itself in SingleHost mode, ensure unbound
-        destination ports are redirected /except/ when the packet originates
-        from a bound port. )
-
-        Karnaugh map (zeroes omitted for readability):
-                 CD
-           AB \  00   01   11   10
-               +-------------------.
-            00 |  1 |    |    |  1 | -> A'D'
-               +----+----+----+----+
-            01 |  1 |    |    |  1 |
-               +----+----+----+----+
-            11 |  1 |    |    |    |
-               +----+----+----+----+
-            10 |  1 |    |    |    |
-               +----+----+----+----+
-                 |
-                 V
-                C'D'
-
-        Minimized sum-of-products logic function:
-            R(A, B, C, D) = A'D' + C'D'
+        Optimized logic derived by truth table + k-map. See docs/internals.md
+        for details.
         """
         # A, B, C, D for easy manipulation; full names for readability only.
         a = src_local = (src_ip in self.ip_addrs[ipver])
