@@ -126,6 +126,12 @@ class Fakenet():
 
         if self.fakenet_config.get('diverttraffic') and self.fakenet_config['diverttraffic'].lower() == 'yes':
 
+            if (('networkmode' not in self.diverter_config) or
+                    (self.diverter_config['networkmode'].lower() not in
+                    ['singlehost','multihost'])):
+                self.logger.error('Error: You must configure a NetworkMode for Diverter, either SingleHost or MultiHost')
+                sys.exit(1)
+
             # Select platform specific diverter
             platform_name = platform.system()
 
