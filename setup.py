@@ -9,6 +9,7 @@ requirements = [
     "pydivert",
     "dpkt",
     "dnslib",
+    "netifaces",
     "pyftpdlib",
     "pyopenssl",
 
