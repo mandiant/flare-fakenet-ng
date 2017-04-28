@@ -144,6 +144,7 @@ class LinuxDiverterNfqueue:
 
         # Start a thread to run the queue and monitor the stop flag
         self._thread = threading.Thread(target=self._threadproc)
+        self._thread.daemon = True
         self._stopflag = False
         try:
             self._thread.start()
