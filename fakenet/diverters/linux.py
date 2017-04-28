@@ -261,6 +261,11 @@ class Diverter(DiverterBase, LinUtilMixin):
     def start(self):
         self.logger.info('Starting Linux Diverter...')
 
+        if not self.check_privileged():
+            self.logger.error('The Linux Diverter requires administrative ' +
+                              'privileges')
+            sys.exit(1)
+
         ret = self.linux_capture_iptables()
         if ret != 0:
             sys.exit(1)

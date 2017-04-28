@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import dpkt
@@ -135,6 +136,14 @@ class DiverterBase(fnconfig.Config):
             label = self.pdebug_labels.get(lvl)
             prefix = '[' + label + '] ' if label else '[some component] '
             self.logger.debug(prefix + str(s))
+
+    def check_privileged(self):
+        try:
+            privileged = (os.getuid() == 0)
+        except AttributeError:
+            privileged = (ctypes.windll.shell32.IsUserAnAdmin() != 0)
+
+        return privileged
 
     def parse_listeners_config(self, listeners_config):
 
