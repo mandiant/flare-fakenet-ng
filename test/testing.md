@@ -69,14 +69,14 @@ Test cases:
     * NetworkMode: SingleHost (Linux only)
     * DumpPackets - causes pcaps to be written
     * DumpPacketsFilePrefix - changes pcap name prefix
+    * FixDNS
+        * Windows: sets to x.x.x.254 IF it was not already set
+        * Linux: no change
     * FixGateway setting
         * MultiHost mode: makes no change
         * SingleHost mode: when disabled, makes no change
         * SingleHost mode: when enabled, sets default route to a non-loopback interface IP
         * When FakeNet-NG exits: the route need not be actively removed - this is the meaning of the "fix" semantic
-    * FixDN
-        * Windows: sets to x.x.x.254 IF it was not already set
-        * Linux: no change
     * ModifyLocalDNS unconditionally sets to local IP (not 127.x.x.x)
     * LinuxFlushDNSCommand (Linux only)
     * StopDNSService
