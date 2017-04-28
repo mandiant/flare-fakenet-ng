@@ -213,6 +213,22 @@ class Diverter(DiverterBase, LinUtilMixin):
             if mode.lower() == 'multihost':
                 self.single_host_mode = False
 
+        if self.single_host_mode:
+            while True:
+                prompt = ('You acknowledge that SingleHost mode on Linux is ' +
+                          'experimental and not functionally complete? ' +
+                          '[Y/N] ')
+                acknowledgement = raw_input(prompt)
+                okay = ['y', 'yes', 'yeah', 'sure', 'okay', 'whatever']
+                nope = ['n', 'no', 'nah', 'nope']
+                if acknowledgement.lower() in okay:
+                    self.logger.info('Okay, we\'ll take it for a spin!')
+                    break
+                elif acknowledgement.lower() in nope:
+                    self.logger.error('User opted out of crowd-sourced ' +
+                                      'alpha testing program ;-)')
+                    sys.exit(1)
+
         self.logger.info('Running in %s mode' % (mode))
 
         self.parse_pkt = dict()
