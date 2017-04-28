@@ -301,6 +301,29 @@ class LinUtilMixin():
 
         return ret
 
+    def linux_flush_iptables(self):
+        rets = []
+        cmd = ''
+
+        table_names = ['raw', 'filter', 'mangle', 'nat']
+
+        self.pdebug(DIPTBLS, 'Flushing iptables: %s' %
+                    (', '.join(table_names)))
+
+        try:
+            for table_name in table_names:
+                cmd = 'iptables --flush -t %s' % (table_name)
+                p = subprocess.Popen(cmd.split())
+                ret = p.wait()
+                rets.append(ret)
+                if ret != 0:
+                    self.logger.error('Received return code %d from %s' +
+                                      (ret, cmd))
+        except OSError as e:
+            self.logger.error('Error executing %s: %s' % (cmd, e.message))
+
+        return rets
+
     def linux_get_current_nfnlq_bindings(self):
         """Determine what NFQUEUE queue numbers (if any) are already bound by
         existing libnfqueue client processes.

@@ -286,6 +286,13 @@ class Diverter(DiverterBase, LinUtilMixin):
         if ret != 0:
             sys.exit(1)
 
+        if self.is_set('linuxflushiptables'):
+            self.linux_flush_iptables()
+        else:
+            self.logger.warning('LinuxFlushIptables is disabled, this may ' +
+                                'result in unanticipated behavior depending ' +
+                                'upon what rules are already present')
+
         hookspec = namedtuple('hookspec', ['chain', 'table', 'callback'])
 
         callbacks = list()
