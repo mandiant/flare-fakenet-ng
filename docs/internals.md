@@ -171,6 +171,13 @@ https://www.netfilter.org/documentation/HOWTO/netfilter-hacking-HOWTO-4.html#toc
 
 ### Linux Diverter Composition
 
+The Linux Diverter creates `LinuxDiverterNfqueue` objects within its `start()`
+method to call hook functions which each create a `PacketHandler` object and
+call its `handle_pkt()` method. This performs standard pre- and post-callback
+packet processing (like extracting the IP version and next protocol number),
+and provides a standard set of information to the network and transport layer
+callbacks that perform the real work. More details follow.
+
 The Linux Diverter implementation comprises the following classes:
 * `DiverterBase` (`diverters/diverterbase.py`) - will facilitate common ancestry
   and refactoring of common code between Windows, Linux, and any other future
