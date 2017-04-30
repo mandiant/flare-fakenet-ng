@@ -138,7 +138,7 @@ class PacketHandler:
                         self.diverter.pdebug(DGENPKTV, logline)
 
                     if ((not (self.diverter.pdebug_level & DGENPKTV)) and
-                        pid and (pid != os.getpid())):
+                        pid and (pid != self.diverter.pid)):
                         self.logger.info('  pid:  %d name: %s' %
                                          (pid, comm if comm else 'Unknown'))
 
@@ -297,12 +297,10 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         callbacks = list()
 
-        # TODO: While we're documenting things, let's include:
-        # 1.) The components that compose the Linux Diverter
-        # 2.) The traffic flow relevant to conditions 1-4
-        #
-        # See the section of docs/internals.md titled Explaining Hook Location
-        # Choices for an explanation.
+        # If you are considering adding or moving hooks that mangle packets,
+        # see the section of docs/internals.md titled Explaining Hook Location
+        # Choices for an explanation of how to avoid breaking the Linux NAT
+        # implementation.
         if not self.single_host_mode:
             callbacks.append(hookspec('PREROUTING', 'raw',
                                       self.handle_nonlocal))
@@ -616,10 +614,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # new connection for which the response may be redirected to a default
         # listener.  NOTE: Additional testing can be performed to check if this
         # is actually a SYN packet
-
-        # TODO: FTP hack only works in MultiHost mode, need to fix for
-        # SingleHost mode.
-        if pid == os.getpid():
+        if pid == self.pid:
             if (
                 ((dst_ip in self.ip_addrs[ipver]) and
                 (not dst_ip.startswith('127.'))) and

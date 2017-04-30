@@ -21,6 +21,8 @@ class DiverterBase(fnconfig.Config):
         self.pdebug_level = 0
         self.pdebug_labels = dict()
 
+        self.pid = os.getpid()
+
         self.ip_addrs = ip_addrs
 
         self.pcap = None
