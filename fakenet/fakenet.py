@@ -128,8 +128,8 @@ class Fakenet():
 
             if (('networkmode' not in self.diverter_config) or
                     (self.diverter_config['networkmode'].lower() not in
-                    ['singlehost','multihost'])):
-                self.logger.error('Error: You must configure a NetworkMode for Diverter, either SingleHost or MultiHost')
+                    ['singlehost', 'multihost', 'auto'])):
+                self.logger.error('Error: You must configure a NetworkMode for Diverter, either SingleHost, MultiHost, or Auto')
                 sys.exit(1)
 
             # Select platform specific diverter
@@ -147,10 +147,16 @@ class Fakenet():
                     self.logger.error('       Please use the original Fakenet for older versions of Windows.')
                     sys.exit(1)
 
+                if self.diverter_config['networkmode'].lower() == 'auto':
+                    self.diverter_config['networkmode'] = 'singlehost'
+                
                 from diverters.windows import Diverter
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, self.logging_level)
 
             elif platform_name.lower().startswith('linux'):
+                if self.diverter_config['networkmode'].lower() == 'auto':
+                    self.diverter_config['networkmode'] = 'multihost'
+
                 from diverters.linux import Diverter
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
 
