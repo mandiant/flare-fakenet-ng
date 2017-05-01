@@ -54,12 +54,14 @@ Change directory to the downloaded flare-fakenet-ng and run:
 
     python setup.py install
 
+Installation on Windows requires the following pre-requisite:
+ * [VCPython27](https://aka.ms/vcpython27)
+
 Installation on Linux requires the following pre-requisites:
  * Python pip package manager (e.g. python-pip for Ubuntu).
  * Python development headers (e.g. python-dev for Ubuntu).
  * libnetfilterqueue development headers (e.g. libnetfilter-queue-dev for
    Ubuntu).
- * Cython
 
 Execute FakeNet-NG by running 'fakenet' in any directory.
 
