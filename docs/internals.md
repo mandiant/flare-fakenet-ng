@@ -14,9 +14,9 @@ which is written in Cython.
 For purposes of this documentation, some rigorously-defined terms will be
 repurposed or replaced:
 * TCP defines an _endpoint_ to be a host address and a port number. Although
-  the concept of an endpoint is specific to TCP, we will use the term losely to
-  mean a host address and port number for any transport protocol we know how to
-  examine (i.e. both TCP and UDP).
+  the concept of an endpoint is specific to TCP, we will use the term loosely
+  to mean a host address and port number for any transport protocol we know how
+  to examine (i.e. both TCP and UDP).
 * TCP defines a _connection_ as two endpoints. Because UDP is connectionless,
   we will use the more general term _conversation_ to represent the concept of
   a pair of endpoints that are communicating.
