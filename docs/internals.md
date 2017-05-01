@@ -263,7 +263,7 @@ the above truth table (highlighted with asterisks) into the following Karnaugh
 map (zeroes omitted for readability):
 
 ```
-        CD
+       CD
    AB \  00   01   11   10
        +-------------------.
     00 |  1 |    |    |  1 |
