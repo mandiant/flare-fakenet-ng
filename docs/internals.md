@@ -111,36 +111,40 @@ that it asked for. If an outgoing packet's remote endpoint corresponds to a
 port forwarding table entry, the source port is fixed up so that the remote TCP
 stack does not perceive any issue with FakeNet-NG's replies.
 
-Meanwhile, in `MultiHost` mode, IP NAT via the iptables `REDIRECT` target works
-by using `conntrack` to record tuples of information about packets going in one
-direction so that reply packets going in the opposite direction can be
-recognized. By recording and referring to this information, conntrack is able
-to likewise correctly fix up the IP addresses in reply packets. The `conntrack`
-module uses information like TCP ports to recognize what packets need to be
-fixed up.  Therefore, it is necessary to perform all DPF-related mangling of
-TCP ports on one side or the other of the NAT so that `conntrack` symmetrically
-and uniformly observes either client-side or DPF-mangled port numbers whenever
-it is calculating tuples to determine a NAT match and mangle the packet to
-reflect the correct source IP address. Incorrect chain/table placement of
-incoming and outgoing packet hooks will result in IP NAT failing to recognize
-and fix up reply packets. On the client side, this can be observed to manifest
-itself as (1) TCP SYN/ACK packets coming from the FakeNet-NG host that do not
-mirror the arbitrary IP addresses that the client is asking to talk to, and
-consequently (2) TCP RST packets from the client due to the erroneous SYN/ACK
-responses it is receiving: no three-way handshake, no TCP connection, and no
-exchange of data.
+Meanwhile, in `MultiHost` mode, FakeNet-NG relies on the kernel to implement IP
+NAT via the iptables `REDIRECT` target. This works by using `conntrack` to
+record tuples of information about packets going in one direction so that it
+can recognize reply packets going in the opposite direction. By recording and
+referring to this information, `conntrack` is able to correctly fix up the IP
+addresses in reply packets. The `conntrack` module uses information like TCP
+ports to recognize what packets need to be fixed up.  Therefore, it is
+necessary to perform all DPF-related mangling of TCP ports on one side or the
+other of the NAT so that `conntrack` symmetrically and uniformly observes
+either client-side or DPF-mangled port numbers whenever it is calculating
+tuples to determine a NAT match and mangle the packet to reflect the correct
+source IP address. Incorrect chain/table placement of incoming and outgoing
+packet hooks will result in IP NAT failing to recognize and fix up reply
+packets. On the client side, this can be observed to manifest itself as (1) TCP
+SYN/ACK packets coming from the FakeNet-NG host that do not mirror the
+arbitrary IP addresses that the client is asking to talk to, and consequently
+(2) TCP RST packets from the client due to the erroneous SYN/ACK responses it
+is receiving (and consequently no three-way handshake, no TCP connection, and
+no exchange of data).
 
 Why not implement IP NAT ourselves? We are already using python-netfilterqueue
-to manipulate and observe packet traversal. We use `conntrack` instead because
-it already handles protocols other than TCP/IP (such as ICMP) and implements a
-rich library of protocol modules for reaching above the network layer to
-recognize connections for protocols such as IRC, FTP, etc. We're not going to
-do a better job than that, and we don't want to reinvent the wheel if we can
-avoid it.
+to manipulate and observe packet traversal. In `MultiHost` mode, we use
+`conntrack` instead because it already handles protocols other than TCP/IP
+(such as ICMP) and implements a rich library of protocol modules for reaching
+above the network layer to accurately recognize connections for protocols such
+as IRC, FTP, etc. We're not going to do a better job than that, and we don't
+want to reinvent the wheel if we can avoid it. That being said, we do implement
+our own NAT for `SingleHost` mode to support blacklisting and other features.
 
-Given all this, these are the locations where it is okay to place the incoming
-and outgoing packet hook pairs for DPF so that we don't disrupt `conntrack`'s
-ability to perform NAT for us:
+Given how the kernel's NAT implementation relies on `conntrack` being able to
+see uniformly mangled or un-mangled ports in order to recognize and correctly
+NAT communications, following are the locations where it is okay to place the
+incoming and outgoing packet hook pairs for DPF so that we don't disrupt
+`conntrack`'s ability to perform NAT for us:
 
 ```
         Incoming                          Outgoing
@@ -172,29 +176,30 @@ https://www.netfilter.org/documentation/HOWTO/netfilter-hacking-HOWTO-4.html#toc
 ### Linux Diverter Composition
 
 The Linux Diverter creates `LinuxDiverterNfqueue` objects within its `start()`
-method to call hook functions which each create a `PacketHandler` object and
-call its `handle_pkt()` method. This performs standard pre- and post-callback
-packet processing (like extracting the IP version and next protocol number),
-and provides a standard set of information to the network and transport layer
-callbacks that perform the real work. More details follow.
+method to connect iptables `NFQUEUE` rules to Python hook functions. Each hook
+function creates a `PacketHandler` object when a packet is received and calls
+its `handle_pkt()` method. The `PacketHandler` object performs standard pre-
+and post-callback packet processing (like extracting the IP version and next
+protocol number), and provides a standard set of information to the network and
+transport layer callbacks that perform the real work. More details follow.
 
 The Linux Diverter implementation comprises the following classes:
-* `DiverterBase` (`diverters/diverterbase.py`) - will facilitate common ancestry
-  and refactoring of common code between Windows, Linux, and any other future
-  Diverter implementations
+* `DiverterBase` (`diverters/diverterbase.py`) - will facilitate a common
+  interface (and ancestry) for refactoring of common code between Windows,
+  Linux, and any other future Diverter implementations.
 * `LinUtilMixin` (`diverters/linutil.py`) - handles most Linux-specific details
 * `Diverter` (`diverters/linux.py`) - Inherits from `DiverterBase` and
-  `LinUtilMixin`, implements netfilter logic.
+  `LinUtilMixin`, implements packet handling logic for Linux.
 
 The Linux Diverter uses the following helper classes:
 * `IptCmdTemplate` (`diverters/linutil.py`) - standardizes, centralizes, and
   de-duplicates code used frequently throughout the Linux Diverter to construct
   and execute iptables command lines to add (`-I` or `-A`) and remove (`-D`)
   rules. `Diverter` and `LinuxDiverterNfqueue` use this.
-* `LinuxDiverterNfqueue` (`diverters/linutil.py`) - handles iptables rule
-  addition/removal, NetfilterQueue management, netlink socket timeout setup for
-  threaded operation, thread startup, and monitoring for asynchronous stop
-  requests.
+* `LinuxDiverterNfqueue` (`diverters/linutil.py`) - handles iptables `NFQUEUE`
+  rule addition/removal (through the `IptCmdTemplate` class), NetfilterQueue
+  management, netlink socket timeout setup for threaded operation, thread
+  startup, and monitoring for asynchronous stop requests.
 * `ProcfsReader` (`diverters/linutil.py`) - Standard row and field reading for
   proc files. The Python procfs module is a really neat way to access procfs,
   But it doesn't seem to handle `/proc/net/netfilter/nfnetlink_queue`, and it
@@ -204,7 +209,7 @@ The Linux Diverter uses the following helper classes:
 ### Deciding Whether to Port Forward
 
 Port forwarding decisions are made by a minimal sum-of-products (SOP) logic
-function synthesized as follows:
+function synthesized as follows.
 
 A truth table was used to define the cases in which a port forwarding decision
 would need to be made and the desired outcomes.
@@ -212,8 +217,8 @@ would need to be made and the desired outcomes.
 Truth table key:
 * src - source IP address
 * sport - source port
-* dst - source IP address
-* dport - source port
+* dst - destination IP address
+* dport - destination port
 * lsrc - src is local
 * ldst - dst is local
 * bsport - sport is in the set of ports bound by FakeNet-NG listeners
@@ -254,15 +259,15 @@ from a bound port. )
 ```
 
 To synthesize a minimal SOP function for this decision, we fed the minterms of
-the above truth table (highlighted with asterisks) into the following karnaugh
+the above truth table (highlighted with asterisks) into the following Karnaugh
 map (zeroes omitted for readability):
 
 ```
          CD
    AB \  00   01   11   10
        +-------------------.
-    00 |  1 |    |    |  1 | -> A'D'
-       +----+----+----+----+
+    00 |  1 |    |    |  1 |
+       +----+----+----+----+ -> A'D'
     01 |  1 |    |    |  1 |
        +----+----+----+----+
     11 |  1 |    |    |    |
@@ -292,16 +297,20 @@ local requests, we might consider using the `PREROUTING` chain to record source
 endpoint information for all foreign packets and then checking incoming and
 outgoing packets against this. That check could replace the current
 `single_host_mode` Boolean instance variable allowing for each packet to be
-crrectly treated according to whether the conversation was initiated by a
-foreign host.
+correctly treated according to whether the conversation was initiated by a
+foreign host. Linux Diverter initialization would have to be modified to
+install all hooks and transport/network layer callbacks which would in turn
+need to be adjusted to incorporate the logic described above to correctly opt
+to handle (or not to handle) each packet.
 
 ##### python-netfilterqueue Fixed Buffer Size Workaround
 
 python-netfilterqueue uses a fixed buffer size of 4096 resulting in issues
 getting and setting payloads for packets exceeding 4016 bytes in size (the
-buffer includes 80 bytes of overhead data).
+buffer includes 80 bytes of overhead data). This issue was discovered when
+troubleshooting problems transferring the 24KB file `FakeNet.gif` over FTP.
 
-This is fine for `MultiHost` mode because external faces (e.g. `eth0`)
+This is fine for `MultiHost` mode because external interfaces (e.g. `eth0`)
 frequently have a maximum transmittal unit (MTU) of 1500. However, for loopback
 communications where the MTU is 65536, this causes errors. It is possible to
 fix these errors by changing the buffer size to 65616, however this may be
@@ -310,6 +319,4 @@ package management system specific to the Linux distribution, Pip, etc.
 
 A work-around for this issue is to send all NAT packets through an externally
 facing IP address instead of 127.0.0.1 to avoid exposing ourselves to
-`BufferSize < MTU` conditions such as in the transfer of large files (the issue
-was discovered when troubleshooting problems transferring FakeNet.gif over
-FTP).
+`BufferSize < MTU` conditions such as in the transfer of large files.
