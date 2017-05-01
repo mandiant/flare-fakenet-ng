@@ -30,7 +30,7 @@ we use `iptables` to implement a `REDIRECT` rule in the `PREROUTING` chain.
 In this use case, FakeNet-NG implements only dynamic port forwarding (DPF)
 using python-netfilterqueue.
 
-The most complicated case is SingleHost mode (experimental), in which both
+The most complicated case is `SingleHost` mode (experimental), in which both
 DPF and NAT must be controlled by FakeNet-NG to permit process blacklisting
 and other configuration settings. In this case, FakeNet-NG uses
 python-netfilterqueue to evaluate four conditions:
