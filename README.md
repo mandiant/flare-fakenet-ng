@@ -374,8 +374,8 @@ The Linux implementation of Diverter supports the following settings:
                               applicable.
 
 * **DebugLevel**            - Specify fine-grained debug events to display.
-                              Refer to `fakenet/diverters/linutil.py` for valid
-                              labels.
+                              Refer to [fakenet/diverters/linutil.py](fakenet/diverters/linutil.py)
+                              for valid labels.
 
 Redirecting All Traffic
 -----------------------
@@ -707,6 +707,9 @@ Much Windows-specific functionality is implemented in
 `fakenet\diverters\winutil.py` using ctypes to call many of the Windows API
 functions directly. Likewise, much Linux-specific functionality is implemented
 in `fakenet\diverters\linutil.py`.
+
+For detailed information on Diverter internals specific to Linux, see
+[docs/internals.md](docs/internals.md).
 
 It is planned to continue expanding the support for traffic diversion.
 
