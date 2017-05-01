@@ -697,16 +697,18 @@ Developing Diverters
 
 FakeNet-NG uses the open source WinDivert library in order to perform the 
 traffic redirection on Windows Vista+ operating systems. The implementation of
-the Windows Diverter is located in `fakenet\diverters\windows.py`.
+the Windows Diverter is located in
+[fakenet\diverters\windows.py](fakenet/diverters/windows.py).
 
 FakeNet-NG uses the open source python-netfilterqueue Cython module to perform
 traffic redirection on Linux. The Linux Diverter implementation is located in
-`fakenet\diverters\linux.py`.
+[fakenet\diverters\linux.py](fakenet/diverters/linux.py).
 
 Much Windows-specific functionality is implemented in
-`fakenet\diverters\winutil.py` using ctypes to call many of the Windows API
-functions directly. Likewise, much Linux-specific functionality is implemented
-in `fakenet\diverters\linutil.py`.
+[fakenet\diverters\winutil.py](fakenet/diverters/winutil.py) using ctypes to
+call many of the Windows API functions directly. Likewise, much Linux-specific
+functionality is implemented in
+[fakenet\diverters\linutil.py](fakenet/diverters/linutil.py).
 
 For detailed information on Diverter internals specific to Linux, see
 [docs/internals.md](docs/internals.md).
