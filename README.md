@@ -55,7 +55,7 @@ Change directory to the downloaded flare-fakenet-ng and run:
     python setup.py install
 
 Installation on Windows requires the following pre-requisite:
- * [VCPython27](https://aka.ms/vcpython27)
+ * [Microsoft Visual C++ Compiler for Python 2.7](https://aka.ms/vcpython27)
 
 Installation on Linux requires the following pre-requisites:
  * Python pip package manager (e.g. python-pip for Ubuntu).
