@@ -54,13 +54,16 @@ Change directory to the downloaded flare-fakenet-ng and run:
 
     python setup.py install
 
+Installation on Linux requires Python development headers (e.g. python-dev for
+Ubuntu).
+
 Execute FakeNet-NG by running 'fakenet' in any directory.
 
 No installation
 ---------------
 
 Finally if you would like to avoid installing FakeNet-NG and just want to run it
-as is (e.g. for development), then you would need to obtain the source code and 
+as-is (e.g. for development), then you would need to obtain the source code and 
 install dependencies as follows:
 
 1) Install 64-bit or 32-bit Python 2.7.x for the 64-bit or 32-bit versions
