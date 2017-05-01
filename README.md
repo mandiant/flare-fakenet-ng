@@ -54,8 +54,12 @@ Change directory to the downloaded flare-fakenet-ng and run:
 
     python setup.py install
 
-Installation on Linux requires Python development headers (e.g. python-dev for
-Ubuntu).
+Installation on Linux requires the following pre-requisites:
+ * Python pip package manager (e.g. python-pip for Ubuntu).
+ * Python development headers (e.g. python-dev for Ubuntu).
+ * libnetfilterqueue development headers (e.g. libnetfilter-queue-dev for
+   Ubuntu).
+ * Cython
 
 Execute FakeNet-NG by running 'fakenet' in any directory.
 
@@ -779,6 +783,26 @@ Manually set the DNS server IP address
 
 If you are still having issue ensure that the gateway IP address itself is
 routable.
+
+DNS Not Resolving Names
+-----------------------
+Ensure that the DNS Listener successfully bound to its port. Errors such as the
+following indicate that the DNS Listener did not successfully bind:
+
+```
+05/01/17 11:11:16 AM [           FakeNet] Error starting DNSListener listener:
+05/01/17 11:11:16 AM [           FakeNet]  [Errno 98] Address already in use
+```
+
+Use `netstat`, `tcpview`, or other tools to discover what application is bound
+to the port, and refer to the corresponding operating system or application
+documentation to disable the service.
+
+For example, Ubuntu commonly enables the `dnsmasq` service in
+`/etc/NetworkManager/NetworkManager.conf` with the line `dns=dnsmasq`.
+Disabling this (such as by commenting it out) and restarting the
+`network-manager` service (e.g. `service network-manager restart`) is
+sufficient to free the port before re-launching FakeNet-NG.
 
 Error: Could not locate WinDivert DLL or one of its components
 --------------------------------------------------------------
