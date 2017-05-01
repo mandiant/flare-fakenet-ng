@@ -503,9 +503,10 @@ NOTE: FakeNet-NG will attempt to locate the webroot directory, first by using
 the provided absolute or relative paths. If the specified webroot path is not 
 found, then it will try to look in its `defaultFiles` directory.
 
-As a special case, FakeNet-NG automatically responds to all ICMP requests while
-running. So in case a malware attempts to ping a host to test connectivity it
-will get a valid response.
+As a special case, the Windows Diverter implementation automatically responds
+to all ICMP requests while running. So in case a malware attempts to ping a
+host to test connectivity it will get a valid response. The Linux Diverter
+logs and forwards all ICMP packets to localhost.
 
 Listener Filtering
 ------------------
