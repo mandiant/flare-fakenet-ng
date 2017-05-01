@@ -19,7 +19,7 @@ repurposed or replaced:
   to examine (i.e. both TCP and UDP).
 * TCP defines a _connection_ as two endpoints. Because UDP is connectionless,
   we will use the more general term _conversation_ to represent the concept of
-  a pair of endpoints that are communicating.
+  a pair of endpoints (again, using that term loosely) that are communicating.
 
 ### Traffic Flow Condition Evaluation
 
