@@ -45,6 +45,7 @@ DLABELS = {
     DMISC: 'MISC',
 }
 
+DLABELS_INV = {v.upper(): k for k, v in DLABELS.iteritems()}
 
 class IptCmdTemplate:
     """For managing insertion and removal of iptables rules.

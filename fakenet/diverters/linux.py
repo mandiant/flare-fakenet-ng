@@ -95,7 +95,24 @@ class PacketHandler:
                     pid, comm = self.diverter.linux_get_pid_comm_by_endpoint(
                         self.ipver, proto_name, self.src_ip, self.sport)
 
-                    if proto_name == 'TCP':
+                    if proto_name == 'UDP':
+                        fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
+                        logline = fmt.format(
+                                label=self.label,
+                                proto=proto_name,
+                                pid=pid,
+                                comm=comm,
+                                src=self.src_ip,
+                                sport=self.sport,
+                                dst=self.dst_ip,
+                                dport=self.dport,
+                                length=len(self.raw),
+                                flags='',
+                                seqack='',
+                            )
+                        self.diverter.pdebug(DGENPKTV, logline)
+
+                    elif proto_name == 'TCP':
                         tcp = self.hdr.data
                         # Interested in:
                         # SYN
@@ -122,9 +139,10 @@ class PacketHandler:
                         if psh:
                             f.append('PSH')
 
-                        fmt = '| {label} TCP | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
+                        fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
                         logline = fmt.format(
                                 label=self.label,
+                                proto=proto_name,
                                 pid=pid,
                                 comm=comm,
                                 src=self.src_ip,
@@ -184,17 +202,29 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.init_base(diverter_config, listeners_config, ip_addrs,
                        logging_level)
 
-        self.set_debug_level(0, DLABELS)
-
-        self.init_diverter_linux()
         self.init_linux_mixin()
+        self.init_diverter_linux()
 
     def init_diverter_linux(self):
         """Linux-specific Diverter initialization."""
         # String list configuration item that is specific to the Linux
         # Diverter, will not be parsed by DiverterBase, and needs to be
         # accessed as an array in the future.
-        self.reconfigure(portlists=[], stringlists=['linuxredirectnonlocal'])
+        slists = ['linuxredirectnonlocal', 'DebugLevel']
+        self.reconfigure(portlists=[], stringlists=slists)
+
+        dbg_lvl = 0
+        if self.is_configured('DebugLevel'):
+            for label in self.getconfigval('DebugLevel'):
+                label = label.upper()
+                if label == 'OFF':
+                    dbg_lvl = 0
+                    break
+                if not label in DLABELS_INV:
+                    self.logger.warning('No such DebugLevel as %s' % (label))
+                else:
+                    dbg_lvl |= DLABELS_INV[label]
+        self.set_debug_level(dbg_lvl, DLABELS)
 
         # SingleHost vs MultiHost mode
         mode = 'SingleHost'  # Default
