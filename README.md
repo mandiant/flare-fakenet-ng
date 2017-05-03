@@ -347,14 +347,19 @@ listeners with SSL support. Use the instructions at the following page:
 The keys `privkey.pem` and `server.pem` used by FakeNet-NG's servers are in the
 application's root directory.
 
-* **NetworkMode** - Specify the network mode in which to run FakeNet-NG. Valid
-                    settings are `SingleHost` (manipulate traffic from local
-                    processes), `MultiHost` (manipulate traffic from other
-                    systems), and `Auto` (use whatever `NetworkMode` is
-                    functional on the current platform. Not all platforms
-                    currently support all modes. For now, leave this set to
-                    `Auto` to get `SingleHost` mode on Windows and `MultiHost`
-                    mode on Linux.
+* **NetworkMode** - Specify the network mode in which to run FakeNet-NG.
+    * Valid settings are:
+        * `SingleHost`: manipulate traffic from local processes.
+        * `MultiHost`: manipulate traffic from other systems.
+        * `Auto`: use whatever `NetworkMode` is most functional on the current
+          platform.
+    * Not all platforms currently support all `NetworkMode` settings. Here is
+      the current status of support:
+        * Windows supports only `SingleHost`
+        * Linux supports `MultiHost` and experimentally supports `SingleHost`
+          mode (works with the exception of process and port blacklisting).
+    * For now, leave this set to `Auto`
+          to get `SingleHost` mode on Windows and `MultiHost` mode on Linux.
 
 The Diverter generally supports the following DNS-related setting:
 
