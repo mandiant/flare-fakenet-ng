@@ -357,7 +357,8 @@ application's root directory.
       the current status of support:
         * Windows supports only `SingleHost`
         * Linux supports `MultiHost` and experimentally supports `SingleHost`
-          mode (works with the exception of process and port blacklisting).
+          mode (works with the exception of process, port, and host
+          blacklisting and whitelisting).
     * For now, leave this set to `Auto`
           to get `SingleHost` mode on Windows and `MultiHost` mode on Linux.
 
