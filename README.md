@@ -59,8 +59,10 @@ Installation on Windows requires the following pre-requisite:
 
 Installation on Linux requires the following pre-requisites:
  * Python pip package manager (e.g. python-pip for Ubuntu).
- * Python development headers (e.g. python-dev for Ubuntu).
- * libnetfilterqueue development headers (e.g. libnetfilter-queue-dev for
+ * OpenSSL development files (e.g. libssl-dev for Ubuntu).
+ * libffi development files (e.g. libffi-dev for Ubuntu).
+ * Python development files (e.g. python-dev for Ubuntu).
+ * libnetfilterqueue development files (e.g. libnetfilter-queue-dev for
    Ubuntu).
 
 Execute FakeNet-NG by running 'fakenet' in any directory.
