@@ -815,6 +815,11 @@ Disabling this (such as by commenting it out) and restarting the
 `network-manager` service (e.g. `service network-manager restart`) is
 sufficient to free the port before re-launching FakeNet-NG.
 
+In newer versions of Ubuntu or in other distributions, using `lsof -i` may
+reveal that `systemd-resolved` is used instead. In these cases, try `sudo
+systemctl stop systemd-resolved` followed by `sudo systemctl disable
+systemd-resolved`.
+
 Error: Could not locate WinDivert DLL or one of its components
 --------------------------------------------------------------
 
