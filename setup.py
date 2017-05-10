@@ -1,4 +1,5 @@
 import os
+import platform
 
 try:
     from setuptools import setup
@@ -9,14 +10,19 @@ requirements = [
     "pydivert",
     "dpkt",
     "dnslib",
+    "netifaces",
     "pyftpdlib",
     "pyopenssl",
-
 ]
+
+if platform.system() == 'Windows':
+    requirements.append("pydivert")
+elif platform.system().lower().startswith('linux'):
+    requirements.append("netfilterqueue")
 
 setup(
     name='FakeNet NG',
-    version='1.1',
+    version='2.0',
     description="",
     long_description="",
     author="Peter Kacherginsky",

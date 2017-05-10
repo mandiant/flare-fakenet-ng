@@ -9,8 +9,9 @@
  
 FakeNet-NG is a next generation dynamic network analysis tool for malware
 analysts and penetration testers. It is open source and designed for the latest 
-versions of Windows. FakeNet-NG is based on the excellent Fakenet tool developed
-by Andrew Honig and Michael Sikorski.
+versions of Windows (and Linux, for certain modes of operation). FakeNet-NG is
+based on the excellent Fakenet tool developed by Andrew Honig and Michael
+Sikorski.
 
 The tool allows you to intercept and redirect all or specific network traffic 
 while simulating legitimate network services. Using FakeNet-NG, malware analysts
@@ -34,8 +35,9 @@ the releases page:
 
 Execute FakeNet-NG by running 'fakenet.exe'.
 
-This is the preferred method as it does not require you to install any
-additional modules, which is ideal for a malware analysis machine.
+This is the preferred method for using FakeNet-NG on Windows as it does not
+require you to install any additional modules, which is ideal for a malware
+analysis machine.
 
 Installing module
 -----------------
@@ -52,13 +54,24 @@ Change directory to the downloaded flare-fakenet-ng and run:
 
     python setup.py install
 
+Installation on Windows requires the following pre-requisite:
+ * [Microsoft Visual C++ Compiler for Python 2.7](https://aka.ms/vcpython27)
+
+Installation on Linux requires the following pre-requisites:
+ * Python pip package manager (e.g. python-pip for Ubuntu).
+ * Python development files (e.g. python-dev for Ubuntu).
+ * OpenSSL development files (e.g. libssl-dev for Ubuntu).
+ * libffi development files (e.g. libffi-dev for Ubuntu).
+ * libnetfilterqueue development files (e.g. libnetfilter-queue-dev for
+   Ubuntu).
+
 Execute FakeNet-NG by running 'fakenet' in any directory.
 
 No installation
 ---------------
 
 Finally if you would like to avoid installing FakeNet-NG and just want to run it
-as is (e.g. for development), then you would need to obtain the source code and 
+as-is (e.g. for development), then you would need to obtain the source code and 
 install dependencies as follows:
 
 1) Install 64-bit or 32-bit Python 2.7.x for the 64-bit or 32-bit versions
@@ -66,9 +79,7 @@ install dependencies as follows:
 
 2) Install Python dependencies:
 
-    pip install pydivert
-    pip install dnslib
-    pip install dpkt
+    pip install pydivert dnslib dpkt pyopenssl pyftpdlib netifaces
 
    *NOTE*: pydivert will also download and install WinDivert library and
    driver in the `%PYTHONHOME%\DLLs` directory. FakeNet-NG bundles those
@@ -82,7 +93,8 @@ install dependencies as follows:
 
     git clone https://github.com/fireeye/flare-fakenet-ng
 
-Execute FakeNet-NG by running it with a Python interpreter:
+Execute FakeNet-NG by running it with a Python interpreter in a privileged
+shell:
 
     python fakenet.py
 
@@ -137,8 +149,8 @@ Simple run
 
 Before we dive in and run FakeNet-NG let's go over a few basic concepts. The
 tool consists of several modules working together. One such important module is 
-the diverter which is responsible for redirecting traffic to a collection of 
-listeners. The diverter forces applications to interact with FakeNet-NG as
+the Diverter which is responsible for redirecting traffic to a collection of 
+listeners. The Diverter forces applications to interact with FakeNet-NG as
 opposed to real servers. Listeners are individual services handling incoming
 connections and allowing us to examine application's traffic (e.g. malware
 signatures).
@@ -260,11 +272,21 @@ file:
 
     [Diverter]
 
+    NetworkMode:            Auto
+
+    LinuxRedirectNonlocal:  *
+    LinuxFlushIptables:     Yes
+    LinuxFlushDNSCommand:   service dns-clean restart
+
     DumpPackets:            Yes
     DumpPacketsFilePrefix:  packets
 
     ModifyLocalDNS:         No
     StopDNSService:         Yes
+
+    RedirectAllTraffic:     Yes
+    DefaultTCPListener:     RawTCPListener
+    DefaultUDPListener:     RawUDPListener
 
     ###############################################################################
     # Listener Configuration
@@ -289,7 +311,7 @@ The configuration file is broken up into several sections.
 
 * **[FakeNet]** - Controls the behavior of the application itself. The only valid
 option at this point is `DivertTraffic`. When enabled, it instructs the tool 
-to launch the appropriate diverter plugin and intercept traffic. If this option 
+to launch the appropriate Diverter plugin and intercept traffic. If this option 
 is disabled, FakeNet-NG will still launch listeners, but will rely on another
 method to direct traffic to them (e.g. manually change DNS server).
 
@@ -302,13 +324,15 @@ specific configurations (e.g. DumpHTTPPosts for the HTTPListener).
 Diverter Configuration
 ----------------------
 
-Considering you have enabled the `DivertTraffic` setting in the `[FakeNet]`
+Supposing you have enabled the `DivertTraffic` setting in the `[FakeNet]`
 configuration block, the tool will enable its traffic redirection engine to
-which we will call `diverter` from now on as a reference to the excellent 
-`WinDiverter` library used to perform the magic behind the scenes.
+which we will call Diverter from now on as a reference to the excellent 
+`WinDivert` library used to perform the magic behind the scenes on Windows
+platforms (the Linux implementation of the Diverter uses
+[python-netfilterqueue](https://github.com/kti/python-netfilterqueue/)).
 
-The diverter will examine all of the outgoing packets and match them against
-a list of protocols, ports of enabled listeners. If there is a listener
+The Diverter will examine all of the outgoing packets and match them against
+a list of protocols and ports of enabled listeners. If there is a listener
 listening on the packet's port and protocol, then the destination address
 will be changed to the local machine's IP address where the listener will
 handle the request. At the same time, responses coming from the listener
@@ -325,17 +349,55 @@ listeners with SSL support. Use the instructions at the following page:
 The keys `privkey.pem` and `server.pem` used by FakeNet-NG's servers are in the
 application's root directory.
 
-Last but not least, the Windows diverter supports two DNS related settings:
+* **NetworkMode** - Specify the network mode in which to run FakeNet-NG.
+    * Valid settings are:
+        * `SingleHost`: manipulate traffic from local processes.
+        * `MultiHost`: manipulate traffic from other systems.
+        * `Auto`: use whatever `NetworkMode` is most functional on the current
+          platform.
+    * Not all platforms currently support all `NetworkMode` settings. Here is
+      the current status of support:
+        * Windows supports only `SingleHost`
+        * Linux supports `MultiHost` and experimentally supports `SingleHost`
+          mode (works with the exception of process, port, and host
+          blacklisting and whitelisting).
+    * For now, leave this set to `Auto`
+          to get `SingleHost` mode on Windows and `MultiHost` mode on Linux.
 
-* **ModifyLocalDNS** - modify local machine's DNS service.
-* **StopDNSService** - stops Windows DNS client (Dnscache). This allows FakeNet
-                       to see the actual processes resolving domains as opposed
-                       to the generic 'svchost.exe' process.
+The Diverter generally supports the following DNS-related setting:
+
+* **ModifyLocalDNS** - point local machine's DNS service to FakeNet-NG's DNS
+                       listener.
+
+The Windows implementation of Diverter supports the following DNS-related
+setting:
+
+* **StopDNSService** - stops the Windows DNS client service (Dnscache). This
+                       allows FakeNet-NG to see the actual processes resolving
+                       domains as opposed to the generic 'svchost.exe' process.
+
+The Linux implementation of Diverter supports the following settings:
+
+* **LinuxRedirectNonlocal** - When using FakeNet-NG to simulate Internet
+                              connectivity for a different host, this specifies
+                              which externally facing network interfaces to
+                              re-route to FakeNet-NG.
+* **LinuxFlushIptables**    - Flush all `iptables` rules before adding rules
+                              for FakeNet-NG. The Linux Diverter will restore
+                              the old rules as long as its termination sequence
+                              is not interrupted.
+* **LinuxFlushDnsCommand**  - Specify the correct command for your Linux
+                              distribution to flush the DNS resolver cache if
+                              applicable.
+
+* **DebugLevel**            - Specify fine-grained debug events to display.
+                              Refer to [fakenet/diverters/linutil.py](fakenet/diverters/linutil.py)
+                              for valid labels.
 
 Redirecting All Traffic
 -----------------------
 
-By default the diverter will only intercept traffic that has a dedicated
+By default the Diverter will only intercept traffic that has a dedicated
 listener created for it. However, by enabling `RedirectAllTraffic` setting
 and configuring the default TCP and UDP handlers with the `DefaultTCPListener`
 and `DefaultUDPListener` settings it is possible to dynamically handle traffic
@@ -376,8 +438,8 @@ ports to which traffic will be ignored and forwarded unaltered:
 
     BlackListPortsUDP: 53
 
-Some other diverter settings that you may consider are `ProcessBlackList`
-and `HostBlackList` which allow diverter to ignore and forward traffic
+Some other Diverter settings that you may consider are `ProcessBlackList`
+and `HostBlackList` which allow Diverter to ignore and forward traffic
 coming from a specific process name or destined for a specific host
 respectively.
 
@@ -420,7 +482,7 @@ The following settings are generic for all listeners:
 
 The `Port` and `Protocol` settings are necessary for the listeners to know to
 which ports to bind and, if they support multiple protocol (e.g RawListener), 
-decide which protocol to use. They are also used by the diverter to figure out 
+decide which protocol to use. They are also used by the Diverter to figure out 
 which ports and protocols to redirect.
 
 The `Listener` setting defines one of the available listener plugins to handle
@@ -449,9 +511,10 @@ NOTE: FakeNet-NG will attempt to locate the webroot directory, first by using
 the provided absolute or relative paths. If the specified webroot path is not 
 found, then it will try to look in its `defaultFiles` directory.
 
-As a special case, FakeNet-NG automatically responds to all ICMP requests while
-running. So in case a malware attempts to ping a host to test connectivity it
-will get a valid response.
+As a special case, the Windows Diverter implementation automatically responds
+to all ICMP requests while running. So in case a malware attempts to ping a
+host to test connectivity it will get a valid response. The Linux Diverter
+logs and forwards all ICMP packets to localhost.
 
 Listener Filtering
 ------------------
@@ -546,7 +609,7 @@ proxy server settings or use hard-coded IP addresses. Using anonymous listeners
 you can bring FakeNet-NG's advanced traffic and process filtering capabilities 
 to 3rd party tools.
 
-You may also want to enable diverter's `ProcessBlackList` setting to allow
+You may also want to enable Diverter's `ProcessBlackList` setting to allow
 the external tool to communicate out to the Internet. For example, to allow
 an HTTP proxy to forward proxied traffic add its process name to the process
 blacklist. For example, add the following process to let Burp Proxy to
@@ -563,7 +626,7 @@ default listener as follows:
     DefaultUDPListener: RawUDPListener
 
 Finally, to allow DNS traffic to still go to the default DNS server on the
-Internet, while redirecting all other traffic, add port 53 to the diverter's
+Internet, while redirecting all other traffic, add port 53 to the Diverter's
 UDP port blacklist as follows:
 
     BlackListPortsUDP: 53
@@ -652,13 +715,23 @@ Developing Diverters
 
 FakeNet-NG uses the open source WinDivert library in order to perform the 
 traffic redirection on Windows Vista+ operating systems. The implementation of
-the windows diverter is located in `diverters\windows.py`.
+the Windows Diverter is located in
+[fakenet\diverters\windows.py](fakenet/diverters/windows.py).
 
-It is important to note that a lot of the Windows specific functionality is
-actually implemented in the `diverters\winutil.py` file using ctypes to call
-many of the Windows API functions directly.
+FakeNet-NG uses the open source python-netfilterqueue Cython module to perform
+traffic redirection on Linux. The Linux Diverter implementation is located in
+[fakenet\diverters\linux.py](fakenet/diverters/linux.py).
 
-It is planned to expand the support for traffic divertion
+Much Windows-specific functionality is implemented in
+[fakenet\diverters\winutil.py](fakenet/diverters/winutil.py) using ctypes to
+call many of the Windows API functions directly. Likewise, much Linux-specific
+functionality is implemented in
+[fakenet\diverters\linutil.py](fakenet/diverters/linutil.py).
+
+For detailed information on Diverter internals specific to Linux, see
+[docs/internals.md](docs/internals.md).
+
+It is planned to continue expanding the support for traffic diversion.
 
 Building standalone executables
 -------------------------------
@@ -673,6 +746,8 @@ To generate the exe file run the pyinstaller as follows:
     pyinstaller fakenet-ng.spec
 
 The standalone executable will be available in the `dist/` directory.
+
+This has not been tested for Linux.
 
 Known Issues
 ============
@@ -720,6 +795,33 @@ Manually set the DNS server IP address
 If you are still having issue ensure that the gateway IP address itself is
 routable.
 
+DNS Not Resolving Names
+-----------------------
+Ensure that the DNS Listener successfully bound to its port. Errors such as the
+following indicate that the DNS Listener did not successfully bind:
+
+```
+05/01/17 11:11:16 AM [           FakeNet] Error starting DNSListener listener:
+05/01/17 11:11:16 AM [           FakeNet]  [Errno 98] Address already in use
+```
+
+Use `netstat`, `tcpview`, or other tools to discover what application is bound
+to the port, and refer to the corresponding operating system or application
+documentation to disable the service.
+
+For example, Ubuntu commonly enables the `dnsmasq` service in
+`/etc/NetworkManager/NetworkManager.conf` with the line `dns=dnsmasq`.
+Disabling this (such as by commenting it out) and restarting the
+`network-manager` service (e.g. `service network-manager restart`) is
+sufficient to free the port before re-launching FakeNet-NG.
+
+In newer versions of Ubuntu or in other distributions, using `lsof -i` may
+reveal that `systemd-resolved` is used instead. In these cases, try:
+```
+sudo systemctl stop systemd-resolved
+sudo systemctl disable systemd-resolved
+```
+
 Error: Could not locate WinDivert DLL or one of its components
 --------------------------------------------------------------
 
@@ -734,13 +836,28 @@ This error may occur when running a stand-alone executable version of Fakenet. P
 Limitations
 ===========
 
-* Only Windows Vista+ is supported. Please use the original Fakenet for
-  Windows XP/2003 operating systems.
+* Only Windows Vista+ is supported for `SingleHost` mode. Please use the
+  original Fakenet for Windows XP/2003 operating systems.
 
-* Local machine only traffic is not intercepted (e.g. if you tried to connect
-  directly to one of the listeners).
+* Only Linux is supported for `MultiHost` mode.
 
-* Only traffic using TCP, UDP, and ICMP protocols are intercepted.
+* Old versions of python-netfilterqueue can cause a segmentation fault in
+  `python`. If you experience this issue, check that you are using the latest
+  version of python-netfilterqueue.
+
+* Due to the hard-coded buffer size used by python-netfilterqueue, the Linux
+  Diverter does not correctly handle packets greater than 4,016 bytes in size.
+  In practice, this does not affect Linux `MultiHost` mode for interfaces
+  configured with the conventional 1,500 byte maximum transmittal unit (MTU).
+  If the Linux interface you are using with FakeNet-NG supports an MTU greater
+  than 4016, you will need to recompile python-netfilterqueue to support a
+  buffer size of `<your_mtu> + 80` (python-netfilterqueue devotes 80 bytes of
+  the buffer to overhead).
+
+* Local machine only traffic is not intercepted on Windows (e.g. if you tried
+  to connect directly to one of the listeners).
+
+* Only traffic using TCP, UDP, and ICMP protocols is intercepted.
 
 Credits
 =======
@@ -748,10 +865,11 @@ Credits
 * FakeNet-NG was designed and developed by Peter Kacherginsky.
 * Special thanks to Andrew Honig, Michael Sikorski and others for the
   original FakeNet which was the inspiration to develop this tool.
+* The Linux Diverter was designed and developed by Michael Bailey.
 
 Contact
 =======
 
 For bugs, crashes, or other comments please contact 
-peter.kacherginsky@fireeye.com
+peter.kacherginsky@fireeye.com or michael.bailey@fireeye.com.
 

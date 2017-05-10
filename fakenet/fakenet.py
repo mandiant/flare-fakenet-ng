@@ -10,6 +10,8 @@ import logging
 import os
 import sys
 import time
+import netifaces
+import threading
 
 from collections import OrderedDict
 
@@ -124,8 +126,20 @@ class Fakenet():
 
         if self.fakenet_config.get('diverttraffic') and self.fakenet_config['diverttraffic'].lower() == 'yes':
 
+            if (('networkmode' not in self.diverter_config) or
+                    (self.diverter_config['networkmode'].lower() not in
+                    ['singlehost', 'multihost', 'auto'])):
+                self.logger.error('Error: You must configure a NetworkMode for Diverter, either SingleHost, MultiHost, or Auto')
+                sys.exit(1)
+
             # Select platform specific diverter
-            if platform.system() == 'Windows':
+            platform_name = platform.system()
+
+            ip_addrs = dict()
+            ip_addrs[4] = get_ips([4])  # Get IPv4 addrs
+            ip_addrs[6] = get_ips([6])  # Get IPv6 addrs
+
+            if platform_name == 'Windows':
 
                 # Check Windows version
                 if platform.release() in ['2000', 'XP', '2003Server', 'post2003']:
@@ -133,11 +147,21 @@ class Fakenet():
                     self.logger.error('       Please use the original Fakenet for older versions of Windows.')
                     sys.exit(1)
 
+                if self.diverter_config['networkmode'].lower() == 'auto':
+                    self.diverter_config['networkmode'] = 'singlehost'
+                
                 from diverters.windows import Diverter
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, self.logging_level)
 
+            elif platform_name.lower().startswith('linux'):
+                if self.diverter_config['networkmode'].lower() == 'auto':
+                    self.diverter_config['networkmode'] = 'multihost'
+
+                from diverters.linux import Diverter
+                self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
+
             else:
-                self.logger.error('Error: Your system %s is currently not supported.', platform.system())
+                self.logger.error('Error: Your system %s is currently not supported.', platform_name)
                 sys.exit(1)
 
         # Start all of the listeners
@@ -176,7 +200,7 @@ class Fakenet():
         # Start the diverter
         if self.diverter:
             self.diverter.start()
-        
+
     def stop(self):
 
         self.logger.info("Stopping...")
@@ -188,6 +212,39 @@ class Fakenet():
             self.diverter.stop()
 
         sys.exit(0)
+
+def get_ips(ipvers):
+    """Return IP addresses bound to local interfaces including loopbacks.
+    
+    Parameters
+    ----------
+    ipvers : list
+        IP versions desired (4, 6, or both); ensures the netifaces semantics
+        (e.g. netiface.AF_INET) are localized to this function.
+    """
+    specs = []
+    results = []
+
+    for ver in ipvers:
+        if ver == 4:
+            specs.append(netifaces.AF_INET)
+        elif ver == 6:
+            specs.append(netifaces.AF_INET6)
+        else:
+            raise ValueError('get_ips only supports IP versions 4 and 6')
+
+    for iface in netifaces.interfaces():
+        for spec in specs:
+            addrs = netifaces.ifaddresses(iface)
+            # If an interface only has an IPv4 or IPv6 address, then 6 or 4
+            # respectively will be absent from the keys in the interface
+            # addresses dictionary.
+            if spec in addrs:
+                for link in addrs[spec]:
+                    if 'addr' in link:
+                        results.append(link['addr'])
+
+    return results
 
 def main():
 

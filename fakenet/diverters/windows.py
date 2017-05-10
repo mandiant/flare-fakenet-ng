@@ -321,6 +321,9 @@ class Diverter(WinUtilMixin):
         return ports
 
     def parse_diverter_config(self):
+        if self.diverter_config.get('networkmode').lower() != 'singlehost':
+            self.logger.error('Windows diverter currently only supports SingleHost mode')
+            sys.exit(1)
 
         # Do not redirect blacklisted processes
         if self.diverter_config.get('processblacklist') != None:
