@@ -493,7 +493,7 @@ class HTTPListener():
             self.server.shutdown()
             self.server.server_close()
 
-def test():
+def test(config):
     pass
 
 def main():
