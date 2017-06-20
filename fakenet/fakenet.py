@@ -259,7 +259,7 @@ def main():
                          Version  1.1
   _____________________________________________________________
                          Developed by            
-                      Peter Kacherginsky      
+             Peter Kacherginsky and Michael Bailey      
        FLARE (FireEye Labs Advanced Reverse Engineering)       
   _____________________________________________________________               
                                                """
