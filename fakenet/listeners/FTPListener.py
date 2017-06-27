@@ -100,6 +100,15 @@ class FTPListener():
         # Initialize webroot directory
         self.ftproot_path = self.config.get('ftproot','defaultFiles')
 
+        # Try absolute path first
+        if not os.path.exists(self.ftproot_path):
+
+            # Try to locate the ftproot directory relative to application path
+            self.ftproot_path = os.path.join(os.path.dirname(__file__)), self.ftproot_path)
+
+            if not os.path.exists(self.ftproot_path):
+                self.logger.error('Could not locate ftproot directory: %s' % (self.ftproot_path))
+
     def expand_ports(self, ports_list):
         ports = []
         for i in ports_list.split(','):
