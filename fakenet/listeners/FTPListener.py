@@ -104,7 +104,7 @@ class FTPListener():
         if not os.path.exists(self.ftproot_path):
 
             # Try to locate the ftproot directory relative to application path
-            self.ftproot_path = os.path.join(os.path.dirname(__file__)), self.ftproot_path)
+            self.ftproot_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), self.ftproot_path)
 
             if not os.path.exists(self.ftproot_path):
                 self.logger.error('Could not locate ftproot directory: %s', self.ftproot_path)
