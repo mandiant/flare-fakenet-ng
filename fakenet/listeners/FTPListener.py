@@ -108,6 +108,7 @@ class FTPListener():
 
             if not os.path.exists(self.ftproot_path):
                 self.logger.error('Could not locate ftproot directory: %s', self.ftproot_path)
+                sys.exit(1)
 
     def expand_ports(self, ports_list):
         ports = []
