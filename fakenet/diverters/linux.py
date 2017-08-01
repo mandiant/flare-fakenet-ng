@@ -13,6 +13,7 @@ from collections import namedtuple
 from netfilterqueue import NetfilterQueue
 
 def hexdump(data):
+    print 'Printing Raw'
     for d in data:
         print '%02x ' % ord(d),
     print ''
@@ -177,8 +178,7 @@ class PacketHandler:
                         hdr_mod = cb(self.label, pid, comm, self.ipver,
                                      hdr_latest, proto_name,
                                      self.src_ip, self.sport, self.skey,
-                                     self.dst_ip, self.dport, self.dkey,
-                                     self.raw)
+                                     self.dst_ip, self.dport, self.dkey)
 
                         if hdr_mod:
                             hdr_latest = hdr_mod
@@ -323,7 +323,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         #
         # IP redirection fix-ups are only for SingleHost mode.
         self.incoming_net_cbs = []
-        self.incoming_trans_cbs = [self.maybe_redir_port, self.detect_ssl]
+        self.incoming_trans_cbs = [self.maybe_redir_port, self.detect_ssl_cb]
         if self.single_host_mode:
             self.incoming_trans_cbs.append(self.maybe_fixup_srcip)
 
@@ -737,7 +737,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         return hdr_modified
 
     def maybe_fixup_srcip(self, label, pid, comm, ipver, hdr, proto_name,
-                          src_ip, sport, skey, dst_ip, dport, dkey, raw):
+                          src_ip, sport, skey, dst_ip, dport, dkey):
         """Conditionally fix up the source IP address if the remote endpoint
         had their connection IP-forwarded.
 
@@ -772,7 +772,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         return hdr_modified
 
     def maybe_redir_port(self, label, pid, comm, ipver, hdr, proto_name,
-                         src_ip, sport, skey, dst_ip, dport, dkey, data):
+                         src_ip, sport, skey, dst_ip, dport, dkey):
         hdr_modified = None
 
         # Get default listener port for this proto, or bail if none
@@ -890,90 +890,83 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-
-
-    def detect_ssl_(self, label, pid, comm, ipver, hdr, proto_name,
-                    src_ip, sport, skey, dst_ip, dport, dkey, raw):
+    def looks_like_ssl(self, raw, proto_name):
         self.logger.info('checking for ssl')
-        hexdump(raw) 
-        
-        if proto_name != 'TCP':
-            self.logger.info('SSL not detected due to proto')
-            return
 
-        print 'checking dpkt'
-        try:
-            ssl2 = dpkt.ssl.SSL2(raw)
-            print 'ssl2.msg:',
-            hexdump(ssl2.msg)
-            if ssl2.msg[0] != 0x80:
-                self.logger.info('ssl2 byte signature not detected')
-                raise Exception
-            else:	
-                self.logger.info('ssl2 byte signature detected')
-            self.logger.info('ssl2 check passed')
-            #print 'ssl2.len:%s. ssl2.pad:%s' % (ssl2.len, ssl2.pad)
-            #print 'ssl2.data:',ssl2.data
-            #print_hex(ssl2.data)
-            return
-        except:
-            self.logger.info('ssl2 check failed')
-        try:
-            tls = dpkt.ssl.TLS(raw)
-            self.logger.info('tls check passed')
-            return
-        except:
-            self.logger.info('tls check failed')
-        print 'checked dpkt'
+        size = len(raw)
+        #hexdump(raw)
+
+        valid_versions = { 
+        'SSLV3'   : 0x300,
+        'TLSV1'   : 0x301,
+        'TLSV1_1' : 0x302,
+        'TLSv1_2' : 0x303
+        }
+
+        content_types = {
+        'ChangeCipherSpec'  : 0x14,
+        'Alert'             : 0x15,
+        'Handshake'         : 0x16,
+        'Application'       : 0x17,
+        'Heartbeat'         : 0x18
+        }
+
+        handshake_message_types = {
+        'HelloRequest'      : 0x00,
+        'ClientHello'       : 0x01,
+        'ServerHello'       : 0x02,
+        'NewSessionTicket'  : 0x04,
+        'Certificate'       : 0x0B,
+        'ServerKeyExchange' : 0x0C,
+        'CertificateRequest': 0x0D,
+        'ServerHelloDone'   : 0x0E,
+        'CertificateVerify' : 0x0F,
+        'ClientKeyExchange' : 0x10,
+        'Finished'          : 0x14
+        }
 
 
-
-    def detect_ssl(self, label, pid, comm, ipver, hdr, proto_name,
-                    src_ip, sport, skey, dst_ip, dport, dkey, raw):
-        self.logger.info('checking for ssl')
-        hexdump(raw)
-
-        hdr_modified = None
 
         if proto_name != 'TCP':
             self.logger.info('SSL not detected due to proto')
-            return hdr_modified
+            return False
 
-        if len(raw) < 3:
+        if size < 10:
             self.logger.info('SSL not detected due to size')
-            return hdr_modified
+            return False
 
-        #check for TLS v1.0 and SSL 3.0
-        #valid handshake record
-        if raw[0] == 0x16 and size > 10:
-            self.logger.info('Potential ssl header detected')
-            #raw[3] == length bits 15..8
-            #raw[4] == length bits 7..0
-            sslLength = (raw[3] << 8) | raw[4]
-            size = len(raw)
-            if sslLength > size or sslLength > 20:
-                self.logger.info('SSL not detected due to size')
-                return hdr_modified
-            #raw[1] == version(major). 3 is highest. not sure why they have 5
-            #raw[2] == version(minor). 3 is highest. 
-            #raw[9] == handshake message data- first byte. Why would 1 and 9
-            #be the same? Is this the IP header?
-            #raw[5] == message type. 0x01 is ClientHello
-            if (raw[1] > 5 or raw[2] > 25 or raw[1] != raw[9] or 
-                    raw[5] != 0x01):
-                self.logger.info('SSL not detected due hdr byes')
-                return hdr_modified
+        if ord(raw[0]) not in content_types.values():
+            self.logger.info('SSL not detected due to invalid content type')
+            return False
 
-            self.logger.info('SSL detected')
-            return hdr_modified
+        if ord(raw[0]) == content_types['Handshake']:
+            if ord(raw[5]) not in handshake_message_types.values():
+                self.logger.info("""SSL not detected due to invalid handshake 
+                    message type""")
+                return False
+            else:
+                self.logger.info('Valid handshake message detected')
+                return True
 
-        #check for sslv2. raw[0] must be 0x16 however so I dont understand
-        elif raw[0] == 0x80:
-            self.logger.info('May have detected SSLv2')
-            return hdr_modified
+        ssl_version = ord(raw[1]) << 8 | ord(raw[2])
+        print 'ssl_version %02x' % ssl_version
+        if ssl_version not in valid_versions.values():
+            self.logger.info('invalid SSL version %02x' % ssl_version)
+            return False
 
-        self.logger.info('SSL not detected to missing header info')
-        return hdr_modified
+        #check for sslv2. Need more than 1 byte however
+        #if raw[0] == 0x80:
+        #    self.logger.info('May have detected SSLv2')
+        #    return hdr_modified
+
+        self.logger.info('SSL possibly detected - all checks complete')
+        return True
+
+    def detect_ssl_cb(self, label, pid, comm, ipver, hdr, proto_name,
+                    src_ip, sport, skey, dst_ip, dport, dkey):
+        if self.looks_like_ssl(hdr.data.data, proto_name):
+            return None
+        return None
 
     def delete_stale_port_fwd_key(self, skey):
         self.port_fwd_table_lock.acquire()
@@ -985,7 +978,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.port_fwd_table_lock.release()
 
     def maybe_fixup_sport(self, label, pid, comm, ipver, hdr, proto_name,
-                          src_ip, sport, skey, dst_ip, dport, dkey, raw):
+                          src_ip, sport, skey, dst_ip, dport, dkey):
         """Conditionally fix up source port if the remote endpoint had their
         connection port-forwarded.
 
