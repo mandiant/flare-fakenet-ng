@@ -26,6 +26,15 @@ MIME_FILE_RESPONSE = {
     'application/xml': 'FakeNet.html'
 }
 
+def taste(data):
+    request_methods = [ 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
+        'OPTIONS', 'CONNECT', 'PATCH']
+    for method in request_methods:
+        if data.lstrip().startswith(method):
+            return True
+    return False
+
+
 class HTTPListener():
 
     if not mimetypes.inited:

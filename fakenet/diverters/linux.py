@@ -12,11 +12,26 @@ from diverterbase import *
 from collections import namedtuple
 from netfilterqueue import NetfilterQueue
 
+#import listeners
+#from listeners import *
+import importlib
+
 def hexdump(data):
+    
     print 'Printing Raw'
     for d in data:
         print '%02x ' % ord(d),
     print ''
+
+def load_plugins(path="listeners"):
+    
+    plugins = []
+    sys.path.insert(0, path)
+    for plugin_modulename in glob.glob("{}/*.py".format(path)):
+        x = importlib.import_module( plugin_modulename[len(path)+1:-3] )
+        plugins.append(x)
+    return plugins
+
 
 class PacketHandler:
     """Used to encapsulate common patterns in packet hooks."""
@@ -323,7 +338,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         #
         # IP redirection fix-ups are only for SingleHost mode.
         self.incoming_net_cbs = []
-        self.incoming_trans_cbs = [self.maybe_redir_port, self.detect_ssl_cb]
+        self.incoming_trans_cbs = [self.maybe_redir_port, self.detect_ssl_proto]
         if self.single_host_mode:
             self.incoming_trans_cbs.append(self.maybe_fixup_srcip)
 
@@ -891,6 +906,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         return hdr_modified
 
     def looks_like_ssl(self, raw, proto_name):
+
         self.logger.info('checking for ssl')
 
         size = len(raw)
@@ -962,10 +978,24 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.logger.info('SSL possibly detected - all checks complete')
         return True
 
-    def detect_ssl_cb(self, label, pid, comm, ipver, hdr, proto_name,
+    def detect_proto(self, data):
+
+        listeners = load_plugins('listeners')
+        for listener in listeners:
+            taste_fn = getattr(listener, 'taste', None)
+            if callable(taste_fn):
+                if listener.taste(data):
+                    return listener
+        return None
+
+    def detect_ssl_proto(self, label, pid, comm, ipver, hdr, proto_name,
                     src_ip, sport, skey, dst_ip, dport, dkey):
-        if self.looks_like_ssl(hdr.data.data, proto_name):
-            return None
+
+        data = hdr.data.data
+        ssl = self.looks_like_ssl(data, proto_name)
+        proto = self.detect_proto(data)
+        ret = ssl, proto
+        print 'detect_ssl_proto', ret
         return None
 
     def delete_stale_port_fwd_key(self, skey):
