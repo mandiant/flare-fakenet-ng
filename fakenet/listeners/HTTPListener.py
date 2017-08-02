@@ -22,6 +22,7 @@ MIME_FILE_RESPONSE = {
     'image/jpeg':   'FakeNet.jpg',
     'application/octet-stream': 'FakeNetMini.exe',
     'application/x-msdownload': 'FakeNetMini.exe',
+    'application/x-msdos-program': 'FakeNetMini.exe',
     'application/pdf': 'FakeNet.pdf',
     'application/xml': 'FakeNet.html'
 }
