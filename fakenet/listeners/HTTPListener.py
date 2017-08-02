@@ -26,13 +26,20 @@ MIME_FILE_RESPONSE = {
     'application/xml': 'FakeNet.html'
 }
 
-def taste(data):
+def taste(data, sport, dport, proto_name):
+    
+    confidence = 0
     request_methods = [ 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
         'OPTIONS', 'CONNECT', 'PATCH']
+
+    if sport == 80 or dport == 80 or sport == 443 or dport == 443:
+        confidence = 1
+
     for method in request_methods:
         if data.lstrip().startswith(method):
-            return True
-    return False
+            return confidence + 1
+
+    return confidence
 
 
 class HTTPListener():

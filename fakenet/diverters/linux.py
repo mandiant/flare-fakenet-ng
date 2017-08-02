@@ -12,16 +12,8 @@ from diverterbase import *
 from collections import namedtuple
 from netfilterqueue import NetfilterQueue
 
-#import listeners
-#from listeners import *
 import importlib
-
-def hexdump(data):
-    
-    print 'Printing Raw'
-    for d in data:
-        print '%02x ' % ord(d),
-    print ''
+import util
 
 def load_plugins(path="listeners"):
     
@@ -907,10 +899,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def looks_like_ssl(self, raw, proto_name):
 
-        self.logger.info('checking for ssl')
-
         size = len(raw)
-        #hexdump(raw)
+        #util.hexdump(raw)
 
         valid_versions = { 
         'SSLV3'   : 0x300,
@@ -944,30 +934,22 @@ class Diverter(DiverterBase, LinUtilMixin):
 
 
         if proto_name != 'TCP':
-            self.logger.info('SSL not detected due to proto')
             return False
 
         if size < 10:
-            self.logger.info('SSL not detected due to size')
             return False
 
         if ord(raw[0]) not in content_types.values():
-            self.logger.info('SSL not detected due to invalid content type')
             return False
 
         if ord(raw[0]) == content_types['Handshake']:
             if ord(raw[5]) not in handshake_message_types.values():
-                self.logger.info("""SSL not detected due to invalid handshake 
-                    message type""")
                 return False
             else:
-                self.logger.info('Valid handshake message detected')
                 return True
 
         ssl_version = ord(raw[1]) << 8 | ord(raw[2])
-        print 'ssl_version %02x' % ssl_version
         if ssl_version not in valid_versions.values():
-            self.logger.info('invalid SSL version %02x' % ssl_version)
             return False
 
         #check for sslv2. Need more than 1 byte however
@@ -975,28 +957,33 @@ class Diverter(DiverterBase, LinUtilMixin):
         #    self.logger.info('May have detected SSLv2')
         #    return hdr_modified
 
-        self.logger.info('SSL possibly detected - all checks complete')
         return True
 
-    def detect_proto(self, data):
+    def detect_proto(self, data, sport, dport, proto_name):
 
         listeners = load_plugins('listeners')
+        top_confidence = 0
+        top_listener = None
         for listener in listeners:
             taste_fn = getattr(listener, 'taste', None)
             if callable(taste_fn):
-                if listener.taste(data):
-                    return listener
-        return None
+                confidence = listener.taste(data, sport, dport, proto_name)
+                if confidence > top_confidence:
+                    top_listener = listener
+                    top_confidence = confidence
+        return top_listener
 
     def detect_ssl_proto(self, label, pid, comm, ipver, hdr, proto_name,
                     src_ip, sport, skey, dst_ip, dport, dkey):
 
+        hdr_modified = None
         data = hdr.data.data
         ssl = self.looks_like_ssl(data, proto_name)
-        proto = self.detect_proto(data)
+        proto = self.detect_proto(data, sport, dport, proto_name)
+        #proto_name = getattr(proto, name)
         ret = ssl, proto
         print 'detect_ssl_proto', ret
-        return None
+        return hdr_modified
 
     def delete_stale_port_fwd_key(self, skey):
         self.port_fwd_table_lock.acquire()

@@ -28,6 +28,42 @@ EXT_FILE_RESPONSE = {
     '.txt' : u'FakeNet.txt',
 }
 
+def taste(data, sport, dport, proto_name):
+
+    confidence = 0
+    ftp_server_replies = [
+        '000', '030', '050', '100', '110', '120', '125', '150', '151', '200', 
+        '201', '202', '211', '212', '213', '214', '215', '220', '221', '225', 
+        '226', '227', '228', '229', '230', '231', '232', '234', '250', '251', 
+        '252', '253', '254', '255', '257', '300', '301', '330', '331', '332', 
+        '350', '400', '401', '421', '425', '426', '430', '431', '432', '434', 
+        '450', '451', '452', '500', '501', '502', '503', '504', '530', '532', 
+        '534', '550', '551', '552', '553', '600', '631', '632', '633', '10000',
+        '10054', '10060', '10061', '10066', '10068'
+    ]
+    base_ftp_commands = [
+        'abor', 'acct', 'allo', 'appe', 'cwd', 'dele', 'help', 'list', 'mode', 
+        'nlst', 'noop', 'pass', 'pasv', 'port', 'quit', 'rein', 'rest', 'retr',
+        'rnfr', 'rnto', 'site', 'stat', 'stor', 'stru', 'type', 'user'
+    ]
+    opt_ftp_commands = [
+        'cdup', 'mkd', 'pwd', 'rmd', 'smnt', 'stou', 'syst'
+    ]
+
+
+    if proto_name != 'TCP':
+        return 0
+
+    if dport == 21 or sport == 21 or dport == 20 or sport == 20:
+        confidence = 1
+
+    data = data.lstrip().lower()
+    for command in base_ftp_commands + opt_ftp_commands + ftp_server_replies:
+        if data.startswith(command):
+            return confidence + 1
+
+    return confidence 
+
 class FakeFTPHandler(FTPHandler, object):
 
     def ftp_PASS(self, line):
