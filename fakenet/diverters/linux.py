@@ -14,17 +14,8 @@ from netfilterqueue import NetfilterQueue
 
 import importlib
 import util
-
-def load_plugins(path="listeners"):
+from fakenet import ListenerData
     
-    plugins = []
-    sys.path.insert(0, path)
-    for plugin_modulename in glob.glob("{}/*.py".format(path)):
-        x = importlib.import_module( plugin_modulename[len(path)+1:-3] )
-        plugins.append(x)
-    return plugins
-
-
 class PacketHandler:
     """Used to encapsulate common patterns in packet hooks."""
 
@@ -209,6 +200,8 @@ class PacketHandler:
 
 
 class Diverter(DiverterBase, LinUtilMixin):
+
+
     def __init__(self, diverter_config, listeners_config, ip_addrs,
                  logging_level=logging.INFO):
         self.init_base(diverter_config, listeners_config, ip_addrs,
@@ -330,7 +323,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         #
         # IP redirection fix-ups are only for SingleHost mode.
         self.incoming_net_cbs = []
-        self.incoming_trans_cbs = [self.maybe_redir_port, self.detect_ssl_proto]
+        self.incoming_trans_cbs = [self.maybe_redir_port]
         if self.single_host_mode:
             self.incoming_trans_cbs.append(self.maybe_fixup_srcip)
 
@@ -798,7 +791,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                         (proto_name, self.hdr_to_str(proto_name, hdr)))
             return hdr_modified  # None
 
-        # Pre-condition 1: destination must not be present in port forwarding
+        # Pre-condition 2: destination must not be present in port forwarding
         # table (prevents masqueraded ports responding to unbound ports from
         # being mistaken as starting a conversation with an unbound port).
         found = False
@@ -813,13 +806,36 @@ class Diverter(DiverterBase, LinUtilMixin):
             return hdr_modified  # None
 
         bound_ports = self.diverted_ports.get(proto_name, [])
+        
+        # Before we check if it is destined for an unbound port, check if the 
+        # packet is using a protocol that is normally associated with a 
+        # different port. While we are here we can determine the protocol and 
+        # ssl usage so the packet can be directed to the correct listener
+        ssl, proto = self.detect_ssl_proto(hdr, proto_name, sport, dport)
+        if proto:
+                print 'protocol detected:%s. port:%s' % (proto.module, proto.port)
+        else:
+            print 'no protocol detected'
 
-        # Condition 2: If the packet is destined for an unbound port, then
+        # the protocol has been identified, which means there is a  
+        # listener. If the packet is headed for a port that is not normally
+        # associated with that protocol, change the port on the packet so it 
+        # is picked up by the listener for the protocol
+        #TODO: create data structure with listeners and ports
+        if proto and (dport != proto.port):
+            print 'dport', dport, type(dport)
+            print 'proto.port', proto.port, type(proto.port)
+            print 'proto and dport(%s) != port(%s)' % (dport, proto.port)
+            self.port_fwd_table[skey] = dport
+            #hdr_modified = self.mangle_dstport(hdr, proto_name, dport, default)
+
+
+        # Condition 1: If the packet is destined for an unbound port, then
         # redirect it to a bound port and save the old destination IP in
         # the port forwarding table keyed by the source endpoint identity.
 
-        self.pdebug(DDPFV, 'Condition 2 test')
-
+        self.pdebug(DDPFV, 'Condition 1 test')
+    
         if self.decide_redir_port(ipver, proto_name, default, bound_ports,
                                   src_ip, sport, dst_ip, dport):
             self.pdebug(DDPFV, 'Condition 2 satisfied')
@@ -931,8 +947,6 @@ class Diverter(DiverterBase, LinUtilMixin):
         'Finished'          : 0x14
         }
 
-
-
         if proto_name != 'TCP':
             return False
 
@@ -959,31 +973,30 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return True
 
+    
     def detect_proto(self, data, sport, dport, proto_name):
+        #TODO: comment
 
-        listeners = load_plugins('listeners')
         top_confidence = 0
         top_listener = None
-        for listener in listeners:
-            taste_fn = getattr(listener, 'taste', None)
+        for listener in self.listener_modules:
+            taste_fn = getattr(listener.module, 'taste', None)
             if callable(taste_fn):
-                confidence = listener.taste(data, sport, dport, proto_name)
+                confidence = listener.module.taste(data, sport, dport, 
+                    proto_name)
                 if confidence > top_confidence:
                     top_listener = listener
                     top_confidence = confidence
         return top_listener
 
-    def detect_ssl_proto(self, label, pid, comm, ipver, hdr, proto_name,
-                    src_ip, sport, skey, dst_ip, dport, dkey):
+    def detect_ssl_proto(self, hdr, proto_name, sport, dport):
 
-        hdr_modified = None
         data = hdr.data.data
         ssl = self.looks_like_ssl(data, proto_name)
         proto = self.detect_proto(data, sport, dport, proto_name)
-        #proto_name = getattr(proto, name)
         ret = ssl, proto
-        print 'detect_ssl_proto', ret
-        return hdr_modified
+
+        return ret
 
     def delete_stale_port_fwd_key(self, skey):
         self.port_fwd_table_lock.acquire()

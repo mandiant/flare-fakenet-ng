@@ -13,7 +13,7 @@ import time
 import netifaces
 import threading
 
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 
 from optparse import OptionParser,OptionGroup
 from ConfigParser import ConfigParser
@@ -27,6 +27,8 @@ from optparse import OptionParser
 import listeners
 from listeners import *
 
+ListenerData = namedtuple('ListenerData', 'module port')
+    
 ###############################################################################
 # FakeNet
 ###############################################################################
@@ -52,7 +54,7 @@ class Fakenet():
         # Listener options and parameters
         self.listeners_config = OrderedDict()
 
-        # List of running listener providers
+        # List of tuples of (running listener provider, port)
         self.running_listener_providers = list()
 
     def parse_config(self, config_filename):
@@ -189,7 +191,10 @@ class Fakenet():
 
                 # Store listener provider object
                 self.running_listener_providers.append(listener_provider_instance)
-
+                if self.diverter:
+                    self.diverter.listener_modules.append(ListenerData(
+                        listener_module, int(listener_config['port'])))
+                
                 try:
                     listener_provider_instance.start()
                 except Exception, e:

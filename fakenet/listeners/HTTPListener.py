@@ -28,19 +28,16 @@ MIME_FILE_RESPONSE = {
 
 def taste(data, sport, dport, proto_name):
     
-    confidence = 0
-    request_methods = [ 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
+    request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
         'OPTIONS', 'CONNECT', 'PATCH']
 
-    if sport == 80 or dport == 80 or sport == 443 or dport == 443:
-        confidence = 1
+    confidence = 1 if dport in [80, 443] else 0
 
     for method in request_methods:
         if data.lstrip().startswith(method):
             return confidence + 1
 
     return confidence
-
 
 class HTTPListener():
 
