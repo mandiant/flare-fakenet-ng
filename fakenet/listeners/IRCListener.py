@@ -110,7 +110,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             self.request.sendall('')
 
     def irc_PING(self, cmd, params):
-        self.request.sendall(":%s PONG :%s" % (self.server.config['servername'], self.server.config['servername']))
+        self.request.sendall(":%s PONG :%s" % (self.server.servername, self.server.servername))
 
 
     def irc_JOIN(self, cmd, params):
@@ -138,7 +138,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             self.irc_send_server("366", "%s %s :End of /NAMES list" % (self.nick, channel_name))
 
             # Send a welcome message
-            self.irc_send_client_custom('botmaster', 'botmaster', self.server.config['servername'], "PRIVMSG %s %s" % (channel_name, "Welcome to the channel! %s" % self.nick))
+            self.irc_send_client_custom('botmaster', 'botmaster', self.server.servername, "PRIVMSG %s %s" % (channel_name, "Welcome to the channel! %s" % self.nick))
 
 
     def irc_PRIVMSG(self, cmd, params):
@@ -150,11 +150,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
             # Echo the message in the channel back to the user
             if target[0] in ['#', '$']:
-                self.irc_send_client_custom('botmaster', 'botmaster', self.server.config['servername'], "PRIVMSG %s %s" % (target, message))
+                self.irc_send_client_custom('botmaster', 'botmaster', self.server.servername, "PRIVMSG %s %s" % (target, message))
 
             # Echo the private message back to the user
             else:
-                self.irc_send_client_custom(target, target, self.server.config['servername'], "PRIVMSG %s %s" % (self.nick, message))
+                self.irc_send_client_custom(target, target, self.server.servername, "PRIVMSG %s %s" % (self.nick, message))
 
 
     def irc_NOTICE(self, cmd, params):
@@ -164,10 +164,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         pass
 
     def irc_send_server(self, code, message):
-        self.request.sendall(":%s %s %s\r\n" % (self.server.config['servername'], code, message))
+        self.request.sendall(":%s %s %s\r\n" % (self.server.servername, code, message))
 
     def irc_send_client(self, message):
-        self.irc_send_client_custom(self.nick, self.user, self.server.config['servername'], message)
+        self.irc_send_client_custom(self.nick, self.user, self.server.servername, message)
 
     def irc_send_client_custom(self, nick, user, servername, message):
         self.request.sendall(":%s!%s@%s %s\r\n" % (nick, user, servername, message))
