@@ -13,6 +13,7 @@ from collections import OrderedDict
 
 
 class DiverterBase(fnconfig.Config):
+    
     def init_base(self, diverter_config, listeners_config, ip_addrs,
                   logging_level=logging.INFO):
         # For fine-grained control of subclass debug output. Does not control
@@ -46,6 +47,9 @@ class DiverterBase(fnconfig.Config):
         # NOTE: A dictionary of source ports mapped to destination address,
         # port tuples
         self.sessions = dict()
+
+        #contains fakenet.ListenerData objects with module, port
+        self.listener_modules = list()
 
         #######################################################################
         # Listener specific configuration
