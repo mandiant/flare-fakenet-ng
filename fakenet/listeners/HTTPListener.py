@@ -15,6 +15,9 @@ import mimetypes
 
 import time
 
+NAME = 'HTTP'
+PORT = '80'
+
 MIME_FILE_RESPONSE = {
     'text/html':    'FakeNet.html',
     'image/png':    'FakeNet.png',
@@ -26,7 +29,7 @@ MIME_FILE_RESPONSE = {
     'application/xml': 'FakeNet.html'
 }
 
-def taste(data, sport, dport, proto_name):
+'''def taste(data, sport, dport, proto_name):
     
     request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
         'OPTIONS', 'CONNECT', 'PATCH']
@@ -37,7 +40,22 @@ def taste(data, sport, dport, proto_name):
         if data.lstrip().startswith(method):
             return confidence + 1
 
+    return confidence'''
+
+def taste(data):
+    
+    request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
+        'OPTIONS', 'CONNECT', 'PATCH']
+
+    #confidence = 1 if dport in [80, 443] else 0
+    confidence = 0
+
+    for method in request_methods:
+        if data.lstrip().startswith(method):
+            return confidence + 2 
+
     return confidence
+
 
 class HTTPListener():
 
@@ -282,7 +300,7 @@ def test(config):
 def main():
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
     
-    config = {'port': '8443', 'usessl': 'Yes', 'webroot': '../defaultFiles' }
+    config = {'port': '80', 'usessl': 'No', 'webroot': '../defaultFiles' }
 
     listener = HTTPListener(config)
     listener.start()
