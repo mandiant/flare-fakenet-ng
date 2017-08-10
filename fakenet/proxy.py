@@ -9,13 +9,16 @@ import Queue
 import select
 import logging
 import ssl
-import simssl
 from OpenSSL import SSL
+from ssl_utils import ssl_detector 
+import hexdump
 
 BUF_SZ = 4096
 IP = '192.168.105.131'
 
-global listeners 
+logger = logging.getLogger()
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logger.setLevel(logging.DEBUG)
 
 def load_plugins(path='listeners'):
     
@@ -30,61 +33,6 @@ def load_plugins(path='listeners'):
 
     return plugins
 
-def looks_like_ssl(data):
-
-    size = len(data)
-
-    valid_versions = { 
-    'SSLV3'   : 0x300,
-    'TLSV1'   : 0x301,
-    'TLSV1_1' : 0x302,
-    'TLSv1_2' : 0x303
-    }
-
-    content_types = {
-    'ChangeCipherSpec'  : 0x14,
-    'Alert'             : 0x15,
-    'Handshake'         : 0x16,
-    'Application'       : 0x17,
-    'Heartbeat'         : 0x18
-    }
-
-    handshake_message_types = {
-    'HelloRequest'      : 0x00,
-    'ClientHello'       : 0x01,
-    'ServerHello'       : 0x02,
-    'NewSessionTicket'  : 0x04,
-    'Certificate'       : 0x0B,
-    'ServerKeyExchange' : 0x0C,
-    'CertificateRequest': 0x0D,
-    'ServerHelloDone'   : 0x0E,
-    'CertificateVerify' : 0x0F,
-    'ClientKeyExchange' : 0x10,
-    'Finished'          : 0x14
-    }
-
-    if size < 10:
-        return False
-
-    if ord(data[0]) not in content_types.values():
-        return False
-
-    if ord(data[0]) == content_types['Handshake']:
-        if ord(data[5]) not in handshake_message_types.values():
-            return False
-        else:
-            return True
-
-    ssl_version = ord(data[1]) << 8 | ord(data[2])
-    if ssl_version not in valid_versions.values():
-        return False
-
-    #check for sslv2. Need more than 1 byte however
-    #if data[0] == 0x80:
-    #    self.logger.info('May have detected SSLv2')
-    #    return hdr_modified
-
-    return True
 
 class ThreadedClientSocket(threading.Thread):
 
@@ -100,56 +48,34 @@ class ThreadedClientSocket(threading.Thread):
 
     def run(self):
 
-        print 'run ThreadedClientSocket'
+        logger.debug('ThreadedClientSocket started')
         try:
-            print 'connecting to listener socket'
             self.sock.connect((self.ip, self.port))
             while True:
                 readable, writable, exceptional = select.select([self.sock], 
                         [], [], .001)
                 if not self.remote_q.empty():
-                    print 'pulling from remote q'
                     data = self.remote_q.get()
-                    print 'data from remote q', data
                     self.sock.send(data)
-                    print 'sent data to listener sock'
                 if readable:
-                    #print 'receiving data from listener sock'
                     data = self.sock.recv(BUF_SZ)
-                    #print 'data from listener sock', data
                     if data:
-                        print 'putting data on listener q'
                         self.listener_q.put(data)
-                    #else:
-                    #    print 'closing listener socket connection?'
-                    #    self.sock.close()
-                    #    exit(1)
+                    else:
+                        self.sock.close()
+                        exit(1)
         except Exception as e:
-            print 'Listener socket exception', e
+            logger.debug('Listener socket exception %s' % e.message)
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
-
-def handshake(s):
-
-    while True:
-        try:
-            s.do_handshake()
-            break
-        except ssl.SSLError as err:
-            if err.args[0] == ssl.SSL_ERROR_WANT_READ:
-                select.select([s], [], [])
-            elif err.args[0] == ssl.SSL_ERROR_WANT_WRITE:
-                select.select([], [s], [])
-            else:
-                raise
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
     
     def handle(self):
 
-        print 'Handling TCP request'
+        logger.debug('Handling TCP request')
 
         remote_sock = self.request
         # queue for data received from the listener
@@ -157,67 +83,65 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         # queue for data received from remote
         remote_q = Queue.Queue()
         data = None
+
         ssl_remote_sock = None
-        
+        ssl_config = { 
+                'certfile': 'ssl_utils/server.pem', 
+                'keyfile': 'ssl_utils/privkey.pem',
+                'ssl_version' : ssl.PROTOCOL_SSLv23 }
+
         try:
             data = remote_sock.recv(BUF_SZ, socket.MSG_PEEK)
-            print 'Received data:', data
+            logger.debug('Received data\n%s' % hexdump.hexdump(data, 
+                result='return'))
         except Exception as e:
-            print 'recv error', e.message
+            logger.info('recv() error: %s' % e.message)
 
         if data:
-            print 'checking for ssl'
-            if looks_like_ssl(data):
-                print 'looks like ssl'
-                
-                print 'remote sock before wrap', remote_sock
 
-                ssl_remote_sock = ssl.wrap_socket(remote_sock, server_side=True, 
-                        certfile='server.pem', do_handshake_on_connect=True,
-                        ssl_version=ssl.PROTOCOL_SSLv23, keyfile='privkey.pem')
-                #handshake(ssl_remote_sock)
+            if ssl_detector.looks_like_ssl(data):
+                logger.debug('SSL detected')
+                ssl_remote_sock = ssl.wrap_socket(
+                        remote_sock, 
+                        server_side=True, 
+                        do_handshake_on_connect=True,
+                        certfile=ssl_config['certfile'], 
+                        ssl_version=ssl_config['ssl_version'],
+                        keyfile=ssl_config['keyfile'] )
                 
-                print 'ssl remote sock after wrap', ssl_remote_sock
-
             top_listener = None
             top_confidence = 0
 
             for listener in listeners:
                 confidence = listener.taste(data)
-                print 'checking listener', listener.NAME, confidence
+                logger.debug('Checking listener %s. Confidence: %s' % (
+                    listener.NAME, confidence))
                 if confidence > top_confidence:
                     top_confidence = confidence
                     top_listener = listener
 
             if top_listener:
-                print 'top listener', top_listener.NAME
+                logger.debug('Likely listener: %s' % top_listener.NAME)
                 listener_sock = ThreadedClientSocket('localhost', 
                         top_listener.PORT, listener_q, remote_q)
                 listener_sock.setDaemon(True)
                 listener_sock.start()
                 remote_sock.setblocking(0)
-                ssl_remote_sock.setblocking(0)
+                if ssl_remote_sock:
+                    ssl_remote_sock.setblocking(0)
                 while True:
                     readable, writable, exceptional = select.select(
                             [remote_sock], [], [], .001)
                     if readable:
-                        try:
-                            if ssl_remote_sock:
-                                data = ssl_remote_sock.recv(BUF_SZ)
-                            else:
-                                data = remote_sock.recv(BUF_SZ)
-                            #print 'data received from remote sock', data
-                        except ssl.SSLError as e:
-                            print 'ssl exception', e, e.errno
-                            if e.errno != ssl.SSL_ERROR_WANT_READ:
-                                raise
-                            continue
+                        if ssl_remote_sock:
+                            data = ssl_remote_sock.recv(BUF_SZ)
+                        else:
+                            data = remote_sock.recv(BUF_SZ)
                         if data:
                             remote_q.put(data)
-                            print 'data put on remote q', data
-                        #else:
-                        #    print 'closing remote socket connection?'
-                        #    return
+                        else:
+                            logger.debug('Closing remote socket connection')
+                            return
                     if not listener_q.empty():
                         data = listener_q.get()
                         if ssl_remote_sock:
@@ -225,37 +149,31 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         else:
                             remote_sock.send(data)
 
-                
 def main():
-
-    
 
     global listeners
     listeners = load_plugins()
-    print 'listeners loaded'
-    TCP_server = ThreadedTCPServer((IP, int(sys.argv[1])), ThreadedTCPRequestHandler)
+
+    TCP_server = ThreadedTCPServer((IP, int(sys.argv[1])), 
+            ThreadedTCPRequestHandler)
     TCP_server_thread = threading.Thread(target=TCP_server.serve_forever)
     TCP_server_thread.daemon = True
     TCP_server_thread.start()
     tcp_server_ip, tcp_server_port = TCP_server.server_address
-    print("TCP Server loop running (%s:%d) thread: %s" % (tcp_server_ip,
-        tcp_server_port,
-        TCP_server_thread.name))
+    logger.info("TCP Server(%s:%d) thread: %s" % (tcp_server_ip, 
+        tcp_server_port, TCP_server_thread.name))
 
     try:
         while True:
             time.sleep(.001)
     except Exception as e:
-        print 'exception', e
+        logger.info(e)
         TCP_server.shutdown()
-    #finally:
-    #    print 'closing proxy'
-    #    exit(1)
-    #    TCP_server_thread.join()
-    #    print 'proxy closed'
-    print 'exiting'
+    finally:
+        logger.info('Closing proxy')
+        exit(1)
+    logger.info('Exiting')
     TCP_server.shutdown()
-
 
 if __name__ == '__main__':
     main()
