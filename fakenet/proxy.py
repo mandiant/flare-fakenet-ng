@@ -152,7 +152,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         print 'Handling TCP request'
 
         remote_sock = self.request
-        remote_sock.setblocking(0)
         # queue for data received from the listener
         listener_q = Queue.Queue()
         # queue for data received from remote
@@ -174,9 +173,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 print 'remote sock before wrap', remote_sock
 
                 ssl_remote_sock = ssl.wrap_socket(remote_sock, server_side=True, 
-                        certfile='cert.pem', do_handshake_on_connect=False,
-                        ssl_version=ssl.PROTOCOL_SSLv23)
-                handshake(ssl_remote_sock)
+                        certfile='server.pem', do_handshake_on_connect=True,
+                        ssl_version=ssl.PROTOCOL_SSLv23, keyfile='privkey.pem')
+                #handshake(ssl_remote_sock)
                 
                 print 'ssl remote sock after wrap', ssl_remote_sock
 
@@ -196,6 +195,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         top_listener.PORT, listener_q, remote_q)
                 listener_sock.setDaemon(True)
                 listener_sock.start()
+                remote_sock.setblocking(0)
+                ssl_remote_sock.setblocking(0)
                 while True:
                     readable, writable, exceptional = select.select(
                             [remote_sock], [], [], .001)
@@ -219,9 +220,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         #    return
                     if not listener_q.empty():
                         data = listener_q.get()
-                        remote_sock.send(data)
+                        if ssl_remote_sock:
+                            ssl_remote_sock.send(data)
+                        else:
+                            remote_sock.send(data)
+
                 
 def main():
+
+    
 
     global listeners
     listeners = load_plugins()
