@@ -17,6 +17,9 @@ from pyftpdlib.servers import ThreadedFTPServer
 FAKEUSER = 'FAKEUSER'
 FAKEPWD  = 'FAKEPWD'
 
+NAME = 'FTP'
+PORT = '23'
+
 EXT_FILE_RESPONSE = {
     '.html': u'FakeNet.html',
     '.png' : u'FakeNet.png',

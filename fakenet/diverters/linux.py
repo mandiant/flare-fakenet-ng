@@ -12,10 +12,7 @@ from diverterbase import *
 from collections import namedtuple
 from netfilterqueue import NetfilterQueue
 
-import importlib
-import util
-from fakenet import ListenerData
-    
+
 class PacketHandler:
     """Used to encapsulate common patterns in packet hooks."""
 
@@ -172,7 +169,6 @@ class PacketHandler:
                         # callback is responsible for an exception that was
                         # masked by python-netfilterqueue's global callback.
                         self.diverter.pdebug(DCB, 'Calling %s' % (cb))
-                        print 'Calling %s' % (cb)
 
                         hdr_mod = cb(self.label, pid, comm, self.ipver,
                                      hdr_latest, proto_name,
@@ -180,15 +176,12 @@ class PacketHandler:
                                      self.dst_ip, self.dport, self.dkey)
 
                         if hdr_mod:
-                            print 'hdr_mod'
                             hdr_latest = hdr_mod
                             modified = True
 
                         self.diverter.pdebug(DCB, '%s finished' % (cb))
-                        print '%s finished' % (cb)
 
                     if modified:
-                        print 'packet modified'
                         # 5Ai: Double write mangled packets to represent changes
                         # made by FakeNet-NG while still allowing SSL decoding
                         self.diverter.write_pcap(hdr_latest.pack())
@@ -204,8 +197,6 @@ class PacketHandler:
 
 
 class Diverter(DiverterBase, LinUtilMixin):
-
-
     def __init__(self, diverter_config, listeners_config, ip_addrs,
                  logging_level=logging.INFO):
         self.init_base(diverter_config, listeners_config, ip_addrs,
@@ -556,7 +547,7 @@ class Diverter(DiverterBase, LinUtilMixin):
     def _maybe_log_nonlocal(self, hdr, ipver, proto, dst_ip):
         """Conditionally log packets having a foreign destination.
 
-        Each foreign destination will be logged only once if the  #None?Linux
+        Each foreign destination will be logged only once if the Linux
         Diverter's internal log_nonlocal_only_once flag is set. Otherwise, any
         foreign destination IP address will be logged each time it is observed.
         """
@@ -777,23 +768,13 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def maybe_redir_port(self, label, pid, comm, ipver, hdr, proto_name,
                          src_ip, sport, skey, dst_ip, dport, dkey):
-        """ Transport layer callback. Determine if destination port should be
-            modified based on the packet source, dest, presence in forwarding
-            table, singlehost vs multihost mode, and process blacklist /
-            process whitelist 
-        """
-
-        print 'maybe_redir_port'
         hdr_modified = None
 
         # Get default listener port for this proto, or bail if none
-        # No default listener indicates that the proto is not supported
         default = None
         if not proto_name in self.default_listener:
-            print 'no default listener'
             return hdr_modified  # None
         default = self.default_listener[proto_name]
-        print 'default listener', default
 
         # Pre-condition 1: RedirectAllTraffic: Yes
         # NOTE: This only applies to port redirection in the Windows Diverter;
@@ -801,12 +782,11 @@ class Diverter(DiverterBase, LinUtilMixin):
         # RedirectAllTraffic is disabled. So, the Linux Diverter implementation
         # will follow suit.
         if not self.is_set('redirectalltraffic'):
-            print 'precondition 1'
             self.pdebug(DIGN, 'Ignoring %s packet %s' %
                         (proto_name, self.hdr_to_str(proto_name, hdr)))
             return hdr_modified  # None
 
-        # Pre-condition 2: destination must not be present in port forwarding
+        # Pre-condition 1: destination must not be present in port forwarding
         # table (prevents masqueraded ports responding to unbound ports from
         # being mistaken as starting a conversation with an unbound port).
         found = False
@@ -817,50 +797,20 @@ class Diverter(DiverterBase, LinUtilMixin):
         finally:
             self.port_fwd_table_lock.release()
 
-        print 'precondition 2, found', found 
         if found:
             return hdr_modified  # None
-    
+
         bound_ports = self.diverted_ports.get(proto_name, [])
-        
-        # Before we check if it is destined for an unbound port, check if the 
-        # packet is using a protocol that is normally associated with a 
-        # different port. While we are here we can determine the protocol and 
-        # ssl usage so the packet can be directed to the correct listener
-        ssl, proto = self.detect_ssl_proto(hdr, proto_name, sport, dport)
-        if proto:
-                self.logger.info('protocol detected:%s. listener at port:%s' % 
-                    (proto.module, proto.port))
-        else:
-            self.logger.info('no protocol detected')
 
-        # the protocol has been identified, so there is a listener. If the 
-        # packet is headed for a port that is not normally associated with 
-        # that protocol, change the port on the packet so it is picked up by 
-        # the listener for the protocol. Update port_fwd_table so response
-        # packets are changed back to original port
-        if proto and (dport != proto.port):
-            print 'dport(%s) != port(%s)' % (dport, proto.port)
-            self.port_fwd_table_lock.acquire()
-            try:
-                self.port_fwd_table[skey] = dport
-            finally:
-                self.port_fwd_table_lock.release()
-            hdr_modified = self.mangle_dstport(hdr, proto_name, dport, 
-                proto.port)
-            return hdr_modified
-
-        # Condition 1: If the packet is destined for an unbound port, then
+        # Condition 2: If the packet is destined for an unbound port, then
         # redirect it to a bound port and save the old destination IP in
         # the port forwarding table keyed by the source endpoint identity.
 
-        self.pdebug(DDPFV, 'Condition 1 test')
-        print 'condition 1 test'
-    
+        self.pdebug(DDPFV, 'Condition 2 test')
+
         if self.decide_redir_port(ipver, proto_name, default, bound_ports,
                                   src_ip, sport, dst_ip, dport):
             self.pdebug(DDPFV, 'Condition 2 satisfied')
-            print 'condition 2 satisfied'
 
             # Post-condition 1: General ignore conditions are not met, or this
             # is part of a conversation that is already being ignored.
@@ -880,7 +830,6 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.ignore_table_lock.acquire()
             try:
                 if dkey in self.ignore_table and self.ignore_table[dkey] == sport:
-                    print 'post-condition 2'
                     # This is a reply (e.g. a TCP RST) from the
                     # non-port-forwarded server that the non-port-forwarded
                     # client was trying to talk to. Leave it alone.
@@ -890,7 +839,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
             if self.check_should_ignore(pid, comm, ipver, hdr, proto_name,
                                         src_ip, sport, dst_ip, dport):
-                self.ignore_table_lock.acquire
+                self.ignore_table_lock.acquire()
                 try:
                     self.ignore_table[skey] = dport
                 finally:
@@ -934,92 +883,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                     self.logger.info('Executing command: %s', cmd)
                     self.execute_detached(cmd)
 
-        return hdr_modified #None?
-
-    def looks_like_ssl(self, raw, proto_name):
-
-        size = len(raw)
-        #util.hexdump(raw)
-
-        valid_versions = { 
-        'SSLV3'   : 0x300,
-        'TLSV1'   : 0x301,
-        'TLSV1_1' : 0x302,
-        'TLSv1_2' : 0x303
-        }
-
-        content_types = {
-        'ChangeCipherSpec'  : 0x14,
-        'Alert'             : 0x15,
-        'Handshake'         : 0x16,
-        'Application'       : 0x17,
-        'Heartbeat'         : 0x18
-        }
-
-        handshake_message_types = {
-        'HelloRequest'      : 0x00,
-        'ClientHello'       : 0x01,
-        'ServerHello'       : 0x02,
-        'NewSessionTicket'  : 0x04,
-        'Certificate'       : 0x0B,
-        'ServerKeyExchange' : 0x0C,
-        'CertificateRequest': 0x0D,
-        'ServerHelloDone'   : 0x0E,
-        'CertificateVerify' : 0x0F,
-        'ClientKeyExchange' : 0x10,
-        'Finished'          : 0x14
-        }
-
-        if proto_name != 'TCP':
-            return False
-
-        if size < 10:
-            return False
-
-        if ord(raw[0]) not in content_types.values():
-            return False
-
-        if ord(raw[0]) == content_types['Handshake']:
-            if ord(raw[5]) not in handshake_message_types.values():
-                return False
-            else:
-                return True
-
-        ssl_version = ord(raw[1]) << 8 | ord(raw[2])
-        if ssl_version not in valid_versions.values():
-            return False
-
-        #check for sslv2. Need more than 1 byte however
-        #if raw[0] == 0x80:
-        #    self.logger.info('May have detected SSLv2')
-        #    return hdr_modified
-
-        return True
-
-    
-    def detect_proto(self, data, sport, dport, proto_name):
-        #TODO: comment
-
-        top_confidence = 0
-        top_listener = None
-        for listener in self.listener_modules:
-            taste_fn = getattr(listener.module, 'taste', None)
-            if callable(taste_fn):
-                confidence = listener.module.taste(data, sport, dport, 
-                    proto_name)
-                if confidence > top_confidence:
-                    top_listener = listener
-                    top_confidence = confidence
-        return top_listener
-
-    def detect_ssl_proto(self, hdr, proto_name, sport, dport):
-
-        data = hdr.data.data
-        ssl = self.looks_like_ssl(data, proto_name)
-        proto = self.detect_proto(data, sport, dport, proto_name)
-        ret = ssl, proto
-
-        return ret
+        return hdr_modified
 
     def delete_stale_port_fwd_key(self, skey):
         self.port_fwd_table_lock.acquire()
@@ -1042,7 +906,6 @@ class Diverter(DiverterBase, LinUtilMixin):
             None - if unmodified
             dpkt.ip.hdr - if modified
         """
-        print 'maybe_fixup_sport'
         hdr_modified = None
 
         # Condition 3: If the remote endpoint (IP/port/proto) combo
@@ -1058,18 +921,8 @@ class Diverter(DiverterBase, LinUtilMixin):
             if dkey in self.port_fwd_table:
                 self.pdebug(DDPFV, 'Condition 3 satisfied: must fix up ' +
                             'source port')
-                print ('Condition 3 satisfied: must fix up ' +
-                            'source port')
                 self.pdebug(DDPFV, ' = FOUND portfwd key entry: ' + dkey)
-                
-                # if packet is a reply from a known protocol on a non-standard 
-                # port, it needs to be redirected to the default listener port to 
-                # match up with the TCP handshake packets that were diverted to the
-                # default listener because of the non-standard port
-                ssl, proto = self.detect_ssl_proto(hdr, proto_name, sport, dport)
-                'port_fwd_table[dkey]: %s' % self.port_fwd_table[dkey]
-                new_sport = proto.port if proto else self.port_fwd_table[dkey]
-                
+                new_sport = self.port_fwd_table[dkey]
                 hdr_modified = self.mangle_srcport(
                     hdr, proto_name, hdr.data.sport, new_sport)
             else:
@@ -1129,8 +982,6 @@ class Diverter(DiverterBase, LinUtilMixin):
         """Mangle destination port for selected incoming packets."""
         self.pdebug(DDPF, 'REDIRECTING %s to port %d' %
                           (self.hdr_to_str(proto_name, hdr), newdstport))
-        print 'REDIRECTING %s to port %d' % (self.hdr_to_str(proto_name, hdr), 
-            newdstport)
         hdr.data.dport = newdstport
         self._calc_csums(hdr)
         return hdr

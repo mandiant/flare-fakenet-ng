@@ -12,43 +12,71 @@ import ssl
 from OpenSSL import SSL
 from ssl_utils import ssl_detector 
 import hexdump
+import listeners
+from listeners import *
 
 BUF_SZ = 4096
-IP = '192.168.105.131'
+IP = '0.0.0.0'
 
-logger = logging.getLogger()
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-logger.setLevel(logging.DEBUG)
+sys.path.insert(0, './listeners')
 
-def load_plugins(path='listeners'):
-    
-    plugins = []
-    
-    sys.path.insert(0, path)
+class ProxyListener():
 
-    for plugin_modulename in glob.glob('{}/*.py'.format(path)):
-        if 'HTTP' in plugin_modulename or 'Raw' in plugin_modulename:
-            x = importlib.import_module( plugin_modulename[len(path)+1:-3] )
-            plugins.append(x)
 
-    return plugins
+    def __init__(self, config={}, name ='ProxyListener', 
+            logging_level=logging.DEBUG):
 
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(logging_level)
+
+        self.config = config
+        self.name = name
+        self.server = None
+
+        self.logger.info('Starting...')
+
+        self.logger.debug('Initialized with config:')
+        for key, value in config.iteritems():
+            self.logger.debug('  %10s: %s', key, value)
+
+    def start(self):
+        
+        self.server = ThreadedTCPServer((IP, 
+            int(self.config.get('port'))), ThreadedTCPRequestHandler)
+        self.server.config = self.config
+        self.server.logger = self.logger
+        self.server_thread = threading.Thread(
+                target=self.server.serve_forever)
+        self.server_thread.daemon = True
+        self.server_thread.start()
+        tcp_server_ip, tcp_server_port = self.server.server_address
+        self.logger.info("TCP Server(%s:%d) thread: %s" % (tcp_server_ip, 
+            tcp_server_port, self.server_thread.name))
+
+    def stop(self):
+        self.logger.debug('Stopping...')
+        if self.server:
+            self.server.shutdown()
+            self.server.server_close()
+        
 
 class ThreadedClientSocket(threading.Thread):
 
 
-    def __init__(self, ip, port, listener_q, remote_q):
+    def __init__(self, ip, port, listener_q, remote_q, config, log):
 
         super(ThreadedClientSocket, self).__init__()
         self.ip = ip
         self.port = int(port)
         self.listener_q = listener_q
         self.remote_q = remote_q
+        self.config = config
+        self.logger = log
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     def run(self):
 
-        logger.debug('ThreadedClientSocket started')
+        self.logger.debug('ThreadedClientSocket started')
         try:
             self.sock.connect((self.ip, self.port))
             while True:
@@ -65,7 +93,7 @@ class ThreadedClientSocket(threading.Thread):
                         self.sock.close()
                         exit(1)
         except Exception as e:
-            logger.debug('Listener socket exception %s' % e.message)
+            self.logger.debug('Listener socket exception %s' % e.message)
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
@@ -75,7 +103,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     
     def handle(self):
 
-        logger.debug('Handling TCP request')
+        self.server.logger.debug('Handling TCP request')
 
         remote_sock = self.request
         # queue for data received from the listener
@@ -84,23 +112,35 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         remote_q = Queue.Queue()
         data = None
 
+        #gather the listeners
+        listener_modules = list()
+        listener_config = self.server.config.get('listeners')
+        self.server.logger.debug('Listener_config: %s' % listener_config)
+        self.server.logger.debug('Listener_config type: %s' % type(listener_config))
+        listener_names = listener_config.split(',')
+        self.server.logger.debug('listener_names: %s' % listener_names)
+        for listener_name in listener_names:
+            #listener_name = 'listeners/' + listener_name
+            listener_modules.append(importlib.import_module(listener_name))
+
         ssl_remote_sock = None
         ssl_config = { 
-                'certfile': 'ssl_utils/server.pem', 
-                'keyfile': 'ssl_utils/privkey.pem',
+                'certfile': 'listeners/ssl_utils/server.pem', 
+                'keyfile': 'listeners/ssl_utils/privkey.pem',
                 'ssl_version' : ssl.PROTOCOL_SSLv23 }
 
         try:
             data = remote_sock.recv(BUF_SZ, socket.MSG_PEEK)
-            logger.debug('Received data\n%s' % hexdump.hexdump(data, 
+            self.server.logger.debug('Received data\n%s' % hexdump.hexdump(data, 
                 result='return'))
         except Exception as e:
-            logger.info('recv() error: %s' % e.message)
+            self.server.logger.info('recv() error: %s' % e.message)
+            print 'recv() error: %s' % e.message
 
         if data:
 
             if ssl_detector.looks_like_ssl(data):
-                logger.debug('SSL detected')
+                self.server.logger.debug('SSL detected')
                 ssl_remote_sock = ssl.wrap_socket(
                         remote_sock, 
                         server_side=True, 
@@ -112,18 +152,20 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             top_listener = None
             top_confidence = 0
 
-            for listener in listeners:
-                confidence = listener.taste(data)
-                logger.debug('Checking listener %s. Confidence: %s' % (
-                    listener.NAME, confidence))
+            for listener_module in listener_modules:
+                confidence = listener_module.taste(data)
+                self.server.logger.debug('Checking listener %s. Confidence: %s' % (
+                    listener_module.NAME, confidence))
                 if confidence > top_confidence:
                     top_confidence = confidence
-                    top_listener = listener
+                    top_listener = listener_module
 
             if top_listener:
-                logger.debug('Likely listener: %s' % top_listener.NAME)
+                self.server.logger.debug('Likely listener: %s' % 
+                        top_listener.NAME)
                 listener_sock = ThreadedClientSocket('localhost', 
-                        top_listener.PORT, listener_q, remote_q)
+                        top_listener.PORT, listener_q, remote_q, 
+                        self.server.config, self.server.logger)
                 listener_sock.setDaemon(True)
                 listener_sock.start()
                 remote_sock.setblocking(0)
@@ -140,7 +182,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         if data:
                             remote_q.put(data)
                         else:
-                            logger.debug('Closing remote socket connection')
+                            self.server.logger.debug('Closing remote socket connection')
                             return
                     if not listener_q.empty():
                         data = listener_q.get()
@@ -151,6 +193,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
 def main():
 
+    logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', 
+            datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
     global listeners
     listeners = load_plugins()
 
@@ -170,7 +214,7 @@ def main():
         logger.info(e)
         TCP_server.shutdown()
     finally:
-        logger.info('Closing proxy')
+        logger.info('Closing ProxyListener')
         exit(1)
     logger.info('Exiting')
     TCP_server.shutdown()

@@ -15,6 +15,8 @@ import mimetypes
 
 import time
 
+from ssl_utils import ssl_detector
+
 NAME = 'HTTP'
 PORT = '80'
 
@@ -29,19 +31,6 @@ MIME_FILE_RESPONSE = {
     'application/xml': 'FakeNet.html'
 }
 
-'''def taste(data, sport, dport, proto_name):
-    
-    request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
-        'OPTIONS', 'CONNECT', 'PATCH']
-
-    confidence = 1 if dport in [80, 443] else 0
-
-    for method in request_methods:
-        if data.lstrip().startswith(method):
-            return confidence + 1
-
-    return confidence'''
-
 def taste(data):
     
     request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
@@ -54,66 +43,10 @@ def taste(data):
         if data.lstrip().startswith(method):
             return confidence + 2 
 
-    if looks_like_ssl(data):
+    if ssl_detector.looks_like_ssl(data):
         return confidence + 2
 
     return confidence
-
-def looks_like_ssl(data):
-
-	size = len(data)
-
-	valid_versions = { 
-	'SSLV3'   : 0x300,
-	'TLSV1'   : 0x301,
-	'TLSV1_1' : 0x302,
-	'TLSv1_2' : 0x303
-	}
-
-	content_types = {
-	'ChangeCipherSpec'  : 0x14,
-	'Alert'             : 0x15,
-	'Handshake'         : 0x16,
-	'Application'       : 0x17,
-	'Heartbeat'         : 0x18
-	}
-
-	handshake_message_types = {
-	'HelloRequest'      : 0x00,
-	'ClientHello'       : 0x01,
-	'ServerHello'       : 0x02,
-	'NewSessionTicket'  : 0x04,
-	'Certificate'       : 0x0B,
-	'ServerKeyExchange' : 0x0C,
-	'CertificateRequest': 0x0D,
-	'ServerHelloDone'   : 0x0E,
-	'CertificateVerify' : 0x0F,
-	'ClientKeyExchange' : 0x10,
-	'Finished'          : 0x14
-	}
-
-	if size < 10:
-		return False
-
-	if ord(data[0]) not in content_types.values():
-		return False
-
-	if ord(data[0]) == content_types['Handshake']:
-		if ord(data[5]) not in handshake_message_types.values():
-			return False
-		else:
-			return True
-
-	ssl_version = ord(data[1]) << 8 | ord(data[2])
-	if ssl_version not in valid_versions.values():
-		return False
-
-	#check for sslv2. Need more than 1 byte however
-	#if data[0] == 0x80:
-	#    self.logger.info('May have detected SSLv2')
-	#    return hdr_modified
-
-	return True
 
 class HTTPListener():
 
@@ -164,7 +97,7 @@ class HTTPListener():
         if self.config.get('usessl') == 'Yes':
             self.logger.debug('Using SSL socket.')
 
-            keyfile_path = 'privkey.pem'
+            keyfile_path = 'listeners/ssl_utils/privkey.pem'
             if not os.path.exists(keyfile_path):
                 keyfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), keyfile_path)
 
@@ -172,7 +105,7 @@ class HTTPListener():
                     self.logger.error('Could not locate privkey.pem')
                     sys.exit(1)
 
-            certfile_path = 'server.pem'
+            certfile_path = 'listeners/ssl_utils/server.pem'
             if not os.path.exists(certfile_path):
                 certfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), certfile_path)
 
