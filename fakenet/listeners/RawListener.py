@@ -15,8 +15,6 @@ PORT = 1337
 def taste(data):
     return 1
 
-
-
 class RawListener():
 
     def __init__(self, config, name = 'RawListener', logging_level = logging.INFO):

@@ -19,6 +19,7 @@ BUF_SZ = 4096
 IP = '0.0.0.0'
 
 sys.path.insert(0, './listeners')
+print 'listeners', listeners
 
 class ProxyListener():
 
@@ -115,13 +116,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         #gather the listeners
         listener_modules = list()
         listener_config = self.server.config.get('listeners')
-        self.server.logger.debug('Listener_config: %s' % listener_config)
-        self.server.logger.debug('Listener_config type: %s' % type(listener_config))
         listener_names = listener_config.split(',')
-        self.server.logger.debug('listener_names: %s' % listener_names)
         for listener_name in listener_names:
-            #listener_name = 'listeners/' + listener_name
-            listener_modules.append(importlib.import_module(listener_name))
+            listener_modules.append(importlib.import_module(
+                listener_name.strip()))
 
         ssl_remote_sock = None
         ssl_config = { 

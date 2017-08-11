@@ -31,7 +31,7 @@ EXT_FILE_RESPONSE = {
     '.txt' : u'FakeNet.txt',
 }
 
-def taste(data, sport, dport, proto_name):
+def taste(data):
 
     # See RFC5797 for full command list. Many of these commands are not likely
     # to be used but are included in case malware uses FTP in unexpected ways
@@ -44,11 +44,8 @@ def taste(data, sport, dport, proto_name):
         'cdup', 'mkd', 'pwd', 'rmd', 'smnt', 'stou', 'syst'
     ]
 
-
-    if proto_name != 'TCP':
-        return 0
-
-    confidence = 1 if dport == 21 else 0 
+    #confidence = 1 if dport == 21 else 0 
+    confidence = 0
 
     data = data.lstrip().lower()
     for command in base_ftp_commands + opt_ftp_commands:
