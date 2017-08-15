@@ -3,6 +3,38 @@ import socket
 import string
 import datetime
 
+class Banner():
+    """Act like a string, but actually get date/time components on the fly."""
+
+    def __init__(self, banner, insertions):
+        self.banner = banner
+        self.insertions = insertions
+        # Indicate an error in the banner early-on as opposed to
+        # when a login or other event occurs.
+        test = self.failEarly()
+
+    def failEarly(self):
+        """Raise exceptions upon construction rather than later."""
+        return self.fmt()
+
+    def __len__(self):
+        """Needed for pyftpdlib.
+        
+        If the length changes between the time when the caller obtains the
+        length and the time when they reference the string, then... *shrug*?
+        """
+        return len(self.fmt())
+
+    def __repr__(self):
+        return self.fmt()
+
+    def fmt(self):
+        banner = self.banner
+        banner = datetime.datetime.now().strftime(banner)
+        banner = banner % self.insertions
+        banner = banner.replace('\\n', '\n').replace('\\t', '\t')
+        return banner
+
 class BannerFactory():
     def genBanner(self, config, bannerdict, defaultbannerkey='!generic'):
         """Select and format a banner.
@@ -55,11 +87,12 @@ class BannerFactory():
 
         insertions = {'servername': servername, 'tz': 'UTC'}
 
-        banner = datetime.datetime.now().strftime(banner)
-        banner = banner % insertions
-        banner = banner.replace('\\n', '\n').replace('\\t', '\t')
+        return Banner(banner, insertions)
 
-        return banner
+        # banner = datetime.datetime.now().strftime(banner)
+        # banner = banner % insertions
+        # banner = banner.replace('\\n', '\n').replace('\\t', '\t')
+        # return banner
 
     def randomizeHostname(self):
         valid_hostname_charset = (string.ascii_letters + string.digits + '-')

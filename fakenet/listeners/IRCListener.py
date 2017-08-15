@@ -15,7 +15,7 @@ RPL_WELCOME = '001'
 SRV_WELCOME = "Welcome to FakeNet."
 
 BANNERS = {
-    'generic': 'Welcome to IRC - %%(servername)s - %a %b %d %H:%M:%S %%(tz)s %Y',
+    'generic': 'Welcome to IRC - %(servername)s - %a %b %d %H:%M:%S %(tz)s %Y',
     'debian-ircd-irc2': (
         '17/10/2011 11:50\n' +
         '                         [ Debian GNU/Linux ]\n' +
@@ -49,6 +49,7 @@ class IRCListener():
 
         self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
 
+        self.banner = self.genBanner()
         self.server.listener = self
         self.server.logger = self.logger
         self.server.config = self.config
@@ -64,7 +65,7 @@ class IRCListener():
             self.server.shutdown()
             self.server.server_close()
 
-    def banner(self):
+    def genBanner(self):
         bannerfactory = BannerFactory.BannerFactory()
         return bannerfactory.genBanner(self.config, BANNERS)
 
@@ -117,7 +118,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         self.nick = params
 
-        banner = self.server.listener.banner()
+        banner = self.server.listener.banner
 
         self.irc_send_server("001", "%s :%s" % (self.nick, banner))
         self.irc_send_server("376", "%s :End of /MOTD command." % self.nick)

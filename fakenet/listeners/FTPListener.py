@@ -255,7 +255,7 @@ class FTPListener():
         else:
             self.handler = FakeFTPHandler
 
-        self.handler.banner = self.banner()
+        self.handler.banner = self.genBanner()
 
         self.handler.ftproot_path = self.ftproot_path
         self.handler.abstracted_fs = FakeFS
@@ -279,7 +279,7 @@ class FTPListener():
         if self.server:
             self.server.close_all()
 
-    def banner(self):
+    def genBanner(self):
         bannerfactory = BannerFactory.BannerFactory()
         return bannerfactory.genBanner(self.config, BANNERS)
 
