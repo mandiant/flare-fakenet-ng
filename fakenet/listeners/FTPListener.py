@@ -17,6 +17,8 @@ from pyftpdlib.handlers import FTPHandler, TLS_FTPHandler
 from pyftpdlib.filesystems import AbstractedFS
 from pyftpdlib.servers import ThreadedFTPServer
 
+import BannerFactory
+
 FAKEUSER = 'FAKEUSER'
 FAKEPWD  = 'FAKEPWD'
 
@@ -31,36 +33,18 @@ EXT_FILE_RESPONSE = {
     '.txt' : u'FakeNet.txt',
 }
 
-def wu_template(hostname, sver):
-    return '%s (Version wu-%s %s) ready.' % (hostname, sver, wu_now())
-
-def wu_now():
-    """Date time with fabricated TZ to avoid adding dependency on pytz"""
-    return (datetime.datetime.now().strftime('%a %b %d %H:%M:%S %%s %Y') %
-            ('UTC'))
-
-def randomize_hostname():
-    n = random.randint(2, 13)
-    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(n))
-
-DEFAULT_HOSTNAME = 'ftp'
-
 # Adapted from various sources including https://github.com/turbo/openftp4
-FTP_BANNERS = {
-    'ncftpd': lambda hostname: ('%s NcFTPD Server (licensed copy) ready.' %
-            (hostname)),
+BANNERS = {
+    'generic': '%(servername)s FTP Server',
+    'ncftpd': '%(servername)s NcFTPD Server (licensed copy) ready.',
     'unspec1': lambda hostname: 'FTP server ready',
-    'unspec2': lambda hostname: 'FTP server ready' % (hostname),
-    'iis': lambda hostname: '%s Microsoft FTP Service' % (hostname),
-    'iis': lambda hostname: '%s Microsoft FTP Service' % (hostname),
-    'iis-3.0': lambda hostname: ('%s Microsoft FTP Service (Version 3.0)' %
-        (hostname)),
-    'iis-4.0': lambda hostname: ('%s Microsoft FTP Service (Version 4.0)' %
-        (hostname)),
-    'iis-5.0': lambda hostname: ('%s Microsoft FTP Service (Version 5.0)' %
-        (hostname)),
-    'iis-6.0': lambda hostname: ('%s Microsoft FTP Service (Version 6.0)' %
-        (hostname)),
+    'unspec2': lambda hostname: 'FTP server ready %s',
+    'iis': lambda hostname: '%s Microsoft FTP Service',
+    'iis': lambda hostname: '%s Microsoft FTP Service',
+    'iis-3.0': lambda hostname: '%s Microsoft FTP Service (Version 3.0)',
+    'iis-4.0': lambda hostname: '%s Microsoft FTP Service (Version 4.0)',
+    'iis-5.0': lambda hostname: '%s Microsoft FTP Service (Version 5.0)',
+    'iis-6.0': lambda hostname: '%s Microsoft FTP Service (Version 6.0)',
     'vs-2.0.7': lambda hostname: '(vsFTPd 2.0.7)',
     'vs-2.1.0': lambda hostname: '(vsFTPd 2.1.0)',
     'vs-2.1.2': lambda hostname: '(vsFTPd 2.1.2)',
@@ -74,124 +58,94 @@ FTP_BANNERS = {
     'vs-2.3.4': lambda hostname: '(vsFTPd 2.3.4)',
     'vs-2.3.5': lambda hostname: '(vsFTPd 2.3.5)',
 
-    'wu-2.4(1)': lambda hostname: wu_template(hostname, 'wu-2.4(1)'),
-    'wu-2.4(2)': lambda hostname: wu_template(hostname, 'wu-2.4(2)'),
-    'wu-2.4(20)': lambda hostname: wu_template(hostname, 'wu-2.4(20)'),
-    'wu-2.4.2-academ(1)': lambda hostname: wu_template(hostname, '2.4.2-academ (1)'),
-    'wu-2.4.2-academ[BETA-15](1)': lambda hostname: wu_template(hostname, '2.4.2-academ[BETA-15](1)'),
-    'wu-2.4.2-academ[BETA-16](1)': lambda hostname: wu_template(hostname, '2.4.2-academ[BETA-16](1)'),
-    'wu-2.4.2-academ[BETA-18](1)': lambda hostname: wu_template(hostname, '2.4.2-academ[BETA-18](1)'),
-    'wu-2.4.2-academ[BETA-9](1)': lambda hostname: wu_template(hostname, '2.4.2-academ[BETA-9](1)'),
-    'wu-2.4.2-VR16(1)': lambda hostname: wu_template(hostname, '2.4.2-VR16(1)'),
-    'wu-2.4.2-VR17(1)': lambda hostname: wu_template(hostname, '2.4.2-VR17(1)'),
-    'wu-2.4(3)': lambda hostname: wu_template(hostname, '2.4(3)'),
-    'wu-2.4(4)': lambda hostname: wu_template(hostname, '2.4(4)'),
-    'wu-2.4(6)': lambda hostname: wu_template(hostname, '2.4(6)'),
-    'wu-2.5.0(1)': lambda hostname: wu_template(hostname, '2.5.0(1)'),
-    'wu-2.6.0(1)': lambda hostname: wu_template(hostname, '2.6.0(1)'),
-    'wu-2.6.0(2)': lambda hostname: wu_template(hostname, '2.6.0(2)'),
-    'wu-2.6.0(4)': lambda hostname: wu_template(hostname, '2.6.0(4)'),
-    'wu-2.6.0(5)': lambda hostname: wu_template(hostname, '2.6.0(5)'),
-    'wu-2.6.0(7)': lambda hostname: wu_template(hostname, '2.6.0(7)'),
-    'wu-2.6.1-0.6x.21': lambda hostname: wu_template(hostname, '2.6.1-0.6x.21'),
-    'wu-2.6.1(1)': lambda hostname: wu_template(hostname, '2.6.1(1)'),
-    'wu-2.6.1(12)': lambda hostname: wu_template(hostname, '2.6.1(12)'),
-    'wu-2.6.1-16': lambda hostname: wu_template(hostname, '2.6.1-16'),
-    'wu-2.6.1-16.7x.1': lambda hostname: wu_template(hostname, '2.6.1-16.7x.1'),
-    'wu-2.6.1-18': lambda hostname: wu_template(hostname, '2.6.1-18'),
-    'wu-2.6.1(2)': lambda hostname: wu_template(hostname, '2.6.1(2)'),
-    'wu-2.6.1-20': lambda hostname: wu_template(hostname, '2.6.1-20'),
-    'wu-2.6.1-21': lambda hostname: wu_template(hostname, '2.6.1-21'),
-    'wu-2.6.1-23.2': lambda hostname: wu_template(hostname, '2.6.1-23.2'),
-    'wu-2.6.1-24': lambda hostname: wu_template(hostname, '2.6.1-24'),
-    'wu-2.6.1-24.1': lambda hostname: wu_template(hostname, '2.6.1-24.1'),
-    'wu-2.6.1(3)': lambda hostname: wu_template(hostname, '2.6.1(3)'),
-    'wu-2.6.2(1)': lambda hostname: wu_template(hostname, '2.6.2(1)'),
-    'wu-2.6.2(11)': lambda hostname: wu_template(hostname, '2.6.2(11)'),
-    'wu-2.6.2-11.1204.1ubuntu': lambda hostname: wu_template(hostname, '2.6.2-11.1204.1ubuntu'),
-    'wu-2.6.2-11.71.1': lambda hostname: wu_template(hostname, '2.6.2-11.71.1'),
-    'wu-2.6.2-11.72.1': lambda hostname: wu_template(hostname, '2.6.2-11.72.1'),
-    'wu-2.6.2-11.73.1': lambda hostname: wu_template(hostname, '2.6.2-11.73.1'),
-    'wu-2.6.2-11.73.1mdk': lambda hostname: wu_template(hostname, '2.6.2-11.73.1mdk'),
-    'wu-2.6.2-12': lambda hostname: wu_template(hostname, '2.6.2-12'),
-    'wu-2.6.2-12.1.co5.PROX': lambda hostname: wu_template(hostname, '2.6.2-12.1.co5.PROX'),
-    'wu-2.6.2-12.rhel2': lambda hostname: wu_template(hostname, '2.6.2-12.rhel2'),
-    'wu-2.6.2(13)': lambda hostname: wu_template(hostname, '2.6.2(13)'),
-    'wu-2.6.2.1(5)': lambda hostname: wu_template(hostname, '2.6.2.1(5)'),
-    'wu-2.6.2(15)': lambda hostname: wu_template(hostname, '2.6.2(15)'),
-    'wu-2.6.2-15.7x.legacy': lambda hostname: wu_template(hostname, '2.6.2-15.7x.legacy'),
-    'wu-2.6.2-15.7x.PROX': lambda hostname: wu_template(hostname, '2.6.2-15.7x.PROX'),
-    'wu-2.6.2(16)': lambda hostname: wu_template(hostname, '2.6.2(16)'),
-    'wu-2.6.2(2)': lambda hostname: wu_template(hostname, '2.6.2(2)'),
-    'wu-2.6.2(3)': lambda hostname: wu_template(hostname, '2.6.2(3)'),
-    'wu-2.6.2(4)': lambda hostname: wu_template(hostname, '2.6.2(4)'),
-    'wu-2.6.2-468': lambda hostname: wu_template(hostname, '2.6.2-468'),
-    'wu-2.6.2(47)': lambda hostname: wu_template(hostname, '2.6.2(47)'),
-    'wu-2.6.2(48)': lambda hostname: wu_template(hostname, '2.6.2(48)'),
-    'wu-2.6.2-5': lambda hostname: wu_template(hostname, '2.6.2-5'),
-    'wu-2.6.2(5)': lambda hostname: wu_template(hostname, '2.6.2(5)'),
-    'wu-2.6.2(52)': lambda hostname: wu_template(hostname, '2.6.2(52)'),
+    'wu-2.4(1)': '%(servername)s (Version wu-2.4(1) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.4(2)': '%(servername)s (Version wu-2.4(2) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.4(20)': '%(servername)s (Version wu-2.4(20) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.4.2-academ(1)': '%(servername)s (Version wu-2.4.2-academ (1) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.4.2-academ[BETA-15](1)': '%(servername)s (Version wu-2.4.2-academ[BETA-15](1) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.4.2-academ[BETA-16](1)': '%(servername)s (Version wu-2.4.2-academ[BETA-16](1) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.4.2-academ[BETA-18](1)': '%(servername)s (Version wu-2.4.2-academ[BETA-18](1) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.4.2-academ[BETA-9](1)': '%(servername)s (Version wu-2.4.2-academ[BETA-9](1) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.4.2-VR16(1)': '%(servername)s (Version wu-2.4.2-VR16(1) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.4.2-VR17(1)': '%(servername)s (Version wu-2.4.2-VR17(1) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.4(3)': '%(servername)s (Version wu-2.4(3) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.4(4)': '%(servername)s (Version wu-2.4(4) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.4(6)': '%(servername)s (Version wu-2.4(6) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.5.0(1)': '%(servername)s (Version wu-2.5.0(1) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.0(1)': '%(servername)s (Version wu-2.6.0(1) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.0(2)': '%(servername)s (Version wu-2.6.0(2) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.0(4)': '%(servername)s (Version wu-2.6.0(4) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.0(5)': '%(servername)s (Version wu-2.6.0(5) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.0(7)': '%(servername)s (Version wu-2.6.0(7) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1-0.6x.21': '%(servername)s (Version wu-2.6.1-0.6x.21 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1(1)': '%(servername)s (Version wu-2.6.1(1) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1(12)': '%(servername)s (Version wu-2.6.1(12) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1-16': '%(servername)s (Version wu-2.6.1-16 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1-16.7x.1': '%(servername)s (Version wu-2.6.1-16.7x.1 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1-18': '%(servername)s (Version wu-2.6.1-18 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1(2)': '%(servername)s (Version wu-2.6.1(2) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1-20': '%(servername)s (Version wu-2.6.1-20 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1-21': '%(servername)s (Version wu-2.6.1-21 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1-23.2': '%(servername)s (Version wu-2.6.1-23.2 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1-24': '%(servername)s (Version wu-2.6.1-24 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1-24.1': '%(servername)s (Version wu-2.6.1-24.1 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.1(3)': '%(servername)s (Version wu-2.6.1(3) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2(1)': '%(servername)s (Version wu-2.6.2(1) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2(11)': '%(servername)s (Version wu-2.6.2(11) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2-11.1204.1ubuntu': '%(servername)s (Version wu-2.6.2-11.1204.1ubuntu %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2-11.71.1': '%(servername)s (Version wu-2.6.2-11.71.1 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2-11.72.1': '%(servername)s (Version wu-2.6.2-11.72.1 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2-11.73.1': '%(servername)s (Version wu-2.6.2-11.73.1 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2-11.73.1mdk': '%(servername)s (Version wu-2.6.2-11.73.1mdk %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2-12': '%(servername)s (Version wu-2.6.2-12 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2-12.1.co5.PROX': '%(servername)s (Version wu-2.6.2-12.1.co5.PROX %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2-12.rhel2': '%(servername)s (Version wu-2.6.2-12.rhel2 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2(13)': '%(servername)s (Version wu-2.6.2(13) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2.1(5)': '%(servername)s (Version wu-2.6.2.1(5) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2(15)': '%(servername)s (Version wu-2.6.2(15) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2-15.7x.legacy': '%(servername)s (Version wu-2.6.2-15.7x.legacy %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2-15.7x.PROX': '%(servername)s (Version wu-2.6.2-15.7x.PROX %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2(16)': '%(servername)s (Version wu-2.6.2(16) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2(2)': '%(servername)s (Version wu-2.6.2(2) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2(3)': '%(servername)s (Version wu-2.6.2(3) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2(4)': '%(servername)s (Version wu-2.6.2(4) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2-468': '%(servername)s (Version wu-2.6.2-468 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2(47)': '%(servername)s (Version wu-2.6.2(47) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2(48)': '%(servername)s (Version wu-2.6.2(48) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2-5': '%(servername)s (Version wu-2.6.2-5 %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2(5)': '%(servername)s (Version wu-2.6.2(5) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
+    'wu-2.6.2(52)': '%(servername)s (Version wu-2.6.2(52) %a %b %d %H:%M:%S %(tz)s %Y) ready.',
 
-    'ws_ftp-2.0.4': lambda hostname: ('%s V2 WS_FTP Server 2.0.4 (0)' %
-                (hostname)),
-    'ws_ftp-3.1.3': lambda hostname: ('%s V2 WS_FTP Server 3.1.3 (0)' %
-                (hostname)),
-    'ws_ftp-5.0.5': lambda hostname: ('%s V2 WS_FTP Server 5.0.5 (0)' %
-                (hostname)),
-    'ws_ftp-7.5.1': lambda hostname: ('%s V2 WS_FTP Server 7.5.1(0)' %
-                (hostname)),
-    'ws_ftp-7.7': lambda hostname: ('%s V2 WS_FTP Server 7.7(0)' %
-                (hostname)),
-    'ws_ftp-1.0.3 ': lambda hostname: ('%s X2 WS_FTP Server 1.0.3 (0)' %
-                (hostname)),
-    'ws_ftp-1.0.5 ': lambda hostname: ('%s X2 WS_FTP Server 1.0.5 (0)' %
-                (hostname)),
-    'ws_ftp-2.0.0 ': lambda hostname: ('%s X2 WS_FTP Server 2.0.0 (0)' %
-                (hostname)),
-    'ws_ftp-2.0.3 ': lambda hostname: ('%s X2 WS_FTP Server 2.0.3 (0)' %
-                (hostname)),
-    'ws_ftp-3.00 ': lambda hostname: ('%s X2 WS_FTP Server 3.00 (0)' %
-                (hostname)),
-    'ws_ftp-3.1.3 ': lambda hostname: ('%s X2 WS_FTP Server 3.1.3 (0)' %
-                (hostname)),
-    'ws_ftp-4.0.0 ': lambda hostname: ('%s X2 WS_FTP Server 4.0.0 (0)' %
-                (hostname)),
-    'ws_ftp-4.0.2 ': lambda hostname: ('%s X2 WS_FTP Server 4.0.2 (0)' %
-                (hostname)),
-    'ws_ftp-5.0.0 ': lambda hostname: ('%s X2 WS_FTP Server 5.0.0 (0)' %
-                (hostname)),
-    'ws_ftp-5.0.2 ': lambda hostname: ('%s X2 WS_FTP Server 5.0.2 (0)' %
-                (hostname)),
-    'ws_ftp-5.0.4 ': lambda hostname: ('%s X2 WS_FTP Server 5.0.4 (0)' %
-                (hostname)),
-    'ws_ftp-5.0.5 ': lambda hostname: ('%s X2 WS_FTP Server 5.0.5 (0)' %
-                (hostname)),
-    'ws_ftp-6.0': lambda hostname: ('%s X2 WS_FTP Server 6.0(0)' %
-                (hostname)),
-    'ws_ftp-6.1': lambda hostname: ('%s X2 WS_FTP Server 6.1(0)' %
-                (hostname)),
-    'ws_ftp-6.1.1': lambda hostname: ('%s X2 WS_FTP Server 6.1.1(0)' %
-                (hostname)),
-    'ws_ftp-7.0': lambda hostname: ('%s X2 WS_FTP Server 7.0(0)' %
-                (hostname)),
-    'ws_ftp-7.1': lambda hostname: ('%s X2 WS_FTP Server 7.1(0)' %
-                (hostname)),
-    'ws_ftp-7.5': lambda hostname: ('%s X2 WS_FTP Server 7.5(0)' %
-                (hostname)),
-    'ws_ftp-7.5.1': lambda hostname: ('%s X2 WS_FTP Server 7.5.1(0)' %
-                (hostname)),
-    'ws_ftp-7.6': lambda hostname: ('%s X2 WS_FTP Server 7.6(0)' %
-                (hostname)),
-    'ws_ftp-7.6': lambda hostname: ('%s X2 WS_FTP Server 7.6(0) FIPS' %
-                (hostname)),
-    'ws_ftp-7.6.2': lambda hostname: ('%s X2 WS_FTP Server 7.6.2(0)' %
-                (hostname)),
-    'ws_ftp-7.6.2-fips': lambda hostname: ('%s X2 WS_FTP Server 7.6.2(0) FIPS' %
-                (hostname)),
-    'ws_ftp-7.6.3': lambda hostname: ('%s X2 WS_FTP Server 7.6.3(0)' %
-                (hostname)),
-    'ws_ftp-7.7': lambda hostname: ('%s X2 WS_FTP Server 7.7(0)' %
-                (hostname)),
+    'ws_ftp-2.0.4': '%(servername)s V2 WS_FTP Server 2.0.4 (0)',
+    'ws_ftp-3.1.3': '%(servername)s V2 WS_FTP Server 3.1.3 (0)',
+    'ws_ftp-5.0.5': '%(servername)s V2 WS_FTP Server 5.0.5 (0)',
+    'ws_ftp-7.5.1': '%(servername)s V2 WS_FTP Server 7.5.1(0)',
+    'ws_ftp-7.7': '%(servername)s V2 WS_FTP Server 7.7(0)',
+    'ws_ftp-1.0.3 ': '%(servername)s X2 WS_FTP Server 1.0.3 (0)',
+    'ws_ftp-1.0.5 ': '%(servername)s X2 WS_FTP Server 1.0.5 (0)',
+    'ws_ftp-2.0.0 ': '%(servername)s X2 WS_FTP Server 2.0.0 (0)',
+    'ws_ftp-2.0.3 ': '%(servername)s X2 WS_FTP Server 2.0.3 (0)',
+    'ws_ftp-3.00 ': '%(servername)s X2 WS_FTP Server 3.00 (0)',
+    'ws_ftp-3.1.3 ': '%(servername)s X2 WS_FTP Server 3.1.3 (0)',
+    'ws_ftp-4.0.0 ': '%(servername)s X2 WS_FTP Server 4.0.0 (0)',
+    'ws_ftp-4.0.2 ': '%(servername)s X2 WS_FTP Server 4.0.2 (0)',
+    'ws_ftp-5.0.0 ': '%(servername)s X2 WS_FTP Server 5.0.0 (0)',
+    'ws_ftp-5.0.2 ': '%(servername)s X2 WS_FTP Server 5.0.2 (0)',
+    'ws_ftp-5.0.4 ': '%(servername)s X2 WS_FTP Server 5.0.4 (0)',
+    'ws_ftp-5.0.5 ': '%(servername)s X2 WS_FTP Server 5.0.5 (0)',
+    'ws_ftp-6.0': '%(servername)s X2 WS_FTP Server 6.0(0)',
+    'ws_ftp-6.1': '%(servername)s X2 WS_FTP Server 6.1(0)',
+    'ws_ftp-6.1.1': '%(servername)s X2 WS_FTP Server 6.1.1(0)',
+    'ws_ftp-7.0': '%(servername)s X2 WS_FTP Server 7.0(0)',
+    'ws_ftp-7.1': '%(servername)s X2 WS_FTP Server 7.1(0)',
+    'ws_ftp-7.5': '%(servername)s X2 WS_FTP Server 7.5(0)',
+    'ws_ftp-7.5.1': '%(servername)s X2 WS_FTP Server 7.5.1(0)',
+    'ws_ftp-7.6': '%(servername)s X2 WS_FTP Server 7.6(0)',
+    'ws_ftp-7.6': '%(servername)s X2 WS_FTP Server 7.6(0) FIPS',
+    'ws_ftp-7.6.2': '%(servername)s X2 WS_FTP Server 7.6.2(0)',
+    'ws_ftp-7.6.2-fips': '%(servername)s X2 WS_FTP Server 7.6.2(0) FIPS',
+    'ws_ftp-7.6.3': '%(servername)s X2 WS_FTP Server 7.6.3(0)',
+    'ws_ftp-7.7': '%(servername)s X2 WS_FTP Server 7.7(0)',
 }
 
 class FakeFTPHandler(FTPHandler, object):
@@ -301,30 +255,7 @@ class FTPListener():
         else:
             self.handler = FakeFTPHandler
 
-        hostname = self.config.get('hostname', DEFAULT_HOSTNAME)
-        if hostname.startswith('!'):
-            hostname = hostname[1:].lower()
-            if hostname == 'random':
-                hostname = randomize_hostname()
-            elif hostname == 'hostname':
-                hostname = socket.gethostname()
-
-        banner = self.config.get('banner', None)
-        if banner:
-            if banner.startswith('!'):
-                banner = banner[1:].lower()
-                if banner == 'random':
-                    banner = random.choice(FTP_BANNERS.keys())
-
-                bannerfunc = FTP_BANNERS.get(banner, None)
-
-                if bannerfunc:
-                    self.handler.banner = bannerfunc(hostname)
-                else:
-                    self.logger.warning('Failed to find default banner %s' %
-                            (banner))
-            else:
-                self.handler.banner = banner
+        self.handler.banner = self.banner()
 
         self.handler.ftproot_path = self.ftproot_path
         self.handler.abstracted_fs = FakeFS
@@ -348,7 +279,9 @@ class FTPListener():
         if self.server:
             self.server.close_all()
 
-
+    def banner(self):
+        bannerfactory = BannerFactory.BannerFactory()
+        return bannerfactory.genBanner(self.config, BANNERS)
 
 ###############################################################################
 # Testing code

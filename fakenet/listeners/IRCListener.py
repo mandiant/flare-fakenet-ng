@@ -14,16 +14,17 @@ import BannerFactory
 RPL_WELCOME = '001'
 SRV_WELCOME = "Welcome to FakeNet."
 
-IRC_BANNERS = {
+BANNERS = {
     'generic': 'Welcome to IRC - %%(servername)s - %a %b %d %H:%M:%S %%(tz)s %Y',
-    'ircd-irc2': ('17/10/2011 11:50\n' +
-                  '                         [ Debian GNU/Linux ]\n' +
-                  '|------------------------------------------------------------------------|\n' +
-                  '| This is Debian\'s default IRCd server configuration for irc2.11. If you |\n' +
-                  '| see this and if you are the server administrator, just edit ircd.conf  |\n' +
-                  '| and ircd.motd in /etc/ircd.                                            |\n' +
-                  '|                                     Martin Loschwitz, 1st January 2005 |\n' +
-                  '|------------------------------------------------------------------------|\n')
+    'debian-ircd-irc2': (
+        '17/10/2011 11:50\n' +
+        '                         [ Debian GNU/Linux ]\n' +
+        '|------------------------------------------------------------------------|\n' +
+        '| This is Debian\'s default IRCd server configuration for irc2.11. If you |\n' +
+        '| see this and if you are the server administrator, just edit ircd.conf  |\n' +
+        '| and ircd.motd in /etc/ircd.                                            |\n' +
+        '|                                     Martin Loschwitz, 1st January 2005 |\n' +
+        '|------------------------------------------------------------------------|\n')
 }
 
 class IRCListener():
@@ -65,7 +66,7 @@ class IRCListener():
 
     def banner(self):
         bannerfactory = BannerFactory.BannerFactory()
-        return bannerfactory.banner(self.config, IRC_BANNERS)
+        return bannerfactory.genBanner(self.config, BANNERS)
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
