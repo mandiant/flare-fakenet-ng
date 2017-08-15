@@ -41,18 +41,41 @@ class ProxyListener():
             self.logger.debug('  %10s: %s', key, value)
 
     def start(self):
-        
-        self.server = ThreadedTCPServer((IP, 
-            int(self.config.get('port'))), ThreadedTCPRequestHandler)
+
+        proto = self.config.get('protocol').upper()
+        if proto != None:
+
+            if proto == 'TCP':
+
+                self.logger.debug('Starting TCP ...')
+
+                self.server = ThreadedTCPServer((IP, 
+                    int(self.config.get('port'))), ThreadedTCPRequestHandler)
+            
+            elif proto == 'UDP':
+
+                self.logger.debug('Starting UDP ...')
+
+                self.server = ThreadedUDPServer((IP, 
+                    int(self.config.get('port'))), ThreadedUDPRequestHandler)
+
+            else:
+                self.logger.error('Unknown protocol %s' % proto)
+                return
+
+        else:
+            self.logger.error('Protocol is not defined')
+            return
+   
         self.server.config = self.config
         self.server.logger = self.logger
         self.server_thread = threading.Thread(
                 target=self.server.serve_forever)
         self.server_thread.daemon = True
         self.server_thread.start()
-        tcp_server_ip, tcp_server_port = self.server.server_address
-        self.logger.info("TCP Server(%s:%d) thread: %s" % (tcp_server_ip, 
-            tcp_server_port, self.server_thread.name))
+        server_ip, server_port = self.server.server_address
+        self.logger.info("%s Server(%s:%d) thread: %s" % (proto, server_ip, 
+            server_port, self.server_thread.name))
 
     def stop(self):
         self.logger.debug('Stopping...')
@@ -99,6 +122,29 @@ class ThreadedClientSocket(threading.Thread):
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
 
+class ThreadedUDPServer(SocketServer.ThreadingMixIn, SocketServer.UDPServer):
+    pass
+
+def get_top_listener(config, data):
+    
+    listener_modules = list()
+    listener_config = config.get('listeners')
+    listener_names = listener_config.split(',')
+    for listener_name in listener_names:
+        module = importlib.import_module(listener_name.strip())
+        #TODO: can we check the protocol here?
+        listener_modules.append(module)
+    
+    top_listener = None
+    top_confidence = 0
+
+    for listener_module in listener_modules:
+        confidence = listener_module.taste(data)
+        if confidence > top_confidence:
+            top_confidence = confidence
+            top_listener = listener_module
+    return top_listener
+
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
     
@@ -112,14 +158,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         # queue for data received from remote
         remote_q = Queue.Queue()
         data = None
-
-        #gather the listeners
-        listener_modules = list()
-        listener_config = self.server.config.get('listeners')
-        listener_names = listener_config.split(',')
-        for listener_name in listener_names:
-            listener_modules.append(importlib.import_module(
-                listener_name.strip()))
 
         ssl_remote_sock = None
         ssl_config = { 
@@ -146,17 +184,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         certfile=ssl_config['certfile'], 
                         ssl_version=ssl_config['ssl_version'],
                         keyfile=ssl_config['keyfile'] )
-                
-            top_listener = None
-            top_confidence = 0
-
-            for listener_module in listener_modules:
-                confidence = listener_module.taste(data)
-                self.server.logger.debug('Checking listener %s. Confidence: %s' % (
-                    listener_module.NAME, confidence))
-                if confidence > top_confidence:
-                    top_confidence = confidence
-                    top_listener = listener_module
+            
+            top_listener = get_top_listener(self.server.config, data)
 
             if top_listener:
                 self.server.logger.debug('Likely listener: %s' % 
@@ -180,7 +209,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         if data:
                             remote_q.put(data)
                         else:
-                            self.server.logger.debug('Closing remote socket connection')
+                            self.server.logger.debug(
+                                    'Closing remote socket connection')
                             return
                     if not listener_q.empty():
                         data = listener_q.get()
@@ -188,6 +218,56 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             ssl_remote_sock.send(data)
                         else:
                             remote_sock.send(data)
+
+class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
+
+    
+    def handle(self):
+
+        self.server.logger.debug('Handling UDP request')
+
+        data = self.request[1]
+        remote_sock = self.request[1]
+        # queue for data received from the listener
+        listener_q = Queue.Queue()
+        # queue for data received from remote
+        remote_q = Queue.Queue()
+        data = None
+
+
+        self.server.logger.debug('Received data\n%s' % hexdump.hexdump(data, 
+            result='return'))
+
+        if data:
+
+            top_listener = get_top_listener(self.server.config, data)
+
+            if top_listener:
+                self.server.logger.debug('Likely listener: %s' % 
+                        top_listener.NAME)
+                listener_sock = ThreadedUDPClientSocket('localhost', 
+                        top_listener.PORT, listener_q, remote_q, 
+                        self.server.config, self.server.logger)
+                listener_sock.setDaemon(True)
+                listener_sock.start()
+                remote_sock.setblocking(0)
+                while True:
+                    readable, writable, exceptional = select.select(
+                            [remote_sock], [], [], .001)
+                    if readable:
+                        data = remote_sock.recv(BUF_SZ)
+                        if data:
+                            remote_q.put(data)
+                        else:
+                            self.server.logger.debug(
+                                    'Closing remote socket connection')
+                            return
+                    if not listener_q.empty():
+                        data = listener_q.get()
+                        if ssl_remote_sock:
+                            ssl_remote_sock.send(data)
+                        else:
+                            remote_sock.sendto(data, self.client_address)
 
 def main():
 

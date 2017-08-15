@@ -20,6 +20,7 @@ class RawListener():
     def __init__(self, config, name = 'RawListener', logging_level = logging.INFO):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
+        self.logger.debug('INIT RAWLISTENER')
             
         self.config = config
         self.name = name
@@ -33,6 +34,7 @@ class RawListener():
             self.logger.debug('  %10s: %s', key, value)
 
     def start(self):
+        self.logger.debug('START RAWLISTENER')
 
         # Start listener
         if self.config.get('protocol') != None:
