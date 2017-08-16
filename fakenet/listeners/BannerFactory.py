@@ -142,7 +142,9 @@ class BannerFactory():
             if banner.lower() == 'random':
                 banner = random.choice(bannerdict.keys())
             elif banner not in bannerdict:
-                raise ValueError('Banner config escape not a valid banner key')
+                raise ValueError(
+                        'Banner config escape !%s not a valid banner key' %
+                        (banner))
 
             banner = bannerdict[banner]
 
