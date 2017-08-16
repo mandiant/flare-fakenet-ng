@@ -246,10 +246,15 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
                 listener_sock = socket.socket(socket.AF_INET, 
                         socket.SOCK_STREAM)
                 try:
+                    self.server.logger.debug('1')
                     listener_sock.connect(('localhost', top_listener.PORT))
+                    self.server.logger.debug('2')
                     listener_sock.send(data)
+                    self.server.logger.debug('3')
                     listener_sock.recv(BUF_SZ)
+                    self.server.logger.debug('4')
                     remote_sock.sendto(data, self.client_address)
+                    self.server.logger.debug('5')
                 except Exception as e:
                     self.server.logger.error(
                         'Error communicating with listener %s' % e)
