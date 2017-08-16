@@ -226,48 +226,36 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
         self.server.logger.debug('Handling UDP request')
 
-        data = self.request[1]
+        data = self.request[0]
         remote_sock = self.request[1]
-        # queue for data received from the listener
-        listener_q = Queue.Queue()
-        # queue for data received from remote
-        remote_q = Queue.Queue()
-        data = None
 
-
-        self.server.logger.debug('Received data\n%s' % hexdump.hexdump(data, 
-            result='return'))
+        self.server.logger.debug('Received UDP packet from %s.' % 
+                self.client_address[0])
 
         if data:
+
+            self.server.logger.debug('Packet data\n%s' % hexdump.hexdump(data, 
+                result='return'))
 
             top_listener = get_top_listener(self.server.config, data)
 
             if top_listener:
                 self.server.logger.debug('Likely listener: %s' % 
                         top_listener.NAME)
-                listener_sock = ThreadedUDPClientSocket('localhost', 
-                        top_listener.PORT, listener_q, remote_q, 
-                        self.server.config, self.server.logger)
-                listener_sock.setDaemon(True)
-                listener_sock.start()
-                remote_sock.setblocking(0)
-                while True:
-                    readable, writable, exceptional = select.select(
-                            [remote_sock], [], [], .001)
-                    if readable:
-                        data = remote_sock.recv(BUF_SZ)
-                        if data:
-                            remote_q.put(data)
-                        else:
-                            self.server.logger.debug(
-                                    'Closing remote socket connection')
-                            return
-                    if not listener_q.empty():
-                        data = listener_q.get()
-                        if ssl_remote_sock:
-                            ssl_remote_sock.send(data)
-                        else:
-                            remote_sock.sendto(data, self.client_address)
+
+                listener_sock = socket.socket(socket.AF_INET, 
+                        socket.SOCK_STREAM)
+                try:
+                    listener_sock.connect(('localhost', top_listener.PORT))
+                    listener_sock.send(data)
+                    listener_sock.recv(BUF_SZ)
+                    remote_sock.sendto(data, self.client_address)
+                except Exception as e:
+                    self.server.logger.error(
+                        'Error communicating with listener %s' % e)
+        
+        else:
+            self.server.logger.debug('No packet data')
 
 def main():
 
