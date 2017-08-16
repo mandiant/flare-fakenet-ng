@@ -15,7 +15,7 @@ RPL_WELCOME = '001'
 SRV_WELCOME = "Welcome to FakeNet."
 
 BANNERS = {
-    'generic': 'Welcome to IRC - %(servername)s - %a %b %d %H:%M:%S %(tz)s %Y',
+    'generic': 'Welcome to IRC - {servername} - %a %b %d %H:%M:%S {tz} %Y',
     'debian-ircd-irc2': (
         '17/10/2011 11:50\n' +
         '                         [ Debian GNU/Linux ]\n' +

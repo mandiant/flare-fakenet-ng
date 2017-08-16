@@ -1,33 +1,42 @@
-import re
 import random
 import socket
 import string
 import datetime
 
 class Banner():
-    """Act like a string, but actually get date/time components on the fly."""
+    """Act like a string, but actually get date/time components on the fly.
+
+    Returned by BannerFactory.genBanner().
+    
+    Allows listeners to statically set a banner in their start() procedure for
+    libraries like pyftpdlib that expect to be able to use a static string
+    value. When the __len__() and __repr__() methods are called, this class
+    dynamically uses datetime.datetime.now().strftime() and the provided
+    insertion strings to ensure that the banner string reflects the current
+    time and date at the time when it was referenced, which allows support for
+    banners like those used by wu-ftpd and others that reference the current
+    date, time, servername, etc.
+    """
 
     def __init__(self, banner, insertions):
-        # On Windows, datetime.datetime.now().strftime() will choke on %(...)s
-        # and similar insertion tokens. To pacify it, prepend an additional
-        # percent sign before each such token so that strftime() will quietly
-        # translate the double percent sign into a single percent sign for
-        # later consumption by the format operation in which insertion strings
-        # such as %(servername)s will be substituted.
-        banner_safe = re.sub(r'%\(([^\)]+)\)', r'%%(\1)', banner)
-
-        # Enable/disable test path to simulate length of 75 but actual string
-        # of length 76 to test what happens around pyftpdlib/handlers.py:1321
-        # when the return value of len() is <= the threshold of 75 characters
-        # but the string's actual length (which is generated in a subsequent
-        # call to __repr__()) exceeds that threshold value.
+        # Use this to enable/disable test path to simulate length of 75 but
+        # actual string of length 76 to test what happens around
+        # pyftpdlib/handlers.py:1321 when the return value of len() is <= the
+        # threshold of 75 characters but the string's actual length (which is
+        # generated in a subsequent call to __repr__()) exceeds that threshold
+        # value. The conclusion as of this writing is that a discrepancy in the
+        # length returned by the __len__() method and the actual length of the
+        # string returned by __repr__() does not affect FTP functionality, so
+        # the corner case in which these may differ (due to the generated
+        # string being longer or shorter after it is evaluated due to elements
+        # interpolated by strftime) will be ignored.
         self.test_pyftpdlib_handler_banner_threshold75 = False
 
         if self.test_pyftpdlib_handler_banner_threshold75:
             self.len_75 = len(self.str_75)
             self.str_76 = 'a' * 76
 
-        self.banner = banner_safe
+        self.banner = banner
         self.insertions = insertions
 
         # Indicate an error in the banner early-on as opposed to
@@ -52,7 +61,7 @@ class Banner():
         length and the time when the caller obtains the latest generated
         string, then there is not much that could reasonably be done. It would
         be possible to cache the formatted banner with a short expiry so that
-        temporally clustered __len__ and __repr__ call sequences would view
+        temporally clustered __len__() and __repr__() call sequences would view
         consistent and coherent string contents, however this seems like
         overkill since the use case is really just allowing pyftpdlib to
         determine which way to send the response (directly versus push() if the
@@ -81,15 +90,15 @@ class Banner():
 
         # Normal path: generate banner
         banner = self.banner
+        banner = banner.format(**self.insertions)
         banner = datetime.datetime.now().strftime(banner)
-        banner = banner % self.insertions
         banner = banner.replace('\\n', '\n').replace('\\t', '\t')
         return banner
 
 
 class BannerFactory():
     def genBanner(self, config, bannerdict, defaultbannerkey='!generic'):
-        """Select and format a banner.
+        """Select and initialize a banner.
         
         Supported banner escapes:
             !<key> - Use the banner whose key in bannerdict is <key>
@@ -99,8 +108,8 @@ class BannerFactory():
         Banners can include literal '\n' or '\t' tokens (slash followed by the
         letter n or t) to indicate that a newline or tab should be inserted.
 
-        Banners can include %(servername)s or %(tz)s to insert the servername
-        or time zone (hard-coded to 'UTC' as of this writing).
+        Banners can include {servername} or {tz} to insert the servername or
+        time zone (hard-coded to 'UTC' as of this writing).
 
         If the user does not specify a banner, then '!generic' is used by
         default, resulting in bannerdict['generic'] being used. If the user
@@ -109,8 +118,8 @@ class BannerFactory():
         will be chosen from bannerdict.
 
         Because some banners include the servername as an insertion string,
-        this method also retrieves that configuration value and incorporates
-        a couple of similar escape sequences:
+        this method also retrieves the configuration value for ServerName and
+        incorporates a couple of similar escape sequences:
             !random - Randomized servername with random length between 1-15
             !gethostname - Use the real hostname
         """
@@ -140,11 +149,6 @@ class BannerFactory():
         insertions = {'servername': servername, 'tz': 'UTC'}
 
         return Banner(banner, insertions)
-
-        # banner = datetime.datetime.now().strftime(banner)
-        # banner = banner % insertions
-        # banner = banner.replace('\\n', '\n').replace('\\t', '\t')
-        # return banner
 
     def randomizeHostname(self):
         valid_hostname_charset = (string.ascii_letters + string.digits + '-')
