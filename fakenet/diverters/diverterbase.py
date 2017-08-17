@@ -160,7 +160,11 @@ class DiverterBase(fnconfig.Config):
             if 'port' in listener_config:
 
                 port = int(listener_config['port'])
-                hidden = bool(listener_config['hidden'])
+
+                if 'hidden' in listener_config:
+
+                    hidden = True if ('hidden' in listener_config and 
+                            listener_config['hidden'] == 'True') else False
 
                 if not 'protocol' in listener_config:
                     self.logger.error('ERROR: Protocol not defined for ' +
