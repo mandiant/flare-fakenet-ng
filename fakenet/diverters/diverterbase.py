@@ -152,15 +152,12 @@ class DiverterBase(fnconfig.Config):
         return privileged
 
     def parse_listeners_config(self, listeners_config):
-        print 'parsing listeners config', listeners_config
 
         #######################################################################
         # Populate diverter ports and process filters from the configuration
         for listener_name, listener_config in listeners_config.iteritems():
-            print '\nlistener_name: %s listener_config: %s' % (listener_name, listener_config)
 
             if 'port' in listener_config:
-                print '\nport in listener_config', listener_config
 
                 port = int(listener_config['port'])
                 hidden = bool(listener_config['hidden'])
@@ -177,11 +174,14 @@ class DiverterBase(fnconfig.Config):
                                       'listener %s', protocol, listener_name)
                     sys.exit(1)
 
+                # diverted_ports[protocol][port] is True if the listener is 
+                # configured as 'Hidden', which means it will not receive 
+                # packets unless the ProxyListener determines that the protocol
+                # matches the listener
                 if not protocol in self.diverted_ports:
                     self.diverted_ports[protocol] = dict()
 
                 self.diverted_ports[protocol][port] = hidden
-                print '\ndivered_ports', self.diverted_ports
 
                 ###############################################################
                 # Process filtering configuration

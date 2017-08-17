@@ -19,7 +19,6 @@ BUF_SZ = 4096
 IP = '0.0.0.0'
 
 sys.path.insert(0, './listeners')
-print 'listeners', listeners
 
 class ProxyListener():
 
@@ -100,7 +99,6 @@ class ThreadedClientSocket(threading.Thread):
 
     def run(self):
 
-        self.logger.debug('ThreadedClientSocket started')
         try:
             self.sock.connect((self.ip, self.port))
             while True:
@@ -150,8 +148,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     
     def handle(self):
 
-        self.server.logger.debug('Handling TCP request')
-
         remote_sock = self.request
         # queue for data received from the listener
         listener_q = Queue.Queue()
@@ -171,7 +167,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 result='return'))
         except Exception as e:
             self.server.logger.info('recv() error: %s' % e.message)
-            print 'recv() error: %s' % e.message
 
         if data:
 
@@ -223,8 +218,6 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
     
     def handle(self):
-
-        self.server.logger.debug('Handling UDP request')
 
         data = self.request[0]
         remote_sock = self.request[1]
