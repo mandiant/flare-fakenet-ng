@@ -223,7 +223,8 @@ class Diverter(WinUtilMixin):
             if 'port' in listener_config:
 
                 port = int(listener_config['port'])
-                hidden = bool(listener_config['hidden'])
+                hidden = True if ('hidden' in listener_config and 
+                            listener_config['hidden'] == 'True') else False
 
                 if not 'protocol' in listener_config:
                     self.logger.error('ERROR: Protocol not defined for listener %s', listener_name)
@@ -627,7 +628,10 @@ class Diverter(WinUtilMixin):
                 # Direct packet to an existing or a default listener
                 # check if 'hidden' config is set. If so, the packet is 
                 # directed to the default listener which is the proxy
-                packet.dst_port = packet.dst_port if (packet.dst_port in diverted_ports and diverted_ports[packet.dst_port] = False) else default_listener_port
+                packet.dst_port = (packet.dst_port if (
+                        packet.dst_port in diverted_ports and 
+                        diverted_ports[packet.dst_port] is False) 
+                        else default_listener_port)
 
                 logger_level('  to:   %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 

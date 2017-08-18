@@ -197,15 +197,19 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     readable, writable, exceptional = select.select(
                             [remote_sock], [], [], .001)
                     if readable:
-                        if ssl_remote_sock:
-                            data = ssl_remote_sock.recv(BUF_SZ)
-                        else:
-                            data = remote_sock.recv(BUF_SZ)
-                        if data:
-                            remote_q.put(data)
-                        else:
-                            self.server.logger.debug(
-                                    'Closing remote socket connection')
+                        try:
+                            if ssl_remote_sock:
+                                data = ssl_remote_sock.recv(BUF_SZ)
+                            else:
+                                data = remote_sock.recv(BUF_SZ)
+                            if data:
+                                remote_q.put(data)
+                            else:
+                                self.server.logger.debug(
+                                        'Closing remote socket connection')
+                            return
+                        except Exception as e:
+                            self.server.logger.debug('Remote Connection terminated')
                             return
                     if not listener_q.empty():
                         data = listener_q.get()
