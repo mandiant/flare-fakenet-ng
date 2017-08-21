@@ -194,27 +194,20 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 if ssl_remote_sock:
                     ssl_remote_sock.setblocking(0)
                 while True:
-                    self.server.logger.debug('proxy to client loop')
                     readable, writable, exceptional = select.select(
                             [remote_sock], [], [], .001)
-                    self.server.logger.debug('proxy to client select returned')
                     if readable:
                         try:
                             if ssl_remote_sock:
-                                self.server.logger.debug('proxy to client ssl')
                                 data = ssl_remote_sock.recv(BUF_SZ)
                             else:
-                                self.server.logger.debug('proxy to client tcp')
                                 data = remote_sock.recv(BUF_SZ)
                             if data:
-                                self.server.logger.debug('proxy to client data')
                                 remote_q.put(data)
                             else:
-                                self.server.logger.debug('proxy to client no data')
-                                pass
                                 self.server.logger.debug(
                                         'Closing remote socket connection')
-                                #return
+                                return
                         except Exception as e:
                             self.server.logger.debug('Remote Connection terminated')
                             return
@@ -224,7 +217,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             ssl_remote_sock.send(data)
                         else:
                             remote_sock.send(data)
-                self.server.logger.debug('EXITING PROXY LOOP')
 
 class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 

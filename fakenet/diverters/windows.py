@@ -498,9 +498,6 @@ class Diverter(WinUtilMixin):
         return packet
 
     def handle_tcp_udp_packet(self, packet, protocol, default_listener_port, blacklist_ports):
-        self.logger.debug('IN HANDLE_TCP_UDP_PACKET')
-        self.logger.debug('SESSIONS: %s' % self.sessions)
-
 
         # Meta strings
         interface_string = 'loopback' if packet.is_loopback else 'external'
@@ -658,7 +655,7 @@ class Diverter(WinUtilMixin):
 
             # Restore original target IP address from the cache
             else:
-                self.logger.debug('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXModifying %s %s %s response packet:', direction_string, interface_string, protocol)
+                self.logger.debug('Modifying %s %s %s response packet:', direction_string, interface_string, protocol)
                 self.logger.debug('  from: %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
                 # Restore original target IP address based on destination port
@@ -680,7 +677,7 @@ class Diverter(WinUtilMixin):
             # forward to proxy
             packet.dst_port = default_listener_port
 
-            self.logger.debug('XXXXXXXXXXXXXXXXXXXRedirected %s %s %s packet to proxyXXXXXXXXXXXXXXXXXXXXXXXXXX:', direction_string, interface_string, protocol)
+            self.logger.debug('Redirected %s %s %s packet to proxy:', direction_string, interface_string, protocol)
             self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
         return packet
