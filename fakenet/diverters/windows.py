@@ -498,6 +498,9 @@ class Diverter(WinUtilMixin):
         return packet
 
     def handle_tcp_udp_packet(self, packet, protocol, default_listener_port, blacklist_ports):
+        self.logger.debug('IN HANDLE_TCP_UDP_PACKET')
+        self.logger.debug('SESSIONS: %s' % self.sessions)
+
 
         # Meta strings
         interface_string = 'loopback' if packet.is_loopback else 'external'
@@ -642,6 +645,8 @@ class Diverter(WinUtilMixin):
         # Restore diverted response from a local listener
         # NOTE: The response can come from a legitimate request
         elif diverted_ports and packet.src_port in diverted_ports:
+            # The packet is a response from a listener. It needs to be 
+            # redirected to the original source
 
             # Find which process ID is sending the request
             conn_pid = self.get_pid_port_tcp(packet.dst_port) if packet.tcp else self.get_pid_port_udp(packet.dst_port)
@@ -653,7 +658,7 @@ class Diverter(WinUtilMixin):
 
             # Restore original target IP address from the cache
             else:
-                self.logger.debug('Modifying %s %s %s response packet:', direction_string, interface_string, protocol)
+                self.logger.debug('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXModifying %s %s %s response packet:', direction_string, interface_string, protocol)
                 self.logger.debug('  from: %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
                 # Restore original target IP address based on destination port
@@ -665,7 +670,17 @@ class Diverter(WinUtilMixin):
                 self.logger.debug('  pid:  %d name: %s', conn_pid, process_name if process_name else 'Unknown')
 
         else:
-            self.logger.debug('Forwarding %s %s %s packet:', direction_string, interface_string, protocol)
+            # At this point whe know the packet is either a response packet 
+            # from a listener(sport is bound) or is bound for a port with no 
+            # listener (dport not bound)
+
+            # Cache original target IP address based on source port
+            self.sessions[packet.src_port] = (packet.dst_addr, packet.dst_port)
+          
+            # forward to proxy
+            packet.dst_port = default_listener_port
+
+            self.logger.debug('XXXXXXXXXXXXXXXXXXXRedirected %s %s %s packet to proxyXXXXXXXXXXXXXXXXXXXXXXXXXX:', direction_string, interface_string, protocol)
             self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
         return packet
