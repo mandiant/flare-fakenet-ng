@@ -185,7 +185,17 @@ class Fakenet():
 
             else:
                 # Listener provider object
-                listener_provider_instance = listener_provider(listener_config, listener_name, self.logging_level)
+                #listener_provider_instance = listener_provider(listener_config, listener_name, self.logging_level, self.running_listener_providers)
+                
+                # Only pass the listeners to the proxy
+                if ('proxy' in listener_config and 
+                        listener_config['proxy'] == 'True'):
+                    listener_provider_instance = listener_provider(
+                            listener_config, listener_name, self.logging_level, 
+                            self.running_listener_providers)
+                else:
+                    listener_provider_instance = listener_provider(
+                            listener_config, listener_name, self.logging_level)
 
                 # Store listener provider object
                 self.running_listener_providers.append(listener_provider_instance)

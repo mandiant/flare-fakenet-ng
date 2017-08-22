@@ -14,7 +14,11 @@ SRV_WELCOME = "Welcome to FakeNet."
 
 class IRCListener():
 
-    def __init__(self, config, name = 'IRCListener', logging_level = logging.INFO):
+    def taste(self, data):
+        return 0
+
+    def __init__(self, config, name='IRCListener', logging_level=logging.INFO, 
+            running_listeners=None):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
 
@@ -22,6 +26,9 @@ class IRCListener():
         self.name = name
         self.local_ip = '0.0.0.0'
         self.server = None
+        self.running_listeners = running_listeners
+        self.NAME = 'IRC'
+        self.PORT = None
 
         self.logger.info('Starting...')
 

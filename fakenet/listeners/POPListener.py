@@ -22,7 +22,11 @@ Bob\r\n"""
 
 class POPListener():
 
-    def __init__(self, config, name = 'POPListener', logging_level = logging.INFO):
+    def taste(self, data):
+        return 0
+
+    def __init__(self, config, name='POPListener', logging_level=logging.INFO, 
+            running_listeners=None):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
 
@@ -30,6 +34,9 @@ class POPListener():
         self.name = name
         self.local_ip = '0.0.0.0'
         self.server = None
+        self.running_listeners = running_listeners
+        self.NAME = 'POP'
+        self.port = None
 
         self.logger.info('Starting...')
 

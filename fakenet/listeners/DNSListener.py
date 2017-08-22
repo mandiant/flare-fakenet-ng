@@ -9,25 +9,24 @@ import ssl
 import socket
 
 
-NAME = 'DNS'
-PORT = 53
-
-def taste(data):
-
-    confidence = 0
-    #confidence = 1 if dport is 53 else 0
-
-    try:
-        d = DNSRecord.parse(data)
-    except:
-        return confidence
-
-    return confidence + 2
 
 
 class DNSListener():
 
-    def __init__(self, config = {}, name = 'DNSListener', logging_level = logging.INFO):
+    def taste(self, data):
+
+        confidence = 0
+        #confidence = 1 if dport is 53 else 0
+
+        try:
+            d = DNSRecord.parse(data)
+        except:
+            return confidence
+
+        return confidence + 2
+
+    def __init__(self, config={}, name='DNSListener', 
+            logging_level=logging.INFO, running_listeners=None):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
@@ -35,6 +34,9 @@ class DNSListener():
         self.config = config
         self.local_ip = '0.0.0.0'
         self.server = None
+        self.running_listeners = running_listeners
+        self.NAME = 'DNS'
+        self.PORT = 53
 
         self.logger.info('Starting...')
 

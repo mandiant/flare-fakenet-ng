@@ -24,7 +24,7 @@ class ProxyListener():
 
 
     def __init__(self, config={}, name ='ProxyListener', 
-            logging_level=logging.DEBUG):
+            logging_level=logging.DEBUG, running_listeners=None):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
@@ -32,6 +32,7 @@ class ProxyListener():
         self.config = config
         self.name = name
         self.server = None
+        self.running_listeners = running_listeners
 
         self.logger.info('Starting...')
 
@@ -68,6 +69,7 @@ class ProxyListener():
    
         self.server.config = self.config
         self.server.logger = self.logger
+        self.server.running_listeners = self.running_listeners
         self.server_thread = threading.Thread(
                 target=self.server.serve_forever)
         self.server_thread.daemon = True
@@ -123,24 +125,41 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 class ThreadedUDPServer(SocketServer.ThreadingMixIn, SocketServer.UDPServer):
     pass
 
-def get_top_listener(config, data):
-    
-    listener_modules = list()
-    listener_config = config.get('listeners')
-    listener_names = listener_config.split(',')
-    for listener_name in listener_names:
-        module = importlib.import_module(listener_name.strip())
-        #TODO: can we check the protocol here?
-        listener_modules.append(module)
+#def get_top_listener(config, data):
+#    
+#    listener_modules = list()
+#    listener_config = config.get('listeners')
+#    listener_names = listener_config.split(',')
+#    for listener_name in listener_names:
+#        module = importlib.import_module(listener_name.strip())
+#        #TODO: can we check the protocol here?
+#        listener_modules.append(module)
+#    
+#    top_listener = None
+#    top_confidence = 0
+#
+#    for listener_module in listener_modules:
+#        confidence = listener_module.taste(data)
+#        if confidence > top_confidence:
+#            top_confidence = confidence
+#            top_listener = listener_module
+#    return top_listener
+
+def get_top_listener(config, data, listeners):
     
     top_listener = None
     top_confidence = 0
 
-    for listener_module in listener_modules:
-        confidence = listener_module.taste(data)
-        if confidence > top_confidence:
-            top_confidence = confidence
-            top_listener = listener_module
+    for listener in listeners:
+  
+        try:
+            confidence = listener.taste(data)
+            if confidence > top_confidence:
+                top_confidence = confidence
+                top_listener = listener
+        except Exception as e:
+            pass
+    
     return top_listener
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
@@ -180,7 +199,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         ssl_version=ssl_config['ssl_version'],
                         keyfile=ssl_config['keyfile'] )
             
-            top_listener = get_top_listener(self.server.config, data)
+            top_listener = get_top_listener(self.server.config, data, 
+                    self.server.running_listeners)
 
             if top_listener:
                 self.server.logger.debug('Likely listener: %s' % 
@@ -234,7 +254,8 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             self.server.logger.debug('Packet data\n%s' % hexdump.hexdump(data, 
                 result='return'))
 
-            top_listener = get_top_listener(self.server.config, data)
+            top_listener = get_top_listener(self.server.config, data, 
+                    self.server.running_listeners)
 
             if top_listener:
                 self.server.logger.debug('Likely listener: %s' % 

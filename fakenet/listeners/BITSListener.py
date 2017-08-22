@@ -418,6 +418,9 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
 
 class HTTPListener():
 
+    def taste(self, data):
+        return 0
+
     if not mimetypes.inited:
         mimetypes.init() # try to read system mime.types
     extensions_map = mimetypes.types_map.copy()
@@ -425,7 +428,8 @@ class HTTPListener():
         '': 'text/html', # Default
         })
 
-    def __init__(self, config = {}, name = 'BITSListener', logging_level = logging.DEBUG):
+    def __init__(self, config={}, name='BITSListener', 
+            logging_level=logging.DEBUG, running_listeners=None):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
   
@@ -433,6 +437,9 @@ class HTTPListener():
         self.name = name
         self.local_ip  = '0.0.0.0'
         self.server = None
+        self.running_listeners = running_listeners
+        self.NAME = 'BITS'
+        self.PORT = None
 
         self.logger.info('Starting...')
 

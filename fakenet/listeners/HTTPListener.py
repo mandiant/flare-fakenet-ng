@@ -17,8 +17,6 @@ import time
 
 from ssl_utils import ssl_detector
 
-NAME = 'HTTP'
-PORT = '80'
 
 MIME_FILE_RESPONSE = {
     'text/html':    'FakeNet.html',
@@ -31,24 +29,24 @@ MIME_FILE_RESPONSE = {
     'application/xml': 'FakeNet.html'
 }
 
-def taste(data):
-    
-    request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
-        'OPTIONS', 'CONNECT', 'PATCH']
-
-    #confidence = 1 if dport in [80, 443] else 0
-    confidence = 0
-
-    for method in request_methods:
-        if data.lstrip().startswith(method):
-            return confidence + 2 
-
-    if ssl_detector.looks_like_ssl(data):
-        return confidence + 2
-
-    return confidence
-
 class HTTPListener():
+
+    def taste(self, data):
+        
+        request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
+            'OPTIONS', 'CONNECT', 'PATCH']
+
+        #confidence = 1 if dport in [80, 443] else 0
+        confidence = 0
+
+        for method in request_methods:
+            if data.lstrip().startswith(method):
+                return confidence + 2 
+
+        if ssl_detector.looks_like_ssl(data):
+            return confidence + 2
+
+        return confidence
 
     if not mimetypes.inited:
         mimetypes.init() # try to read system mime.types
@@ -57,7 +55,8 @@ class HTTPListener():
         '': 'text/html', # Default
         })
 
-    def __init__(self, config = {}, name = 'HTTPListener', logging_level = logging.DEBUG):
+    def __init__(self, config={}, name='HTTPListener', 
+            logging_level=logging.DEBUG, running_listeners=None):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
   
@@ -65,6 +64,9 @@ class HTTPListener():
         self.name = name
         self.local_ip  = '0.0.0.0'
         self.server = None
+        self.running_listeners = running_listeners
+        self.NAME = 'HTTP'
+        self.PORT = '80'
 
         self.logger.info('Starting...')
 
@@ -87,6 +89,7 @@ class HTTPListener():
 
     def start(self):
         self.logger.debug('Starting...')
+            
 
         self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), ThreadedHTTPRequestHandler)
         self.server.logger = self.logger
@@ -124,6 +127,7 @@ class HTTPListener():
         if self.server:
             self.server.shutdown()
             self.server.server_close()
+
 
 class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
 

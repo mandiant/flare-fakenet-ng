@@ -17,8 +17,6 @@ from pyftpdlib.servers import ThreadedFTPServer
 FAKEUSER = 'FAKEUSER'
 FAKEPWD  = 'FAKEPWD'
 
-NAME = 'FTP'
-PORT = '23'
 
 EXT_FILE_RESPONSE = {
     '.html': u'FakeNet.html',
@@ -30,29 +28,6 @@ EXT_FILE_RESPONSE = {
     '.xml' : u'FakeNet.html',
     '.txt' : u'FakeNet.txt',
 }
-
-def taste(data):
-
-    # See RFC5797 for full command list. Many of these commands are not likely
-    # to be used but are included in case malware uses FTP in unexpected ways
-    base_ftp_commands = [
-        'abor', 'acct', 'allo', 'appe', 'cwd', 'dele', 'help', 'list', 'mode', 
-        'nlst', 'noop', 'pass', 'pasv', 'port', 'quit', 'rein', 'rest', 'retr',
-        'rnfr', 'rnto', 'site', 'stat', 'stor', 'stru', 'type', 'user'
-    ]
-    opt_ftp_commands = [
-        'cdup', 'mkd', 'pwd', 'rmd', 'smnt', 'stou', 'syst'
-    ]
-
-    #confidence = 1 if dport == 21 else 0 
-    confidence = 0
-
-    data = data.lstrip().lower()
-    for command in base_ftp_commands + opt_ftp_commands:
-        if data.startswith(command):
-            return confidence + 1
-
-    return confidence 
 
 class FakeFTPHandler(FTPHandler, object):
 
@@ -108,7 +83,31 @@ class FakeFS(AbstractedFS):
 
 class FTPListener():
 
-    def __init__(self, config, name = 'FTPListener', logging_level = logging.INFO):
+    def taste(self, data):
+
+        # See RFC5797 for full command list. Many of these commands are not likely
+        # to be used but are included in case malware uses FTP in unexpected ways
+        base_ftp_commands = [
+            'abor', 'acct', 'allo', 'appe', 'cwd', 'dele', 'help', 'list', 'mode', 
+            'nlst', 'noop', 'pass', 'pasv', 'port', 'quit', 'rein', 'rest', 'retr',
+            'rnfr', 'rnto', 'site', 'stat', 'stor', 'stru', 'type', 'user'
+        ]
+        opt_ftp_commands = [
+            'cdup', 'mkd', 'pwd', 'rmd', 'smnt', 'stou', 'syst'
+        ]
+
+        #confidence = 1 if dport == 21 else 0 
+        confidence = 0
+
+        data = data.lstrip().lower()
+        for command in base_ftp_commands + opt_ftp_commands:
+            if data.startswith(command):
+                return confidence + 1
+
+        return confidence 
+
+    def __init__(self, config, name='FTPListener', logging_level=logging.INFO, 
+            running_listeners=None):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
             
@@ -116,6 +115,9 @@ class FTPListener():
         self.name = name
         self.local_ip = '0.0.0.0'
         self.server = None
+        self.running_listeners = running_listeners
+        self.NAME = 'FTP'
+        self.PORT = '23'
 
         self.logger.info('Starting...')
 

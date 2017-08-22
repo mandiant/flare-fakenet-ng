@@ -9,15 +9,14 @@ import SocketServer
 import ssl
 import socket
 
-NAME = 'Raw'
-PORT = 1337
-
-def taste(data):
-    return 1
 
 class RawListener():
 
-    def __init__(self, config, name = 'RawListener', logging_level = logging.INFO):
+    def taste(self, data):
+        return 1
+
+    def __init__(self, config, name='RawListener', logging_level=logging.INFO, 
+            running_listeners=None):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
             
@@ -25,6 +24,9 @@ class RawListener():
         self.name = name
         self.local_ip = '0.0.0.0'
         self.server = None
+        self.running_listeners = running_listeners
+        self.NAME = 'Raw'
+        self.PORT = 1337
 
         self.logger.info('Starting...')
 
