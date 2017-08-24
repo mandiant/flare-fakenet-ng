@@ -197,6 +197,8 @@ class PacketHandler:
 
 
 class Diverter(DiverterBase, LinUtilMixin):
+
+
     def __init__(self, diverter_config, listeners_config, ip_addrs,
                  logging_level=logging.INFO):
         self.init_base(diverter_config, listeners_config, ip_addrs,
@@ -469,6 +471,21 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.linux_restore_local_dns()
 
         self.linux_restore_iptables()
+
+    def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
+        """Return original destination port, or None if it was not redirected
+        """ 
+        
+        orig_src_key = self.gen_endpoint_key(proto, orig_src_ip, orig_src_port)
+        self.port_fwd_table_lock.acquire()
+        
+        try:
+            if orig_src_key in self.port_fwd_table:
+                return self.port_fwd_table[orig_src_key]
+            else:
+                return None
+        finally:
+            self.port_fwd_table_lock.release()
 
     def handle_nonlocal(self, pkt):
         """Handle comms sent to IP addresses that are not bound to any adapter.

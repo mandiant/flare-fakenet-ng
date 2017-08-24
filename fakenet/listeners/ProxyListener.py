@@ -18,13 +18,19 @@ from listeners import *
 BUF_SZ = 1024
 IP = '0.0.0.0'
 
-sys.path.insert(0, './listeners')
+#sys.path.insert(0, './listeners')
 
 class ProxyListener():
 
 
-    def __init__(self, config={}, name ='ProxyListener', 
-            logging_level=logging.DEBUG, running_listeners=None):
+    def __init__(
+            self, 
+            config={}, 
+            name ='ProxyListener', 
+            logging_level=logging.DEBUG, 
+            running_listeners=None,
+            diverter=None
+            ):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
@@ -33,6 +39,7 @@ class ProxyListener():
         self.name = name
         self.server = None
         self.running_listeners = running_listeners
+        self.diverter = diverter
 
         self.logger.info('Starting...')
 
@@ -70,6 +77,7 @@ class ProxyListener():
         self.server.config = self.config
         self.server.logger = self.logger
         self.server.running_listeners = self.running_listeners
+        self.server.diverter = self.diverter
         self.server_thread = threading.Thread(
                 target=self.server.serve_forever)
         self.server_thread.daemon = True
@@ -125,39 +133,22 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 class ThreadedUDPServer(SocketServer.ThreadingMixIn, SocketServer.UDPServer):
     pass
 
-#def get_top_listener(config, data):
-#    
-#    listener_modules = list()
-#    listener_config = config.get('listeners')
-#    listener_names = listener_config.split(',')
-#    for listener_name in listener_names:
-#        module = importlib.import_module(listener_name.strip())
-#        #TODO: can we check the protocol here?
-#        listener_modules.append(module)
-#    
-#    top_listener = None
-#    top_confidence = 0
-#
-#    for listener_module in listener_modules:
-#        confidence = listener_module.taste(data)
-#        if confidence > top_confidence:
-#            top_confidence = confidence
-#            top_listener = listener_module
-#    return top_listener
-
-def get_top_listener(config, data, listeners):
+def get_top_listener(config, data, listeners, diverter, orig_src_ip, 
+        orig_src_port, proto):
     
     top_listener = None
     top_confidence = 0
+    dport = diverter.getOriginalDestPort(orig_src_ip, orig_src_port, proto)
 
     for listener in listeners:
   
         try:
-            confidence = listener.taste(data)
+            confidence = listener.taste(data, dport)
             if confidence > top_confidence:
                 top_confidence = confidence
                 top_listener = listener
-        except Exception as e:
+        except:
+            # Exception occurs if taste() is not implemented for this listener
             pass
     
     return top_listener
@@ -199,14 +190,17 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         ssl_version=ssl_config['ssl_version'],
                         keyfile=ssl_config['keyfile'] )
             
+            orig_src_ip = self.client_address[0]
+            orig_src_port = self.client_address[1]
             top_listener = get_top_listener(self.server.config, data, 
-                    self.server.running_listeners)
+                    self.server.running_listeners, self.server.diverter, 
+                    orig_src_ip, orig_src_port, 'TCP')
 
             if top_listener:
                 self.server.logger.debug('Likely listener: %s' % 
-                        top_listener.NAME)
+                        top_listener.name)
                 listener_sock = ThreadedClientSocket('localhost', 
-                        top_listener.PORT, listener_q, remote_q, 
+                        top_listener.port, listener_q, remote_q, 
                         self.server.config, self.server.logger)
                 listener_sock.setDaemon(True)
                 listener_sock.start()
@@ -254,23 +248,25 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             self.server.logger.debug('Packet data\n%s' % hexdump.hexdump(data, 
                 result='return'))
 
+            orig_src_ip = self.client_address[0]
+            orig_src_port = self.client_address[1]
             top_listener = get_top_listener(self.server.config, data, 
-                    self.server.running_listeners)
+                    self.server.running_listeners, self.server.diverter, 
+                    orig_src_ip, orig_src_port, 'UDP')
 
             if top_listener:
                 self.server.logger.debug('Likely listener: %s' % 
-                        top_listener.NAME)
+                        top_listener.name)
 
                 listener_sock = socket.socket(socket.AF_INET, 
                         socket.SOCK_DGRAM)
                 try:
-                    listener_sock.sendto(data, ('localhost', top_listener.PORT))
+                    listener_sock.sendto(data, ('localhost', top_listener.port))
                     listener_sock.recv(BUF_SZ)
                     remote_sock.sendto(data, self.client_address)
-                except Exception as e:
-                    self.server.logger.error(
-                        'Error communicating with listener %s' % e)
-        
+                except:
+                    pass
+
         else:
             self.server.logger.debug('No packet data')
 

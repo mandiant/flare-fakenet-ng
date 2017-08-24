@@ -192,7 +192,7 @@ class Fakenet():
                         listener_config['proxy'] == 'True'):
                     listener_provider_instance = listener_provider(
                             listener_config, listener_name, self.logging_level, 
-                            self.running_listener_providers)
+                            self.running_listener_providers, self.diverter)
                 else:
                     listener_provider_instance = listener_provider(
                             listener_config, listener_name, self.logging_level)

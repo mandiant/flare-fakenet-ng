@@ -14,11 +14,20 @@ SRV_WELCOME = "Welcome to FakeNet."
 
 class IRCListener():
 
-    def taste(self, data):
-        return 0
+    def taste(self, data, dport):
 
-    def __init__(self, config, name='IRCListener', logging_level=logging.INFO, 
-            running_listeners=None):
+        ports = [194, 6667, range(6660, 7001)]
+        confidence = 1 if dport in ports else 0
+        return confidence
+
+    def __init__(self, 
+            config, 
+            name='IRCListener', 
+            logging_level=logging.INFO, 
+            running_listeners=None,
+            diverter=None
+            ):
+
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
 
@@ -27,8 +36,8 @@ class IRCListener():
         self.local_ip = '0.0.0.0'
         self.server = None
         self.running_listeners = running_listeners
-        self.NAME = 'IRC'
-        self.PORT = None
+        self.name = 'IRC'
+        self.port = None
 
         self.logger.info('Starting...')
 
