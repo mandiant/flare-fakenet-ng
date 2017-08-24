@@ -24,8 +24,6 @@ class IRCListener():
             config, 
             name='IRCListener', 
             logging_level=logging.INFO, 
-            running_listeners=None,
-            diverter=None
             ):
 
         self.logger = logging.getLogger(name)
@@ -35,7 +33,6 @@ class IRCListener():
         self.name = name
         self.local_ip = '0.0.0.0'
         self.server = None
-        self.running_listeners = running_listeners
         self.name = 'IRC'
         self.port = None
 

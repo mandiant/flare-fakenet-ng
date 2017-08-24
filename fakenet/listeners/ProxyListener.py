@@ -18,8 +18,6 @@ from listeners import *
 BUF_SZ = 1024
 IP = '0.0.0.0'
 
-#sys.path.insert(0, './listeners')
-
 class ProxyListener():
 
 
@@ -28,8 +26,6 @@ class ProxyListener():
             config={}, 
             name ='ProxyListener', 
             logging_level=logging.DEBUG, 
-            running_listeners=None,
-            diverter=None
             ):
 
         self.logger = logging.getLogger(name)
@@ -38,8 +34,6 @@ class ProxyListener():
         self.config = config
         self.name = name
         self.server = None
-        self.running_listeners = running_listeners
-        self.diverter = diverter
 
         self.logger.info('Starting...')
 
@@ -76,8 +70,8 @@ class ProxyListener():
    
         self.server.config = self.config
         self.server.logger = self.logger
-        self.server.running_listeners = self.running_listeners
-        self.server.diverter = self.diverter
+        self.server.running_listeners = None
+        self.server.diverter = None
         self.server_thread = threading.Thread(
                 target=self.server.serve_forever)
         self.server_thread.daemon = True
@@ -91,8 +85,13 @@ class ProxyListener():
         if self.server:
             self.server.shutdown()
             self.server.server_close()
-        
 
+    def acceptListeners(self, listeners):
+        self.server.listeners = listeners
+
+    def acceptDiverter(self, diverter):
+        self.server.diverter = diverter
+        
 class ThreadedClientSocket(threading.Thread):
 
 
@@ -136,6 +135,7 @@ class ThreadedUDPServer(SocketServer.ThreadingMixIn, SocketServer.UDPServer):
 def get_top_listener(config, data, listeners, diverter, orig_src_ip, 
         orig_src_port, proto):
     
+
     top_listener = None
     top_confidence = 0
     dport = diverter.getOriginalDestPort(orig_src_ip, orig_src_port, proto)
@@ -192,8 +192,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
+
             top_listener = get_top_listener(self.server.config, data, 
-                    self.server.running_listeners, self.server.diverter, 
+                    self.server.listeners, self.server.diverter, 
                     orig_src_ip, orig_src_port, 'TCP')
 
             if top_listener:
@@ -250,8 +251,9 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
+
             top_listener = get_top_listener(self.server.config, data, 
-                    self.server.running_listeners, self.server.diverter, 
+                    self.server.listeners, self.server.diverter, 
                     orig_src_ip, orig_src_port, 'UDP')
 
             if top_listener:
