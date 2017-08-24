@@ -1,4 +1,4 @@
-`#!/usr/bin/env python
+#!/usr/bin/env python
 #
 # FakeNet-NG is a next generation dynamic network analysis tool for malware
 # analysts and penetration testers.
