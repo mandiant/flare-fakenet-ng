@@ -41,9 +41,7 @@ class HTTPListener():
         for method in request_methods:
             if data.lstrip().startswith(method):
                 confidence += 2
-
-        if ssl_detector.looks_like_ssl(data):
-            confidence += 1
+                continue
 
         return confidence
 

@@ -141,11 +141,9 @@ def get_top_listener(config, data, listeners, diverter, orig_src_ip,
     dport = diverter.getOriginalDestPort(orig_src_ip, orig_src_port, proto)
 
     for listener in listeners:
-        print 'listener', listener
   
         try:
             confidence = listener.taste(data, dport)
-            print 'confidence', confidence
             if confidence > top_confidence:
                 top_confidence = confidence
                 top_listener = listener

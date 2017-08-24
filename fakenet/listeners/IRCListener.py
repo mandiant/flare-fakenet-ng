@@ -16,8 +16,38 @@ class IRCListener():
 
     def taste(self, data, dport):
 
-        ports = [194, 6667, range(6660, 7001)]
+        # note that 'CAP' is likely to be the first command as the client
+        # attempts to determine the capabilities of the server. This list 
+        # could likely be reduced to that single command. However, all 
+        # commands are included to account for unanticipated malware behavior
+        commands = [ 
+            'ADMIN', 'AWAY', 'CAP', 'CNOTICE', 'CPRIVMSG', 'CONNECT', 'DIE', 
+            'ENCAP', 'ERROR', 'HELP', 'INFO', 'INVITE', 'ISON', 'JOIN', 'KICK', 
+            'KILL', 'KNOCK', 'LINKS', 'LIST', 'LUSERS', 'MODE', 'MOTD', 
+            'NAMES', 'NAMESX', 'NICK', 'NOTICE', 'OPER', 'PART', 'PASS', 
+            'PING', 'PONG', 'PRIVMSG', 'QUIT', 'REHASH', 'RESTART', 'RULES', 
+            'SERVER', 'SERVICE', 'SERVLIST', 'SQUERY', 'SQUIT', 'SETNAME', 
+            'SILENCE', 'STATS', 'SUMMON', 'TIME', 'TOPIC', 'TRACE', 'UHNAMES', 
+            'USER', 'USERHOST', 'USERIP', 'USERS', 'VERSION', 'WALLOPS', 
+            'WATCH', 'WHO', 'WHOIS', 'WHOWAS' 
+            ]
+
+        # ubuntu xchat uses 8001
+        ports = [194, 6667, range(6660, 7001), 8001]
+        
         confidence = 1 if dport in ports else 0
+        
+        data = data.lstrip()
+
+        # remove optional prefix
+        if data.startswith(':'):
+            data = data.split(' ')[0]
+
+        for command in commands:
+            if data.startswith(command):
+                confidence += 2
+                continue
+
         return confidence
 
     def __init__(self, 
@@ -34,7 +64,7 @@ class IRCListener():
         self.local_ip = '0.0.0.0'
         self.server = None
         self.name = 'IRC'
-        self.port = None
+        self.port = 194
 
         self.logger.info('Starting...')
 
