@@ -141,9 +141,11 @@ def get_top_listener(config, data, listeners, diverter, orig_src_ip,
     dport = diverter.getOriginalDestPort(orig_src_ip, orig_src_port, proto)
 
     for listener in listeners:
+        print 'listener', listener
   
         try:
             confidence = listener.taste(data, dport)
+            print 'confidence', confidence
             if confidence > top_confidence:
                 top_confidence = confidence
                 top_listener = listener
@@ -189,6 +191,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         certfile=ssl_config['certfile'], 
                         ssl_version=ssl_config['ssl_version'],
                         keyfile=ssl_config['keyfile'] )
+                data = ssl_remote_sock.recv(BUF_SZ)
             
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
@@ -206,8 +209,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 listener_sock.setDaemon(True)
                 listener_sock.start()
                 remote_sock.setblocking(0)
+
+                # ssl has no 'peek' option, so we need to process the first 
+                # packet that is already consumed from the socket
                 if ssl_remote_sock:
                     ssl_remote_sock.setblocking(0)
+                    remote_q.put(data)
+                
                 while True:
                     readable, writable, exceptional = select.select(
                             [remote_sock], [], [], .001)
