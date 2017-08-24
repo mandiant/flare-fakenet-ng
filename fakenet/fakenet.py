@@ -184,18 +184,9 @@ class Fakenet():
                 self.logger.error("%s" % e)
 
             else:
-                # Listener provider object
-                #listener_provider_instance = listener_provider(listener_config, listener_name, self.logging_level, self.running_listener_providers)
-                
-                # Only pass the listeners to the proxy
-                if ('proxy' in listener_config and 
-                        listener_config['proxy'] == 'True'):
-                    listener_provider_instance = listener_provider(
-                            listener_config, listener_name, self.logging_level, 
-                            self.running_listener_providers, self.diverter)
-                else:
-                    listener_provider_instance = listener_provider(
-                            listener_config, listener_name, self.logging_level)
+
+                listener_provider_instance = listener_provider(
+                        listener_config, listener_name, self.logging_level)
 
                 # Store listener provider object
                 self.running_listener_providers.append(listener_provider_instance)
@@ -209,6 +200,24 @@ class Fakenet():
         # Start the diverter
         if self.diverter:
             self.diverter.start()
+
+        for listener in self.running_listener_providers:
+
+            # Only listeners that implement acceptListeners(listeners) 
+            # interface receive running_listener_providers
+            try:
+                #if callable(getattr(listener_provider, 'acceptListeners')):
+                listener.acceptListeners(self.running_listener_providers)
+            except:
+                pass
+
+            # Only listeners that implement acceptDiverter(diverter) 
+            # interface receive diverter
+            try:
+            #if callable(getattr(listener_provider, 'acceptDiverter')):
+                listener.acceptDiverter(self.diverter)
+            except Exception as e:
+                pass
 
     def stop(self):
 

@@ -21,8 +21,6 @@ class SMTPListener():
             config, 
             name='SMTPListener', 
             logging_level=logging.INFO,
-            running_listeners=None,
-            diverter=None
             ):
 
         self.logger = logging.getLogger(name)
@@ -32,7 +30,6 @@ class SMTPListener():
         self.name = name
         self.local_ip = '0.0.0.0'
         self.server = None
-        self.running_listeners = running_listeners
         self.name = 'SMTP'
         self.port = 587
 

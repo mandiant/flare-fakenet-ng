@@ -40,10 +40,10 @@ class HTTPListener():
 
         for method in request_methods:
             if data.lstrip().startswith(method):
-                return confidence + 2 
+                confidence += 2
 
         if ssl_detector.looks_like_ssl(data):
-            return confidence + 2
+            confidence += 1
 
         return confidence
 
@@ -59,8 +59,7 @@ class HTTPListener():
             config={}, 
             name='HTTPListener', 
             logging_level=logging.DEBUG, 
-            running_listeners=None, 
-            diverter=None):
+            ):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
@@ -69,8 +68,6 @@ class HTTPListener():
         self.name = name
         self.local_ip  = '0.0.0.0'
         self.server = None
-        self.running_listeners = running_listeners
-        self.diverter = diverter
         self.name = 'HTTP'
         self.port = '80'
 

@@ -30,8 +30,6 @@ class POPListener():
             config, 
             name='POPListener', 
             logging_level=logging.INFO, 
-            running_listeners=None,
-            diverter=None
             ):
 
         self.logger = logging.getLogger(name)
@@ -41,7 +39,6 @@ class POPListener():
         self.name = name
         self.local_ip = '0.0.0.0'
         self.server = None
-        self.running_listeners = running_listeners
         self.name = 'POP'
         self.port = 110
 

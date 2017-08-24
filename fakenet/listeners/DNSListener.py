@@ -29,8 +29,6 @@ class DNSListener():
             config={}, 
             name='DNSListener', 
             logging_level=logging.INFO, 
-            running_listeners=None,
-            diverter=None
             ):
 
         self.logger = logging.getLogger(name)
@@ -39,8 +37,6 @@ class DNSListener():
         self.config = config
         self.local_ip = '0.0.0.0'
         self.server = None
-        self.running_listeners = running_listeners
-        self.diverter = diverter
         self.name = 'DNS'
         self.port = 53
 

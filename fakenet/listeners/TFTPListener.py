@@ -39,8 +39,6 @@ class TFTPListener():
             config, 
             name='TFTPListener', 
             logging_level=logging.INFO, 
-            running_listeners=None,
-            diverter=None
             ):
 
         self.logger = logging.getLogger(name)
@@ -50,7 +48,6 @@ class TFTPListener():
         self.name = name
         self.local_ip = '0.0.0.0'
         self.server = None
-        self.running_listeners = running_listeners
         self.name = 'TFTP'
         self.port = 69
 
