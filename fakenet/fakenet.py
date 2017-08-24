@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+`#!/usr/bin/env python
 #
 # FakeNet-NG is a next generation dynamic network analysis tool for malware
 # analysts and penetration testers.
@@ -205,7 +205,6 @@ class Fakenet():
                 except Exception, e:
                     self.logger.error('Error starting %s listener:', listener_config['listener'])
                     self.logger.error(" %s" % e)
-
 
         # Start the diverter
         if self.diverter:

@@ -211,6 +211,15 @@ class Diverter(WinUtilMixin):
                 self.logger.info('Capturing traffic to %s', pcap_filename)
                 self.pcap = dpkt.pcap.Writer(open(pcap_filename, 'wb'), linktype=dpkt.pcap.DLT_RAW)
 
+    def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
+        """Return original destination port, or None if it was not redirected
+        """ 
+        
+        if orig_src_port in self.sessions:
+            return self.sessions[orig_src_port]
+        else:
+            return None
+    
     ###########################################################################
     # Parse listener specific settings and filters
 
