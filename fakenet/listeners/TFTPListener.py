@@ -49,7 +49,7 @@ class TFTPListener():
         self.local_ip = '0.0.0.0'
         self.server = None
         self.name = 'TFTP'
-        self.port = 69
+        self.port = self.config['port'] if 'port' in self.config else 69
 
         self.logger.info('Starting...')
 

@@ -29,7 +29,7 @@ class RawListener():
         self.local_ip = '0.0.0.0'
         self.server = None
         self.name = 'Raw'
-        self.port = 1337
+        self.port = self.config['port'] if 'port' in self.config else 1337
 
         self.logger.info('Starting...')
 

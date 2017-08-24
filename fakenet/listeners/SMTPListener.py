@@ -31,7 +31,7 @@ class SMTPListener():
         self.local_ip = '0.0.0.0'
         self.server = None
         self.name = 'SMTP'
-        self.port = 587
+        self.port = self.config['port'] if 'port' in self.config else 587
 
         self.logger.info('Starting...')
 

@@ -64,7 +64,9 @@ class IRCListener():
         self.local_ip = '0.0.0.0'
         self.server = None
         self.name = 'IRC'
-        self.port = 194
+        
+        self.port = self.config['port'] if 'port' in self.config else 6667
+        self.logger.debug('PORT: %s', self.port)
 
         self.logger.info('Starting...')
 
