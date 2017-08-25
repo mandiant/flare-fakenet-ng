@@ -23,7 +23,17 @@ Bob\r\n"""
 class POPListener():
 
     def taste(self, data, dport):
+
+        commands = [ 'QUIT', 'STAT', 'LIST', 'RETR', 'DELE', 'NOOP', 'RSET', 
+                'TOP', 'UIDL', 'USER', 'PASS', 'APOP' ]
+
         confidence = 1 if dport == 110 else 0
+
+        data = data.lstrip()
+        for command in commands:
+            if data.startswith(command):
+                confidence += 2
+
         return confidence
 
     def __init__(self, 

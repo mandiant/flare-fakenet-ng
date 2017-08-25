@@ -12,8 +12,19 @@ import socket
 class SMTPListener():
 
     def taste(self, data, dport):
+
+        commands = ['HELO', 'EHLO', 'MAIL FROM', 'RCPT TO', 'TURN', 'ATRN', 
+                'SIZE', 'ETRN', 'PIPELINING', 'CHUNKING', 'DATA', 'DSN', 
+                'RSET', 'VRFY', 'HELP', 'QUIT', 'X-EXPS GSSAPI', 
+                'X-EXPS=LOGIN', 'X-EXCH50', 'X-LINK2STATE']
         ports = [25, 587, 465]
         confidence = 1 if dport in ports else 0
+
+        for command in commands:
+            if data.lstrip().startswith(command):
+                confidence += 2
+                continue
+
         return confidence
 
     def __init__(
@@ -31,7 +42,7 @@ class SMTPListener():
         self.local_ip = '0.0.0.0'
         self.server = None
         self.name = 'SMTP'
-        self.port = self.config['port'] if 'port' in self.config else 587
+        self.port = self.config['port'] if 'port' in self.config else 25
 
         self.logger.info('Starting...')
 
