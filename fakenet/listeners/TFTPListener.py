@@ -30,6 +30,7 @@ BLOCKSIZE = 512
 
 class TFTPListener():
 
+
     def taste(self, data, dport):
 
         max_filename_size = 128
@@ -58,7 +59,6 @@ class TFTPListener():
         elif data.lstrip().startswith(OPCODE_ERROR):
             if len(data) >= min_error_size and len(data) <= max_error_size:
                 confidence += 2
-
 
         return confidence
 
