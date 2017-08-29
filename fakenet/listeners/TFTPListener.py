@@ -31,8 +31,35 @@ BLOCKSIZE = 512
 class TFTPListener():
 
     def taste(self, data, dport):
-        
+
+        max_filename_size = 128
+        max_mode_size = len('netascii')
+        max_rrq_wrq_len = max_filename_size + max_mode_size + 4
+        min_rrq_wrq_len = 6
+        min_data_size = 5
+        max_data_size = BLOCKSIZE + 4
+        ack_size = 4
+        min_error_size = 5 + 1 
+        max_error_msg_size = 128
+        max_error_size = 5 + max_error_msg_size
+
         confidence = 1 if dport == 69 else 0
+
+        if (data.lstrip().startswith(OPCODE_RRQ) or 
+                data.lstrip().startswith(OPCODE_WRQ)):
+            if len(data) >= min_rrq_wrq_len and len(data) <= max_rrq_wrq_len:
+                confidence += 2
+        elif data.lstrip().startswith(OPCODE_DATA):
+            if len(data) >= min_data_size and len(data) <= max_data_size:
+                confidence += 2
+        elif data.lstrip().startswith(OPCODE_ACK):
+            if len(data) == ack_size:
+                confidence += 2
+        elif data.lstrip().startswith(OPCODE_ERROR):
+            if len(data) >= min_error_size and len(data) <= max_error_size:
+                confidence += 2
+
+
         return confidence
 
     def __init__(self, 
@@ -79,6 +106,7 @@ class TFTPListener():
 class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
     def handle(self):
+        self.server.logger.info('Handling request')
 
         try:
             (data,socket) = self.request

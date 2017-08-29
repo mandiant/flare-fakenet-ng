@@ -16,10 +16,8 @@ class IRCListener():
 
     def taste(self, data, dport):
 
-        # note that 'CAP' is likely to be the first command as the client
-        # attempts to determine the capabilities of the server. This list 
-        # could likely be reduced to that single command. However, all 
-        # commands are included to account for unanticipated malware behavior
+        # All possible commands are included to account for unanticipated 
+        # malware behavior
         commands = [ 
             'ADMIN', 'AWAY', 'CAP', 'CNOTICE', 'CPRIVMSG', 'CONNECT', 'DIE', 
             'ENCAP', 'ERROR', 'HELP', 'INFO', 'INVITE', 'ISON', 'JOIN', 'KICK', 

@@ -92,12 +92,12 @@ class ProxyListener():
     def acceptDiverter(self, diverter):
         self.server.diverter = diverter
         
-class ThreadedClientSocket(threading.Thread):
+class ThreadedTCPClientSocket(threading.Thread):
 
 
     def __init__(self, ip, port, listener_q, remote_q, config, log):
 
-        super(ThreadedClientSocket, self).__init__()
+        super(ThreadedTCPClientSocket, self).__init__()
         self.ip = ip
         self.port = int(port)
         self.listener_q = listener_q
@@ -116,6 +116,42 @@ class ThreadedClientSocket(threading.Thread):
                 if not self.remote_q.empty():
                     data = self.remote_q.get()
                     self.sock.send(data)
+                if readable:
+                    data = self.sock.recv(BUF_SZ)
+                    if data:
+                        self.listener_q.put(data)
+                    else:
+                        self.sock.close()
+                        exit(1)
+        except Exception as e:
+            self.logger.debug('Listener socket exception %s' % e.message)
+
+        
+class ThreadedUDPClientSocket(threading.Thread):
+
+
+    def __init__(self, ip, port, listener_q, remote_q, config, log):
+
+        super(ThreadedUDPClientSocket, self).__init__()
+        #listener port, ip
+        self.ip = ip
+        self.port = int(port)
+        self.listener_q = listener_q
+        self.remote_q = remote_q
+        self.config = config
+        self.logger = log
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    def run(self):
+
+        try:
+            self.sock.bind((self.ip, self.port))
+            while True:
+                readable, writable, exceptional = select.select([self.sock], 
+                        [], [], .001)
+                if not self.remote_q.empty():
+                    data = self.remote_q.get()
+                    self.sock.sendto(data, (ip, port))
                 if readable:
                     data = self.sock.recv(BUF_SZ)
                     if data:
@@ -201,7 +237,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             if top_listener:
                 self.server.logger.debug('Likely listener: %s' % 
                         top_listener.name)
-                listener_sock = ThreadedClientSocket('localhost', 
+                listener_sock = ThreadedTCPClientSocket('localhost', 
                         top_listener.port, listener_q, remote_q, 
                         self.server.config, self.server.logger)
                 listener_sock.setDaemon(True)
@@ -265,15 +301,34 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             if top_listener:
                 self.server.logger.debug('Likely listener: %s' % 
                         top_listener.name)
+                listener_sock = ThreadedUDPClientSocket('localhost', 
+                        top_listener.port, listener_q, remote_q, 
+                        self.server.config, self.server.logger)
+                listener_sock.setDaemon(True)
+                listener_sock.start()
+                remote_sock.setblocking(0)
 
-                listener_sock = socket.socket(socket.AF_INET, 
-                        socket.SOCK_DGRAM)
-                try:
-                    listener_sock.sendto(data, ('localhost', top_listener.port))
-                    listener_sock.recv(BUF_SZ)
-                    remote_sock.sendto(data, self.client_address)
-                except:
-                    pass
+                # no peek option so process the data already recd
+                remote_q.put(data)
+
+                while True:
+                    readable, writable, exceptional = select.select(
+                            [remote_sock], [], [], .001)
+                    if readable:
+                        try:
+                            data = remote_sock.recv(BUF_SZ)
+                            if data:
+                                remote_q.put(data)
+                            else:
+                                self.server.logger.debug(
+                                        'Closing remote socket connection')
+                                return
+                        except Exception as e:
+                            self.server.logger.debug('Remote Connection terminated')
+                            return
+                    if not listener_q.empty():
+                        data = listener_q.get()
+                        remote_sock.send(data)
 
         else:
             self.server.logger.debug('No packet data')
