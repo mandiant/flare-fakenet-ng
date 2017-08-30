@@ -162,9 +162,7 @@ class ThreadedUDPClientSocket(threading.Thread):
             # client so the listener knows which stream it belongs to.
             connection_exists = False
             skey = self.gen_endpoint_key(self.orig_src_ip, self.orig_src_port)
-            self.logger.debug('UDP client sock from %s' % skey)
             if skey in self.fwd_table:
-                self.logger.debug('fwd_table[%s] = %s' % (skey, self.fwd_table[skey]))
                 connection_exists = True
                 self.port = self.fwd_table[skey]
             
@@ -179,21 +177,13 @@ class ThreadedUDPClientSocket(threading.Thread):
                 readable, writable, exceptional = select.select([self.sock], 
                         [], [], .001)
                 if not self.remote_q.empty():
-                    #self.logger.debug('pulling from remote q')
                     data = self.remote_q.get()
-                    #self.logger.debug('pulled from remote q. sending to listener')
                     self.sock.sendto(data, ('localhost', self.listener_port))
-                    #self.logger.debug('sent to listener')
                 if readable:
-                    #self.logger.debug('recving from listener sock')
                     data = self.sock.recv(BUF_SZ)
-                    #self.logger.debug('recvd from listener sock')
                     if data:
-                        #self.logger.debug('putting on listener q')
                         self.listener_q.put(data)
-                        #self.logger.debug('put on listener q')
                     else:
-                        #self.logger.debug('received from listener sock with no data')
                         self.sock.close()
                         exit(1)
         except Exception as e:
@@ -359,29 +349,18 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
                         readable, writable, exceptional = select.select(
                                 [remote_sock], [], [], .001)
                         if readable:
-                            #self.server.logger.debug('recving from client')
                             data = remote_sock.recv(BUF_SZ)
-                            #self.server.logger.debug('recvd from client')
                             if data:
-                                #self.server.logger.debug('putting on remote q')
                                 remote_q.put(data)
-                                #self.server.logger.debug('put on remote q')
                             else:
-                                #self.server.logger.debug('recv no data from client')
                                 self.server.logger.debug(
                                         'Closing remote socket connection')
                                 return
                         if not listener_q.empty():
-                            #self.server.logger.debug('getting from listener q')
                             data = listener_q.get()
-                            #self.server.logger.debug('got from listener q')
                             remote_sock.sendto(data, (orig_src_ip, int(orig_src_port)))
-                            #self.server.logger.debug('send to client sock')
                 except Exception as e:
-                    #self.server.logger.debug('exception in req handler %s' % e)
                     pass
-                    #self.server.logger.debug('UDP listener thread terminated')
-                    #return
 
         else:
             self.server.logger.debug('No packet data')

@@ -22,6 +22,10 @@ Bob\r\n"""
 
 class POPListener():
 
+    # Once the TCP connection has been established, the POP server initiates 
+    # the conversation with +OK message. However, if the client connects
+    # to a port that is not 110, there is no way for the proxy to know that
+    # POP is the protocol until the client sends a message.
     def taste(self, data, dport):
 
         commands = [ 'QUIT', 'STAT', 'LIST', 'RETR', 'DELE', 'NOOP', 'RSET', 
