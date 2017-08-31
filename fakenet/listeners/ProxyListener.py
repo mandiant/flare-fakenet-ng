@@ -256,7 +256,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
-
+            
             top_listener = get_top_listener(self.server.config, data, 
                     self.server.listeners, self.server.diverter, 
                     orig_src_ip, orig_src_port, 'TCP')
