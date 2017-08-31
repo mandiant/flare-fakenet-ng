@@ -13,6 +13,10 @@ class SMTPListener():
 
     def taste(self, data, dport):
 
+        # Once the TCP connection has been established, the server initiates 
+        # the conversation with '220' message. However, if the client connects
+        # to a nonstandard port there is no way for the proxy to know that
+        # SMTP is the protocol until the client sends a message.
         commands = ['HELO', 'EHLO', 'MAIL FROM', 'RCPT TO', 'TURN', 'ATRN', 
                 'SIZE', 'ETRN', 'PIPELINING', 'CHUNKING', 'DATA', 'DSN', 
                 'RSET', 'VRFY', 'HELP', 'QUIT', 'X-EXPS GSSAPI', 
@@ -83,6 +87,10 @@ class SMTPListener():
         self.server_thread.daemon = True
         self.server_thread.start()
 
+    # Once the TCP connection has been established, the POP server initiates 
+    # the conversation with +OK message. However, if the client connects
+    # to a port that is not 110, there is no way for the proxy to know that
+    # POP is the protocol until the client sends a message.
     def stop(self):
         self.logger.info('Stopping...')
         if self.server:
