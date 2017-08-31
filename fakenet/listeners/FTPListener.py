@@ -14,6 +14,8 @@ from pyftpdlib.handlers import FTPHandler, TLS_FTPHandler
 from pyftpdlib.filesystems import AbstractedFS
 from pyftpdlib.servers import ThreadedFTPServer
 
+import BannerFactory
+
 FAKEUSER = 'FAKEUSER'
 FAKEPWD  = 'FAKEPWD'
 
@@ -26,6 +28,121 @@ EXT_FILE_RESPONSE = {
     '.pdf' : u'FakeNet.pdf',
     '.xml' : u'FakeNet.html',
     '.txt' : u'FakeNet.txt',
+}
+
+# Adapted from various sources including https://github.com/turbo/openftp4
+BANNERS = {
+    'generic': '{servername} FTP Server',
+    'ncftpd': '{servername} NcFTPD Server (licensed copy) ready.',
+    'unspec1': lambda hostname: 'FTP server ready',
+    'unspec2': lambda hostname: 'FTP server ready %s',
+    'iis': lambda hostname: '%s Microsoft FTP Service',
+    'iis': lambda hostname: '%s Microsoft FTP Service',
+    'iis-3.0': lambda hostname: '%s Microsoft FTP Service (Version 3.0)',
+    'iis-4.0': lambda hostname: '%s Microsoft FTP Service (Version 4.0)',
+    'iis-5.0': lambda hostname: '%s Microsoft FTP Service (Version 5.0)',
+    'iis-6.0': lambda hostname: '%s Microsoft FTP Service (Version 6.0)',
+    'vs-2.0.7': lambda hostname: '(vsFTPd 2.0.7)',
+    'vs-2.1.0': lambda hostname: '(vsFTPd 2.1.0)',
+    'vs-2.1.2': lambda hostname: '(vsFTPd 2.1.2)',
+    'vs-2.1.2': lambda hostname: '(vsFTPd 2.1.2)',
+    'vs-2.2.0': lambda hostname: '(vsFTPd 2.2.0)',
+    'vs-2.2.1': lambda hostname: '(vsFTPd 2.2.1)',
+    'vs-2.2.2': lambda hostname: '(vsFTPd 2.2.2)',
+    'vs-2.3.0': lambda hostname: '(vsFTPd 2.3.0)',
+    'vs-2.3.1': lambda hostname: '(vsFTPd 2.3.1)',
+    'vs-2.3.2': lambda hostname: '(vsFTPd 2.3.2)',
+    'vs-2.3.4': lambda hostname: '(vsFTPd 2.3.4)',
+    'vs-2.3.5': lambda hostname: '(vsFTPd 2.3.5)',
+
+    'wu-2.4(1)': '{servername} (Version wu-2.4(1) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.4(2)': '{servername} (Version wu-2.4(2) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.4(20)': '{servername} (Version wu-2.4(20) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.4.2-academ(1)': '{servername} (Version wu-2.4.2-academ (1) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.4.2-academ[BETA-15](1)': '{servername} (Version wu-2.4.2-academ[BETA-15](1) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.4.2-academ[BETA-16](1)': '{servername} (Version wu-2.4.2-academ[BETA-16](1) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.4.2-academ[BETA-18](1)': '{servername} (Version wu-2.4.2-academ[BETA-18](1) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.4.2-academ[BETA-9](1)': '{servername} (Version wu-2.4.2-academ[BETA-9](1) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.4.2-VR16(1)': '{servername} (Version wu-2.4.2-VR16(1) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.4.2-VR17(1)': '{servername} (Version wu-2.4.2-VR17(1) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.4(3)': '{servername} (Version wu-2.4(3) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.4(4)': '{servername} (Version wu-2.4(4) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.4(6)': '{servername} (Version wu-2.4(6) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.5.0(1)': '{servername} (Version wu-2.5.0(1) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.0(1)': '{servername} (Version wu-2.6.0(1) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.0(2)': '{servername} (Version wu-2.6.0(2) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.0(4)': '{servername} (Version wu-2.6.0(4) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.0(5)': '{servername} (Version wu-2.6.0(5) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.0(7)': '{servername} (Version wu-2.6.0(7) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1-0.6x.21': '{servername} (Version wu-2.6.1-0.6x.21 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1(1)': '{servername} (Version wu-2.6.1(1) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1(12)': '{servername} (Version wu-2.6.1(12) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1-16': '{servername} (Version wu-2.6.1-16 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1-16.7x.1': '{servername} (Version wu-2.6.1-16.7x.1 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1-18': '{servername} (Version wu-2.6.1-18 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1(2)': '{servername} (Version wu-2.6.1(2) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1-20': '{servername} (Version wu-2.6.1-20 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1-21': '{servername} (Version wu-2.6.1-21 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1-23.2': '{servername} (Version wu-2.6.1-23.2 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1-24': '{servername} (Version wu-2.6.1-24 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1-24.1': '{servername} (Version wu-2.6.1-24.1 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.1(3)': '{servername} (Version wu-2.6.1(3) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2(1)': '{servername} (Version wu-2.6.2(1) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2(11)': '{servername} (Version wu-2.6.2(11) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2-11.1204.1ubuntu': '{servername} (Version wu-2.6.2-11.1204.1ubuntu %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2-11.71.1': '{servername} (Version wu-2.6.2-11.71.1 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2-11.72.1': '{servername} (Version wu-2.6.2-11.72.1 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2-11.73.1': '{servername} (Version wu-2.6.2-11.73.1 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2-11.73.1mdk': '{servername} (Version wu-2.6.2-11.73.1mdk %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2-12': '{servername} (Version wu-2.6.2-12 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2-12.1.co5.PROX': '{servername} (Version wu-2.6.2-12.1.co5.PROX %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2-12.rhel2': '{servername} (Version wu-2.6.2-12.rhel2 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2(13)': '{servername} (Version wu-2.6.2(13) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2.1(5)': '{servername} (Version wu-2.6.2.1(5) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2(15)': '{servername} (Version wu-2.6.2(15) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2-15.7x.legacy': '{servername} (Version wu-2.6.2-15.7x.legacy %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2-15.7x.PROX': '{servername} (Version wu-2.6.2-15.7x.PROX %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2(16)': '{servername} (Version wu-2.6.2(16) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2(2)': '{servername} (Version wu-2.6.2(2) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2(3)': '{servername} (Version wu-2.6.2(3) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2(4)': '{servername} (Version wu-2.6.2(4) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2-468': '{servername} (Version wu-2.6.2-468 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2(47)': '{servername} (Version wu-2.6.2(47) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2(48)': '{servername} (Version wu-2.6.2(48) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2-5': '{servername} (Version wu-2.6.2-5 %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2(5)': '{servername} (Version wu-2.6.2(5) %a %b %d %H:%M:%S {tz} %Y) ready.',
+    'wu-2.6.2(52)': '{servername} (Version wu-2.6.2(52) %a %b %d %H:%M:%S {tz} %Y) ready.',
+
+    'ws_ftp-2.0.4': '{servername} V2 WS_FTP Server 2.0.4 (0)',
+    'ws_ftp-3.1.3': '{servername} V2 WS_FTP Server 3.1.3 (0)',
+    'ws_ftp-5.0.5': '{servername} V2 WS_FTP Server 5.0.5 (0)',
+    'ws_ftp-7.5.1': '{servername} V2 WS_FTP Server 7.5.1(0)',
+    'ws_ftp-7.7': '{servername} V2 WS_FTP Server 7.7(0)',
+    'ws_ftp-1.0.3 ': '{servername} X2 WS_FTP Server 1.0.3 (0)',
+    'ws_ftp-1.0.5 ': '{servername} X2 WS_FTP Server 1.0.5 (0)',
+    'ws_ftp-2.0.0 ': '{servername} X2 WS_FTP Server 2.0.0 (0)',
+    'ws_ftp-2.0.3 ': '{servername} X2 WS_FTP Server 2.0.3 (0)',
+    'ws_ftp-3.00 ': '{servername} X2 WS_FTP Server 3.00 (0)',
+    'ws_ftp-3.1.3 ': '{servername} X2 WS_FTP Server 3.1.3 (0)',
+    'ws_ftp-4.0.0 ': '{servername} X2 WS_FTP Server 4.0.0 (0)',
+    'ws_ftp-4.0.2 ': '{servername} X2 WS_FTP Server 4.0.2 (0)',
+    'ws_ftp-5.0.0 ': '{servername} X2 WS_FTP Server 5.0.0 (0)',
+    'ws_ftp-5.0.2 ': '{servername} X2 WS_FTP Server 5.0.2 (0)',
+    'ws_ftp-5.0.4 ': '{servername} X2 WS_FTP Server 5.0.4 (0)',
+    'ws_ftp-5.0.5 ': '{servername} X2 WS_FTP Server 5.0.5 (0)',
+    'ws_ftp-6.0': '{servername} X2 WS_FTP Server 6.0(0)',
+    'ws_ftp-6.1': '{servername} X2 WS_FTP Server 6.1(0)',
+    'ws_ftp-6.1.1': '{servername} X2 WS_FTP Server 6.1.1(0)',
+    'ws_ftp-7.0': '{servername} X2 WS_FTP Server 7.0(0)',
+    'ws_ftp-7.1': '{servername} X2 WS_FTP Server 7.1(0)',
+    'ws_ftp-7.5': '{servername} X2 WS_FTP Server 7.5(0)',
+    'ws_ftp-7.5.1': '{servername} X2 WS_FTP Server 7.5.1(0)',
+    'ws_ftp-7.6': '{servername} X2 WS_FTP Server 7.6(0)',
+    'ws_ftp-7.6': '{servername} X2 WS_FTP Server 7.6(0) FIPS',
+    'ws_ftp-7.6.2': '{servername} X2 WS_FTP Server 7.6.2(0)',
+    'ws_ftp-7.6.2-fips': '{servername} X2 WS_FTP Server 7.6.2(0) FIPS',
+    'ws_ftp-7.6.3': '{servername} X2 WS_FTP Server 7.6.3(0)',
+    'ws_ftp-7.7': '{servername} X2 WS_FTP Server 7.7(0)',
 }
 
 class FakeFTPHandler(FTPHandler, object):
@@ -135,11 +252,10 @@ class FTPListener():
         else:
             self.handler = FakeFTPHandler
 
-
+        self.handler.banner = self.genBanner()
 
         self.handler.ftproot_path = self.ftproot_path
         self.handler.abstracted_fs = FakeFS
-
 
         self.handler.authorizer = self.authorizer
         self.handler.passive_ports = self.expand_ports(self.config.get('pasvports', '60000-60010'))
@@ -160,7 +276,9 @@ class FTPListener():
         if self.server:
             self.server.close_all()
 
-
+    def genBanner(self):
+        bannerfactory = BannerFactory.BannerFactory()
+        return bannerfactory.genBanner(self.config, BANNERS)
 
 ###############################################################################
 # Testing code
