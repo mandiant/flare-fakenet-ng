@@ -36,10 +36,18 @@ def looks_like_ssl(data):
     if size < 10:
         return False
 
-    if ord(data[0]) not in content_types.values():
+    # check for sslv2 which is deprecated but malware may use it anyway
+    if ord(data[0]) == 0x80:
+        if ord(data[2]) in handshake_message_types:
+            self.logger.info('SSLv2 detected')
+            return True
+        else:
+            return False
+
+    elif ord(data[0]) not in content_types.values():
         return False
 
-    if ord(data[0]) == content_types['Handshake']:
+    elif ord(data[0]) == content_types['Handshake']:
         if ord(data[5]) not in handshake_message_types.values():
             return False
         else:
@@ -48,11 +56,6 @@ def looks_like_ssl(data):
     ssl_version = ord(data[1]) << 8 | ord(data[2])
     if ssl_version not in valid_versions.values():
         return False
-
-    #check for sslv2. Need more than 1 byte however
-    #if data[0] == 0x80:
-    #    self.logger.info('May have detected SSLv2')
-    #    return hdr_modified
 
     return True
 

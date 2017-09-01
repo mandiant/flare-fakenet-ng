@@ -106,7 +106,6 @@ class TFTPListener():
 class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
     def handle(self):
-        self.server.logger.info('Handling request')
 
         try:
             (data,socket) = self.request

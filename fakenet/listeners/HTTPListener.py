@@ -15,8 +15,6 @@ import mimetypes
 
 import time
 
-from ssl_utils import ssl_detector
-
 
 MIME_FILE_RESPONSE = {
     'text/html':    'FakeNet.html',

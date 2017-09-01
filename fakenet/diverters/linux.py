@@ -846,8 +846,6 @@ class Diverter(DiverterBase, LinUtilMixin):
         # redirect it to a bound port and save the old destination IP in
         # the port forwarding table keyed by the source endpoint identity.
 
-        #self.pdebug(DDPFV, 'Condition 2 test')
-
         elif self.decide_redir_port(ipver, proto_name, default, bound_ports,
                                   src_ip, sport, dst_ip, dport):
             self.pdebug(DDPFV, 'Condition 2 satisfied')
