@@ -9,8 +9,23 @@ import SocketServer
 import ssl
 import socket
 
+import BannerFactory
+
 RPL_WELCOME = '001'
 SRV_WELCOME = "Welcome to FakeNet."
+
+BANNERS = {
+    'generic': 'Welcome to IRC - {servername} - %a %b %d %H:%M:%S {tz} %Y',
+    'debian-ircd-irc2': (
+        '17/10/2011 11:50\n' +
+        '                         [ Debian GNU/Linux ]\n' +
+        '|------------------------------------------------------------------------|\n' +
+        '| This is Debian\'s default IRCd server configuration for irc2.11. If you |\n' +
+        '| see this and if you are the server administrator, just edit ircd.conf  |\n' +
+        '| and ircd.motd in /etc/ircd.                                            |\n' +
+        '|                                     Martin Loschwitz, 1st January 2005 |\n' +
+        '|------------------------------------------------------------------------|\n')
+}
 
 class IRCListener():
 
@@ -77,6 +92,8 @@ class IRCListener():
 
         self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
 
+        self.banner = self.genBanner()
+        self.server.listener = self
         self.server.logger = self.logger
         self.server.config = self.config
         self.server.servername = self.config.get('servername', 'localhost')
@@ -90,6 +107,10 @@ class IRCListener():
         if self.server:
             self.server.shutdown()
             self.server.server_close()
+
+    def genBanner(self):
+        bannerfactory = BannerFactory.BannerFactory()
+        return bannerfactory.genBanner(self.config, BANNERS)
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
@@ -140,7 +161,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         self.nick = params
 
-        self.irc_send_server("001", "%s :Welcome to FakeNet Internet Relay Chat Network." % self.nick)
+        banner = self.server.listener.banner
+
+        self.irc_send_server("001", "%s :%s" % (self.nick, banner))
         self.irc_send_server("376", "%s :End of /MOTD command." % self.nick)
 
     def irc_USER(self, cmd, params):
@@ -153,7 +176,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             self.request.sendall('')
 
     def irc_PING(self, cmd, params):
-        self.request.sendall(":%s PONG :%s" % (self.server.config['servername'], self.server.config['servername']))
+        self.request.sendall(":%s PONG :%s" % (self.server.servername, self.server.servername))
 
 
     def irc_JOIN(self, cmd, params):
@@ -181,7 +204,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             self.irc_send_server("366", "%s %s :End of /NAMES list" % (self.nick, channel_name))
 
             # Send a welcome message
-            self.irc_send_client_custom('botmaster', 'botmaster', self.server.config['servername'], "PRIVMSG %s %s" % (channel_name, "Welcome to the channel! %s" % self.nick))
+            self.irc_send_client_custom('botmaster', 'botmaster', self.server.servername, "PRIVMSG %s %s" % (channel_name, "Welcome to the channel! %s" % self.nick))
 
 
     def irc_PRIVMSG(self, cmd, params):
@@ -193,11 +216,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
             # Echo the message in the channel back to the user
             if target[0] in ['#', '$']:
-                self.irc_send_client_custom('botmaster', 'botmaster', self.server.config['servername'], "PRIVMSG %s %s" % (target, message))
+                self.irc_send_client_custom('botmaster', 'botmaster', self.server.servername, "PRIVMSG %s %s" % (target, message))
 
             # Echo the private message back to the user
             else:
-                self.irc_send_client_custom(target, target, self.server.config['servername'], "PRIVMSG %s %s" % (self.nick, message))
+                self.irc_send_client_custom(target, target, self.server.servername, "PRIVMSG %s %s" % (self.nick, message))
 
 
     def irc_NOTICE(self, cmd, params):
@@ -207,10 +230,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         pass
 
     def irc_send_server(self, code, message):
-        self.request.sendall(":%s %s %s\r\n" % (self.server.config['servername'], code, message))
+        self.request.sendall(":%s %s %s\r\n" % (self.server.servername, code, message))
 
     def irc_send_client(self, message):
-        self.irc_send_client_custom(self.nick, self.user, self.server.config['servername'], message)
+        self.irc_send_client_custom(self.nick, self.user, self.server.servername, message)
 
     def irc_send_client_custom(self, nick, user, servername, message):
         self.request.sendall(":%s!%s@%s %s\r\n" % (nick, user, servername, message))
