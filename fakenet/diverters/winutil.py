@@ -975,7 +975,8 @@ class WinUtilMixin():
         try:
             subprocess.check_call('ipconfig /flushdns', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except subprocess.CalledProcessError, e:
-            self.logger.error("Failed to flush DNS cache.")
+            self.logger.error(
+            "Failed to flush DNS cache. Local machine may use cached DNS results.")
         else:
             self.logger.info('Flushed DNS cache.')
 

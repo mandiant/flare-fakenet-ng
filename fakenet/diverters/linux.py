@@ -417,7 +417,8 @@ class Diverter(DiverterBase, LinUtilMixin):
             cmd = self.getconfigval('linuxflushdnscommand')
             ret = subprocess.call(cmd.split())
             if ret != 0:
-                    self.logger.error('Failed to flush DNS cache.')
+                self.logger.error(
+                'Failed to flush DNS cache. Local machine may use cached DNS results.')
 
         if self.is_configured('linuxredirectnonlocal'):
             self.pdebug(DMISC, 'Processing LinuxRedirectNonlocal')
