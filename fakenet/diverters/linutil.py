@@ -348,7 +348,7 @@ class LinUtilMixin():
                                     str(queue_nr) + ' per ') + procfs_path)
                         qnos.append(queue_nr)
         except IOError as e:
-            self.logger.warning(('Failed to open %s to enumerate netfilter ' +
+            self.logger.debug(('Failed to open %s to enumerate netfilter ' +
                                  'netlink queues, caller may proceed as if ' +
                                  'none are in use: %s') %
                                 (procfs_path, e.message))
