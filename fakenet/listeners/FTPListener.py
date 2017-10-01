@@ -240,7 +240,7 @@ class FTPListener():
         self.running_listeners = running_listeners
         self.diverter = diverter
         self.name = 'FTP'
-        self.port = self.config['port'] if 'port' in self.config else 21
+        self.port = self.config.get('port', 21)
 
         self.logger.info('Starting...')
 

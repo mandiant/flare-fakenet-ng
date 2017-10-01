@@ -436,7 +436,7 @@ class HTTPListener():
         self.server = None
         self.running_listeners = running_listeners
         self.NAME = 'BITS'
-        self.PORT = self.config.get('port') if 'port' in self.config else None
+        self.PORT = self.config.get('port')
 
         self.logger.info('Starting...')
 
