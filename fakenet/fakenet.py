@@ -206,18 +206,16 @@ class Fakenet():
             # Only listeners that implement acceptListeners(listeners) 
             # interface receive running_listener_providers
             try:
-                #if callable(getattr(listener_provider, 'acceptListeners')):
                 listener.acceptListeners(self.running_listener_providers)
-            except:
-                pass
+            except AttributeError:
+                self.logger.debug("acceptListeners() not implemented by Listener %s" % listener.name)
 
             # Only listeners that implement acceptDiverter(diverter) 
             # interface receive diverter
             try:
-            #if callable(getattr(listener_provider, 'acceptDiverter')):
                 listener.acceptDiverter(self.diverter)
-            except Exception as e:
-                pass
+            except AttributeError:
+                self.logger.debug("acceptDiverter() not implemented by Listener %s" % listener.name)
 
     def stop(self):
 
