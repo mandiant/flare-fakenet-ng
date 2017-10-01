@@ -3,7 +3,7 @@ import dpkt
 import time
 import socket
 import logging
-import threading
+import threadini
 import subprocess
 import diverterbase
 import netfilterqueue
@@ -482,8 +482,8 @@ class Diverter(DiverterBase, LinUtilMixin):
         try:
             if orig_src_key in self.port_fwd_table:
                 return self.port_fwd_table[orig_src_key]
-            else:
-                return None
+            
+            return None
         finally:
             self.port_fwd_table_lock.release()
 

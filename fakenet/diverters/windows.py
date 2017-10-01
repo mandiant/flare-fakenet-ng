@@ -217,8 +217,7 @@ class Diverter(WinUtilMixin):
         
         if orig_src_port in self.sessions:
             return self.sessions[orig_src_port]
-        else:
-            return None
+        return None
     
     ###########################################################################
     # Parse listener specific settings and filters
