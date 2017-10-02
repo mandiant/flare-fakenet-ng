@@ -45,18 +45,19 @@ class TFTPListener():
         max_error_size = 5 + max_error_msg_size
 
         confidence = 1 if dport == 69 else 0
-
-        if (data.lstrip().startswith(OPCODE_RRQ) or 
-                data.lstrip().startswith(OPCODE_WRQ)):
+        
+        stripped = data.lstrip()
+        if (stripped.startswith(OPCODE_RRQ) or 
+                stripped().startswith(OPCODE_WRQ)):
             if len(data) >= min_rrq_wrq_len and len(data) <= max_rrq_wrq_len:
                 confidence += 2
-        elif data.lstrip().startswith(OPCODE_DATA):
+        elif stripped.startswith(OPCODE_DATA):
             if len(data) >= min_data_size and len(data) <= max_data_size:
                 confidence += 2
-        elif data.lstrip().startswith(OPCODE_ACK):
+        elif stripped.startswith(OPCODE_ACK):
             if len(data) == ack_size:
                 confidence += 2
-        elif data.lstrip().startswith(OPCODE_ERROR):
+        elif stripped.startswith(OPCODE_ERROR):
             if len(data) >= min_error_size and len(data) <= max_error_size:
                 confidence += 2
 
