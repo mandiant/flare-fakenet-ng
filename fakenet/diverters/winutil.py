@@ -835,6 +835,16 @@ class WinUtilMixin():
         else:
             return False
 
+    def get_ip_with_gateway(self):
+
+        for adapter in self.get_adapters_info():
+            for gateway in self.get_gateways(adapter):
+                if gateway != '0.0.0.0':
+                    return self.get_ipaddresses(adapter).next()
+        else:
+            return None
+
+
     def check_ipaddresses_interface(self, adapter):
 
         for ipaddress in self.get_ipaddresses(adapter):
@@ -1254,6 +1264,12 @@ def test_get_best_ip():
 
     ipaddress = self.get_best_ipaddress()
     self.logger.info("Best ip address: %s" % ipaddress)
+
+    ipaddress = self.get_ip_with_gateway()
+    self.logger.info("IP with gateway address: %s" % ipaddress)
+
+
+    
 
 def main():
     pass
