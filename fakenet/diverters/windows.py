@@ -30,7 +30,7 @@ class Diverter(WinUtilMixin):
         self.listeners_config = listeners_config
 
         # Local IP address
-        self.external_ip = socket.gethostbyname(socket.gethostname())
+        self.external_ip = self.get_best_ipaddress() or socket.gethostbyname(socket.gethostname())
         self.loopback_ip = socket.gethostbyname('localhost')
 
         # Used for caching of DNS server names prior to changing
