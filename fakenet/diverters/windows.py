@@ -7,12 +7,10 @@ from pydivert.windivert import *
 import socket
 
 import os
-
 import dpkt
 
 import time
 import threading
-
 import platform
 
 from winutil import *
@@ -29,9 +27,9 @@ class Diverter(WinUtilMixin):
         self.diverter_config = diverter_config
         self.listeners_config = listeners_config
 
-        # Local IP address
-        self.external_ip = socket.gethostbyname(socket.gethostname())
-        self.loopback_ip = socket.gethostbyname('localhost')
+        # Local IP addresses
+        self.external_ip = None
+        self.loopback_ip = None
 
         # Used for caching of DNS server names prior to changing
         self.adapters_dns_server_backup = dict()
@@ -39,6 +37,9 @@ class Diverter(WinUtilMixin):
         # Used to restore modified Interfaces back to DHCP
         self.adapters_dhcp_restore = list()
         self.adapters_dns_restore = list()
+
+        # Restore Npcap loopback adapter
+        self.restore_npcap_loopback = False
 
         # Sessions cache
         # NOTE: A dictionary of source ports mapped to destination address, port tuples
@@ -130,22 +131,31 @@ class Diverter(WinUtilMixin):
 
                         interface_name = self.get_adapter_friendlyname(adapter.Index)
 
-                        self.adapters_dhcp_restore.append(interface_name)
+                        # Don't set gateway on loopback interfaces (e.g. Npcap Loopback Adapter)
+                        if not "loopback" in interface_name.lower():
 
-                        cmd_set_gw = "netsh interface ip set address name=\"%s\" static %s %s %s" % (interface_name, ip_address, netmask, gw_address)
+                            self.adapters_dhcp_restore.append(interface_name)
 
-                        # Configure gateway
-                        try:
-                            subprocess.check_call(cmd_set_gw, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                        except subprocess.CalledProcessError, e:
-                            self.logger.error("         Failed to set gateway %s on interface %s." % (gw_address, interface_name))
-                        else:
-                            self.logger.info("         Setting gateway %s on interface %s" % (gw_address, interface_name))
+                            cmd_set_gw = "netsh interface ip set address name=\"%s\" static %s %s %s" % (interface_name, ip_address, netmask, gw_address)
+
+                            # Configure gateway
+                            try:
+                                subprocess.check_call(cmd_set_gw, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            except subprocess.CalledProcessError, e:
+                                self.logger.error("         Failed to set gateway %s on interface %s." % (gw_address, interface_name))
+                            else:
+                                self.logger.info("         Setting gateway %s on interface %s" % (gw_address, interface_name))
+
 
             else:
                 self.logger.warning('WARNING: Please configure a default gateway or route in order to intercept external traffic.')
                 self.logger.warning('         Current interception abilities are limited to local traffic.')
 
+        # Configure external and loopback IP addresses
+        self.external_ip = self.get_best_ipaddress() or self.get_ip_with_gateway() or socket.gethostbyname(socket.gethostname())
+        self.loopback_ip = socket.gethostbyname('localhost')
+
+        self.logger.info("External IP: %s Loopback IP: %s" % (self.external_ip, self.loopback_ip))
 
         # Check configured DNS servers
         if not self.check_dns_servers():
@@ -164,17 +174,20 @@ class Diverter(WinUtilMixin):
 
                         interface_name = self.get_adapter_friendlyname(adapter.Index)
 
-                        self.adapters_dns_restore.append(interface_name)
+                        # Don't set DNS on loopback interfaces (e.g. Npcap Loopback Adapter)
+                        if not "loopback" in interface_name.lower():
 
-                        cmd_set_dns = "netsh interface ip set dns name=\"%s\" static %s" % (interface_name, dns_address)
+                            self.adapters_dns_restore.append(interface_name)
 
-                        # Configure DNS server
-                        try:
-                            subprocess.check_call(cmd_set_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                        except subprocess.CalledProcessError, e:
-                            self.logger.error("         Failed to set DNS %s on interface %s." % (dns_address, interface_name))
-                        else:
-                            self.logger.info("         Setting DNS %s on interface %s" % (dns_address, interface_name))
+                            cmd_set_dns = "netsh interface ip set dns name=\"%s\" static %s" % (interface_name, dns_address)
+
+                            # Configure DNS server
+                            try:
+                                subprocess.check_call(cmd_set_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            except subprocess.CalledProcessError, e:
+                                self.logger.error("         Failed to set DNS %s on interface %s." % (dns_address, interface_name))
+                            else:
+                                self.logger.info("         Setting DNS %s on interface %s" % (dns_address, interface_name))
 
             else:
                 self.logger.warning('WARNING: Please configure a DNS server in order to intercept domain name resolutions.')

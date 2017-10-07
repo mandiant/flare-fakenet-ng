@@ -819,6 +819,13 @@ class WinUtilMixin():
             yield (ipaddress.IpAddress.String, ipaddress.IpMask.String)
             ipaddress = ipaddress.Next
 
+    def get_ipaddresses_index(self, index):
+
+        for adapter in self.get_adapters_info():
+
+            if adapter.Index == index:
+                return self.get_ipaddresses(adapter)
+
     def check_gateways(self):
 
         for adapter in self.get_adapters_info():
@@ -827,6 +834,16 @@ class WinUtilMixin():
                     return True
         else:
             return False
+
+    def get_ip_with_gateway(self):
+
+        for adapter in self.get_adapters_info():
+            for gateway in self.get_gateways(adapter):
+                if gateway != '0.0.0.0':
+                    return self.get_ipaddresses(adapter).next()
+        else:
+            return None
+
 
     def check_ipaddresses_interface(self, adapter):
 
@@ -917,7 +934,21 @@ class WinUtilMixin():
         if not windll.iphlpapi.GetBestInterface(DestAddr, byref(BestIfIndex)) == NO_ERROR:
             return False
 
-        return True
+        return True        
+
+    # Return the best local IP address to reach defined IP address
+    def get_best_ipaddress(self, ip='8.8.8.8'):
+
+        index = self.get_best_interface(ip)
+
+        if index != None:
+            addresses = self.get_ipaddresses_index(index)
+            for address in addresses:
+                return address
+            else:
+                return None
+        else:
+            return None
 
     ###########################################################################
     # Convert interface index to name
@@ -975,7 +1006,8 @@ class WinUtilMixin():
         try:
             subprocess.check_call('ipconfig /flushdns', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except subprocess.CalledProcessError, e:
-            self.logger.error("Failed to flush DNS cache.")
+            self.logger.error(
+            "Failed to flush DNS cache. Local machine may use cached DNS results.")
         else:
             self.logger.info('Flushed DNS cache.')
 
@@ -1223,6 +1255,22 @@ def test_start_service():
 
     self.start_service_helper('Dnscache')
 
+def test_get_best_ip():
+    class Test(WinUtilMixin):
+        def __init__(self, name = 'WinUtil'):
+            self.logger = logging.getLogger(name)
+
+    self = Test()
+
+    ipaddress = self.get_best_ipaddress()
+    self.logger.info("Best ip address: %s" % ipaddress)
+
+    ipaddress = self.get_ip_with_gateway()
+    self.logger.info("IP with gateway address: %s" % ipaddress)
+
+
+    
+
 def main():
     pass
 
@@ -1235,8 +1283,10 @@ def main():
 
     #test_check_connectivity()
 
-    test_stop_service()
+    #test_stop_service()
     #test_start_service()
+
+    test_get_best_ip()
 
 if __name__ == '__main__':
     main()

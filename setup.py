@@ -12,6 +12,7 @@ requirements = [
     "dnslib",
     "netifaces",
     "pyftpdlib",
+    "cryptography",
     "pyopenssl",
 ]
 
