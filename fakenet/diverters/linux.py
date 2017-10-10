@@ -3,7 +3,7 @@ import dpkt
 import time
 import socket
 import logging
-import threadini
+import threading
 import subprocess
 import diverterbase
 import netfilterqueue
