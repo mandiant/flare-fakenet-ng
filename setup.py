@@ -14,7 +14,6 @@ requirements = [
     "pyftpdlib",
     "cryptography",
     "pyopenssl",
-    "hexdump",
 ]
 
 if platform.system() == 'Windows':
