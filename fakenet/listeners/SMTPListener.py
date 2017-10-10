@@ -11,7 +11,33 @@ import socket
 
 class SMTPListener():
 
-    def __init__(self, config, name = 'SMTPListener', logging_level = logging.INFO):
+    def taste(self, data, dport):
+
+        # Once the TCP connection has been established, the server initiates 
+        # the conversation with '220' message. However, if the client connects
+        # to a nonstandard port there is no way for the proxy to know that
+        # SMTP is the protocol until the client sends a message.
+        commands = ['HELO', 'EHLO', 'MAIL FROM', 'RCPT TO', 'TURN', 'ATRN', 
+                'SIZE', 'ETRN', 'PIPELINING', 'CHUNKING', 'DATA', 'DSN', 
+                'RSET', 'VRFY', 'HELP', 'QUIT', 'X-EXPS GSSAPI', 
+                'X-EXPS=LOGIN', 'X-EXCH50', 'X-LINK2STATE']
+        ports = [25, 587, 465]
+        confidence = 1 if dport in ports else 0
+
+        for command in commands:
+            if data.lstrip().startswith(command):
+                confidence += 2
+                continue
+
+        return confidence
+
+    def __init__(
+            self, 
+            config, 
+            name='SMTPListener', 
+            logging_level=logging.INFO,
+            ):
+
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
 
@@ -19,6 +45,8 @@ class SMTPListener():
         self.name = name
         self.local_ip = '0.0.0.0'
         self.server = None
+        self.name = 'SMTP'
+        self.port = self.config.get('port', 25)
 
         self.logger.info('Starting...')
 

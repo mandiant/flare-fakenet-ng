@@ -29,7 +29,46 @@ BANNERS = {
 
 class IRCListener():
 
-    def __init__(self, config, name = 'IRCListener', logging_level = logging.INFO):
+    def taste(self, data, dport):
+
+        # All possible commands are included to account for unanticipated 
+        # malware behavior
+        commands = [ 
+            'ADMIN', 'AWAY', 'CAP', 'CNOTICE', 'CPRIVMSG', 'CONNECT', 'DIE', 
+            'ENCAP', 'ERROR', 'HELP', 'INFO', 'INVITE', 'ISON', 'JOIN', 'KICK', 
+            'KILL', 'KNOCK', 'LINKS', 'LIST', 'LUSERS', 'MODE', 'MOTD', 
+            'NAMES', 'NAMESX', 'NICK', 'NOTICE', 'OPER', 'PART', 'PASS', 
+            'PING', 'PONG', 'PRIVMSG', 'QUIT', 'REHASH', 'RESTART', 'RULES', 
+            'SERVER', 'SERVICE', 'SERVLIST', 'SQUERY', 'SQUIT', 'SETNAME', 
+            'SILENCE', 'STATS', 'SUMMON', 'TIME', 'TOPIC', 'TRACE', 'UHNAMES', 
+            'USER', 'USERHOST', 'USERIP', 'USERS', 'VERSION', 'WALLOPS', 
+            'WATCH', 'WHO', 'WHOIS', 'WHOWAS' 
+            ]
+
+        # ubuntu xchat uses 8001
+        ports = [194, 6667, range(6660, 7001), 8001]
+        
+        confidence = 1 if dport in ports else 0
+        
+        data = data.lstrip()
+
+        # remove optional prefix
+        if data.startswith(':'):
+            data = data.split(' ')[0]
+
+        for command in commands:
+            if data.startswith(command):
+                confidence += 2
+                continue
+
+        return confidence
+
+    def __init__(self, 
+            config, 
+            name='IRCListener', 
+            logging_level=logging.INFO, 
+            ):
+
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
 
@@ -37,6 +76,10 @@ class IRCListener():
         self.name = name
         self.local_ip = '0.0.0.0'
         self.server = None
+        self.name = 'IRC'
+        
+        self.port = self.config.get('port', 6667)
+        self.logger.debug('PORT: %s', self.port)
 
         self.logger.info('Starting...')
 

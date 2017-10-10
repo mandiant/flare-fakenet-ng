@@ -13,6 +13,8 @@ from collections import OrderedDict
 
 
 class DiverterBase(fnconfig.Config):
+
+
     def init_base(self, diverter_config, listeners_config, ip_addrs,
                   logging_level=logging.INFO):
         # For fine-grained control of subclass debug output. Does not control
@@ -157,6 +159,8 @@ class DiverterBase(fnconfig.Config):
 
                 port = int(listener_config['port'])
 
+                hidden = listener_config.get('hidden', 'false') == 'True'
+
                 if not 'protocol' in listener_config:
                     self.logger.error('ERROR: Protocol not defined for ' +
                                       'listener %s', listener_name)
@@ -169,10 +173,14 @@ class DiverterBase(fnconfig.Config):
                                       'listener %s', protocol, listener_name)
                     sys.exit(1)
 
+                # diverted_ports[protocol][port] is True if the listener is 
+                # configured as 'Hidden', which means it will not receive 
+                # packets unless the ProxyListener determines that the protocol
+                # matches the listener
                 if not protocol in self.diverted_ports:
-                    self.diverted_ports[protocol] = list()
+                    self.diverted_ports[protocol] = dict()
 
-                self.diverted_ports[protocol].append(port)
+                self.diverted_ports[protocol][port] = hidden
 
                 ###############################################################
                 # Process filtering configuration

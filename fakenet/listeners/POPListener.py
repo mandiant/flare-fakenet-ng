@@ -22,7 +22,30 @@ Bob\r\n"""
 
 class POPListener():
 
-    def __init__(self, config, name = 'POPListener', logging_level = logging.INFO):
+    # Once the TCP connection has been established, the POP server initiates 
+    # the conversation with +OK message. However, if the client connects
+    # to a port that is not 110, there is no way for the proxy to know that
+    # POP is the protocol until the client sends a message.
+    def taste(self, data, dport):
+
+        commands = [ 'QUIT', 'STAT', 'LIST', 'RETR', 'DELE', 'NOOP', 'RSET', 
+                'TOP', 'UIDL', 'USER', 'PASS', 'APOP' ]
+
+        confidence = 1 if dport == 110 else 0
+
+        data = data.lstrip()
+        for command in commands:
+            if data.startswith(command):
+                confidence += 2
+
+        return confidence
+
+    def __init__(self, 
+            config, 
+            name='POPListener', 
+            logging_level=logging.INFO, 
+            ):
+
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
 
@@ -30,6 +53,8 @@ class POPListener():
         self.name = name
         self.local_ip = '0.0.0.0'
         self.server = None
+        self.name = 'POP'
+        self.port = self.config.get('port', 110)
 
         self.logger.info('Starting...')
 

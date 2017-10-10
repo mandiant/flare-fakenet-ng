@@ -224,6 +224,14 @@ class Diverter(WinUtilMixin):
                 self.logger.info('Capturing traffic to %s', pcap_filename)
                 self.pcap = dpkt.pcap.Writer(open(pcap_filename, 'wb'), linktype=dpkt.pcap.DLT_RAW)
 
+    def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
+        """Return original destination port, or None if it was not redirected
+        """ 
+        
+        if orig_src_port in self.sessions:
+            return self.sessions[orig_src_port]
+        return None
+    
     ###########################################################################
     # Parse listener specific settings and filters
 
@@ -236,6 +244,8 @@ class Diverter(WinUtilMixin):
             if 'port' in listener_config:
 
                 port = int(listener_config['port'])
+                hidden = True if ('hidden' in listener_config and 
+                            listener_config['hidden'] == 'True') else False
 
                 if not 'protocol' in listener_config:
                     self.logger.error('ERROR: Protocol not defined for listener %s', listener_name)
@@ -248,9 +258,9 @@ class Diverter(WinUtilMixin):
                     sys.exit(1)
 
                 if not protocol in self.diverted_ports:
-                    self.diverted_ports[protocol] = list()
+                    self.diverted_ports[protocol] = dict()
 
-                self.diverted_ports[protocol].append(port)
+                self.diverted_ports[protocol][port] = hidden
 
                 ###############################################################
                 # Process filtering configuration
@@ -637,7 +647,12 @@ class Diverter(WinUtilMixin):
                 packet.dst_addr = self.loopback_ip if packet.is_loopback else self.external_ip
 
                 # Direct packet to an existing or a default listener
-                packet.dst_port = packet.dst_port if packet.dst_port in diverted_ports else default_listener_port
+                # check if 'hidden' config is set. If so, the packet is 
+                # directed to the default listener which is the proxy
+                packet.dst_port = (packet.dst_port if (
+                        packet.dst_port in diverted_ports and 
+                        diverted_ports[packet.dst_port] is False) 
+                        else default_listener_port)
 
                 logger_level('  to:   %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
@@ -648,6 +663,8 @@ class Diverter(WinUtilMixin):
         # Restore diverted response from a local listener
         # NOTE: The response can come from a legitimate request
         elif diverted_ports and packet.src_port in diverted_ports:
+            # The packet is a response from a listener. It needs to be 
+            # redirected to the original source
 
             # Find which process ID is sending the request
             conn_pid = self.get_pid_port_tcp(packet.dst_port) if packet.tcp else self.get_pid_port_udp(packet.dst_port)
@@ -671,7 +688,17 @@ class Diverter(WinUtilMixin):
                 self.logger.debug('  pid:  %d name: %s', conn_pid, process_name if process_name else 'Unknown')
 
         else:
-            self.logger.debug('Forwarding %s %s %s packet:', direction_string, interface_string, protocol)
+            # At this point whe know the packet is either a response packet 
+            # from a listener(sport is bound) or is bound for a port with no 
+            # listener (dport not bound)
+
+            # Cache original target IP address based on source port
+            self.sessions[packet.src_port] = (packet.dst_addr, packet.dst_port)
+          
+            # forward to proxy
+            packet.dst_port = default_listener_port
+
+            self.logger.debug('Redirected %s %s %s packet to proxy:', direction_string, interface_string, protocol)
             self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
         return packet

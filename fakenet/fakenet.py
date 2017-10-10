@@ -184,8 +184,9 @@ class Fakenet():
                 self.logger.error("%s" % e)
 
             else:
-                # Listener provider object
-                listener_provider_instance = listener_provider(listener_config, listener_name, self.logging_level)
+
+                listener_provider_instance = listener_provider(
+                        listener_config, listener_name, self.logging_level)
 
                 # Store listener provider object
                 self.running_listener_providers.append(listener_provider_instance)
@@ -196,10 +197,25 @@ class Fakenet():
                     self.logger.error('Error starting %s listener:', listener_config['listener'])
                     self.logger.error(" %s" % e)
 
-
         # Start the diverter
         if self.diverter:
             self.diverter.start()
+
+        for listener in self.running_listener_providers:
+
+            # Only listeners that implement acceptListeners(listeners) 
+            # interface receive running_listener_providers
+            try:
+                listener.acceptListeners(self.running_listener_providers)
+            except AttributeError:
+                self.logger.debug("acceptListeners() not implemented by Listener %s" % listener.name)
+
+            # Only listeners that implement acceptDiverter(diverter) 
+            # interface receive diverter
+            try:
+                listener.acceptDiverter(self.diverter)
+            except AttributeError:
+                self.logger.debug("acceptDiverter() not implemented by Listener %s" % listener.name)
 
     def stop(self):
 

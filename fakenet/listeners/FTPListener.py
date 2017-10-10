@@ -19,6 +19,7 @@ import BannerFactory
 FAKEUSER = 'FAKEUSER'
 FAKEPWD  = 'FAKEPWD'
 
+
 EXT_FILE_RESPONSE = {
     '.html': u'FakeNet.html',
     '.png' : u'FakeNet.png',
@@ -199,7 +200,36 @@ class FakeFS(AbstractedFS):
 
 class FTPListener():
 
-    def __init__(self, config, name = 'FTPListener', logging_level = logging.INFO):
+    def taste(self, data, dport):
+
+        # See RFC5797 for full command list. Many of these commands are not likely
+        # to be used but are included in case malware uses FTP in unexpected ways
+        base_ftp_commands = [
+            'abor', 'acct', 'allo', 'appe', 'cwd', 'dele', 'help', 'list', 'mode', 
+            'nlst', 'noop', 'pass', 'pasv', 'port', 'quit', 'rein', 'rest', 'retr',
+            'rnfr', 'rnto', 'site', 'stat', 'stor', 'stru', 'type', 'user'
+        ]
+        opt_ftp_commands = [
+            'cdup', 'mkd', 'pwd', 'rmd', 'smnt', 'stou', 'syst'
+        ]
+
+        confidence = 1 if dport == 21 else 0 
+
+        data = data.lstrip().lower()
+        for command in base_ftp_commands + opt_ftp_commands:
+            if data.startswith(command):
+                return confidence + 1
+
+        return confidence 
+
+    def __init__(self, 
+            config, 
+            name='FTPListener', 
+            logging_level=logging.INFO, 
+            running_listeners=None, 
+            diverter=None
+            ):
+
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
             
@@ -207,6 +237,10 @@ class FTPListener():
         self.name = name
         self.local_ip = '0.0.0.0'
         self.server = None
+        self.running_listeners = running_listeners
+        self.diverter = diverter
+        self.name = 'FTP'
+        self.port = self.config.get('port', 21)
 
         self.logger.info('Starting...')
 

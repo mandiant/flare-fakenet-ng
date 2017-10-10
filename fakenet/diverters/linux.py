@@ -197,6 +197,8 @@ class PacketHandler:
 
 
 class Diverter(DiverterBase, LinUtilMixin):
+
+
     def __init__(self, diverter_config, listeners_config, ip_addrs,
                  logging_level=logging.INFO):
         self.init_base(diverter_config, listeners_config, ip_addrs,
@@ -470,6 +472,21 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.linux_restore_local_dns()
 
         self.linux_restore_iptables()
+
+    def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
+        """Return original destination port, or None if it was not redirected
+        """ 
+        
+        orig_src_key = self.gen_endpoint_key(proto, orig_src_ip, orig_src_port)
+        self.port_fwd_table_lock.acquire()
+        
+        try:
+            if orig_src_key in self.port_fwd_table:
+                return self.port_fwd_table[orig_src_key]
+            
+            return None
+        finally:
+            self.port_fwd_table_lock.release()
 
     def handle_nonlocal(self, pkt):
         """Handle comms sent to IP addresses that are not bound to any adapter.
@@ -802,14 +819,35 @@ class Diverter(DiverterBase, LinUtilMixin):
             return hdr_modified  # None
 
         bound_ports = self.diverted_ports.get(proto_name, [])
+        
+        # First, check if this packet is sent from a listener/diverter
+        # If so, don't redir for 'Hidden' status because it is already 
+        # being forwarded from proxy listener to bound/hidden listener
+        # Next, check if listener for this port is 'Hidden'. If so, we need to
+        # divert it to the proxy as per the Hidden config
+        if (dport in bound_ports and pid != self.pid and 
+                bound_ports[dport] is True):
+     
+            #divert to proxy
+            hdr_modified = self.mangle_dstport(hdr, proto_name, dport, default)
+        
+            # Record the foreign endpoint and old destination port in the port
+            # forwarding table
+            self.pdebug(DDPFV, ' + ADDING portfwd key entry: ' + skey)
+            self.port_fwd_table_lock.acquire()
+            try:
+                self.port_fwd_table[skey] = dport
+            finally:
+                self.port_fwd_table_lock.release()
+
+            # Record the altered port for making the ExecuteCmd decision
+            dport = default
 
         # Condition 2: If the packet is destined for an unbound port, then
         # redirect it to a bound port and save the old destination IP in
         # the port forwarding table keyed by the source endpoint identity.
 
-        self.pdebug(DDPFV, 'Condition 2 test')
-
-        if self.decide_redir_port(ipver, proto_name, default, bound_ports,
+        elif self.decide_redir_port(ipver, proto_name, default, bound_ports,
                                   src_ip, sport, dst_ip, dport):
             self.pdebug(DDPFV, 'Condition 2 satisfied')
 

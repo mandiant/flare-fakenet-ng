@@ -10,7 +10,23 @@ import socket
 
 class DNSListener():
 
-    def __init__(self, config = {}, name = 'DNSListener', logging_level = logging.INFO):
+    def taste(self, data, dport):
+
+        confidence = 1 if dport is 53 else 0
+
+        try:
+            d = DNSRecord.parse(data)
+        except:
+            return confidence
+
+        return confidence + 2
+
+    def __init__(
+            self, 
+            config={}, 
+            name='DNSListener', 
+            logging_level=logging.INFO, 
+            ):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
@@ -18,6 +34,8 @@ class DNSListener():
         self.config = config
         self.local_ip = '0.0.0.0'
         self.server = None
+        self.name = 'DNS'
+        self.port = self.config.get('port', 53)
 
         self.logger.info('Starting...')
 

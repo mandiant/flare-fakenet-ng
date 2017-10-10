@@ -15,6 +15,7 @@ import mimetypes
 
 import time
 
+
 MIME_FILE_RESPONSE = {
     'text/html':    'FakeNet.html',
     'image/png':    'FakeNet.png',
@@ -29,6 +30,20 @@ MIME_FILE_RESPONSE = {
 
 class HTTPListener():
 
+    def taste(self, data, dport):
+        
+        request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
+            'OPTIONS', 'CONNECT', 'PATCH']
+
+        confidence = 1 if dport in [80, 443] else 0
+
+        for method in request_methods:
+            if data.lstrip().startswith(method):
+                confidence += 2
+                continue
+
+        return confidence
+
     if not mimetypes.inited:
         mimetypes.init() # try to read system mime.types
     extensions_map = mimetypes.types_map.copy()
@@ -36,7 +51,13 @@ class HTTPListener():
         '': 'text/html', # Default
         })
 
-    def __init__(self, config = {}, name = 'HTTPListener', logging_level = logging.DEBUG):
+    def __init__(
+            self, 
+            config={}, 
+            name='HTTPListener', 
+            logging_level=logging.DEBUG, 
+            ):
+
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
   
@@ -44,6 +65,8 @@ class HTTPListener():
         self.name = name
         self.local_ip  = '0.0.0.0'
         self.server = None
+        self.name = 'HTTP'
+        self.port = self.config.get('port', 80)
 
         self.logger.info('Starting...')
 
@@ -66,6 +89,7 @@ class HTTPListener():
 
     def start(self):
         self.logger.debug('Starting...')
+            
 
         self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), ThreadedHTTPRequestHandler)
         self.server.logger = self.logger
@@ -76,7 +100,7 @@ class HTTPListener():
         if self.config.get('usessl') == 'Yes':
             self.logger.debug('Using SSL socket.')
 
-            keyfile_path = 'privkey.pem'
+            keyfile_path = 'listeners/ssl_utils/privkey.pem'
             if not os.path.exists(keyfile_path):
                 keyfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), keyfile_path)
 
@@ -84,7 +108,7 @@ class HTTPListener():
                     self.logger.error('Could not locate privkey.pem')
                     sys.exit(1)
 
-            certfile_path = 'server.pem'
+            certfile_path = 'listeners/ssl_utils/server.pem'
             if not os.path.exists(certfile_path):
                 certfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), certfile_path)
 
@@ -103,6 +127,7 @@ class HTTPListener():
         if self.server:
             self.server.shutdown()
             self.server.server_close()
+
 
 class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
 
@@ -270,7 +295,7 @@ def test(config):
 def main():
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
     
-    config = {'port': '8443', 'usessl': 'Yes', 'webroot': '../defaultFiles' }
+    config = {'port': '80', 'usessl': 'No', 'webroot': '../defaultFiles' }
 
     listener = HTTPListener(config)
     listener.start()
