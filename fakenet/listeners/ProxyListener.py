@@ -12,8 +12,7 @@ import ssl
 from OpenSSL import SSL
 from ssl_utils import ssl_detector 
 import hexdump
-import listeners
-from listeners import *
+from . import *
 
 BUF_SZ = 1024
 IP = '0.0.0.0'
