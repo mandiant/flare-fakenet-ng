@@ -14,6 +14,7 @@ requirements = [
     "pyftpdlib",
     "cryptography",
     "pyopenssl",
+    "hexdump",
 ]
 
 if platform.system() == 'Windows':
@@ -34,7 +35,7 @@ setup(
     ],
     package_dir={'fakenet': 'fakenet'},
     package_data={'fakenet': ['*.pem','diverters/*.py', 'listeners/*.py', 
-        'listeners/ssl_utils/*.py', 'configs/*.ini', 'defaultFiles/*', 
+        'listeners/ssl_utils/*.py', 'listeners/ssl_utils/*.pem', 'configs/*.ini', 'defaultFiles/*', 
         'lib/64/*', 'lib/32/*']},
     entry_points={
         "console_scripts": [
