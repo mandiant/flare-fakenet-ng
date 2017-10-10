@@ -10,9 +10,9 @@ import select
 import logging
 import ssl
 from OpenSSL import SSL
-from ssl_utils import ssl_detector 
-import hexdump
+from ssl_utils import ssl_detector
 from . import *
+import os
 
 BUF_SZ = 1024
 IP = '0.0.0.0'
@@ -228,15 +228,34 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         data = None
 
         ssl_remote_sock = None
-        ssl_config = { 
-                'certfile': 'listeners/ssl_utils/server.pem', 
-                'keyfile': 'listeners/ssl_utils/privkey.pem',
-                'ssl_version' : ssl.PROTOCOL_SSLv23 }
+
+        keyfile_path = 'listeners/ssl_utils/privkey.pem'
+        if not os.path.exists(keyfile_path):
+            keyfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), keyfile_path)
+
+            if not os.path.exists(keyfile_path):
+                self.logger.error('Could not locate privkey.pem')
+                sys.exit(1)
+
+        certfile_path = 'listeners/ssl_utils/server.pem'
+        if not os.path.exists(certfile_path):
+            certfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), certfile_path)
+
+            if not os.path.exists(certfile_path):
+                self.logger.error('Could not locate certfile.pem')
+                sys.exit(1)
+
+        ssl_version = ssl.PROTOCOL_SSLv23
 
         try:
             data = remote_sock.recv(BUF_SZ, socket.MSG_PEEK)
-            self.server.logger.debug('Received data\n%s' % hexdump.hexdump(data, 
-                result='return'))
+
+            self.server.logger.info('Received %d bytes.', len(data))
+            self.server.logger.debug('%s', '-'*80,)
+            for line in hexdump_table(data):
+                self.server.logger.debug(line)
+            self.server.logger.debug('%s', '-'*80,)
+
         except Exception as e:
             self.server.logger.info('recv() error: %s' % e.message)
 
@@ -248,9 +267,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         remote_sock, 
                         server_side=True, 
                         do_handshake_on_connect=True,
-                        certfile=ssl_config['certfile'], 
-                        ssl_version=ssl_config['ssl_version'],
-                        keyfile=ssl_config['keyfile'] )
+                        certfile=certfile_path, 
+                        ssl_version=ssl_version,
+                        keyfile=keyfile_path )
                 data = ssl_remote_sock.recv(BUF_SZ)
             
             orig_src_ip = self.client_address[0]
@@ -314,8 +333,11 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
         if data:
 
-            self.server.logger.debug('Packet data\n%s' % hexdump.hexdump(data, 
-                result='return'))
+            self.server.logger.info('Received %d bytes.', len(data))
+            self.server.logger.debug('%s', '-'*80,)
+            for line in hexdump_table(data):
+                self.server.logger.debug(line)
+            self.server.logger.debug('%s', '-'*80,)
 
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
@@ -363,6 +385,16 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
         else:
             self.server.logger.debug('No packet data')
+
+def hexdump_table(data, length=16):
+
+    hexdump_lines = []
+    for i in range(0, len(data), 16):
+        chunk = data[i:i+16]
+        hex_line   = ' '.join(["%02X" % ord(b) for b in chunk ] )
+        ascii_line = ''.join([b if ord(b) > 31 and ord(b) < 127 else '.' for b in chunk ] )
+        hexdump_lines.append("%04X: %-*s %s" % (i, length*3, hex_line, ascii_line ))
+    return hexdump_lines
 
 def main():
 
