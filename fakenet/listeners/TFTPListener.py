@@ -9,6 +9,9 @@ import SocketServer
 import socket
 import struct
 
+import urllib
+import fakenet.listeners
+
 EXT_FILE_RESPONSE = {
     '.html': 'FakeNet.html',
     '.png' : 'FakeNet.png',
@@ -92,7 +95,14 @@ class TFTPListener():
 
         self.server.logger = self.logger
         self.server.config = self.config
-        self.server.tftproot_path = self.config.get('tftproot', 'defaultFiles')
+
+        path = self.config.get('tftproot', 'defaultFiles')
+        self.server.tftproot_path = fakenet.listeners.abs_config_path(path)
+        if self.server.tftproot_path is None:
+            self.logger.error('Could not locate tftproot directory: %s', path)
+            sys.exit(1)
+
+        self.server.bits_file_prefix = self.config.get('tftpfileprefix', 'tftp')
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
@@ -141,7 +151,10 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
                 if hasattr(self.server, 'filename_path') and self.server.filename_path:
 
-                    f = open(self.server.filename_path, 'ab')
+                    safe_file = self.server.tftp_file_prefix + "_" + urllib.quote(self.server.filename_path, '')
+                    output_file = fakenet.listeners.safe_join(os.getcwd(),
+                                                              safe_file)
+                    f = open(output_file, 'ab')
                     f.write(data[4:])
                     f.close()
 
@@ -169,7 +182,8 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
     def handle_rrq(self, socket, filename):
 
-        filename_path = os.path.join(self.server.tftproot_path, filename)
+        filename_path = fakenet.listeners.safe_join(self.server.tftproot_path,
+                                                    filename)
 
         # If virtual filename does not exist return a default file based on extention
         if not os.path.isfile(filename_path):
@@ -177,7 +191,8 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             file_basename, file_extension = os.path.splitext(filename)
 
             # Calculate absolute path to a fake file
-            filename_path = os.path.join(self.server.tftproot_path, EXT_FILE_RESPONSE.get(file_extension.lower(), u'FakeNetMini.exe'))
+            filename_path = fakenet.listeners.safe_join(self.server.tftproot_path,
+                                                        EXT_FILE_RESPONSE.get(file_extension.lower(), u'FakeNetMini.exe'))
 
 
         self.server.logger.debug('Sending file %s', filename_path)
@@ -203,7 +218,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
     def handle_wrq(self, socket, filename):
 
-        self.server.filename_path = os.path.join(self.server.tftproot_path, filename)
+        self.server.filename_path = filename
 
         # Send acknowledgement so the client will begin writing
         ack_packet = OPCODE_ACK + "\x00\x00"
@@ -224,9 +239,15 @@ def test(config):
     pass
 
 def main():
+    """
+    Run from the flare-fakenet-ng root dir with the following command:
+
+       python2 -m fakenet.listeners.TFTPListener
+
+    """
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
 
-    config = {'port': '69', 'protocol': 'udp', 'tftproot': '../defaultFiles'}
+    config = {'port': '69', 'protocol': 'udp', 'tftproot': 'defaultFiles'}
 
     listener = TFTPListener(config)
     listener.start()

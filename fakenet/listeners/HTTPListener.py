@@ -15,6 +15,7 @@ import mimetypes
 
 import time
 
+import fakenet.listeners
 
 MIME_FILE_RESPONSE = {
     'text/html':    'FakeNet.html',
@@ -68,24 +69,19 @@ class HTTPListener():
         self.name = 'HTTP'
         self.port = self.config.get('port', 80)
 
-        self.logger.info('Starting...')
+        self.logger.info('Initializing...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
             self.logger.debug('  %10s: %s', key, value)
 
         # Initialize webroot directory
-        self.webroot_path = self.config.get('webroot','defaultFiles')
-        
-        # Try absolute path first
-        if not os.path.exists(self.webroot_path):
+        path = self.config.get('webroot','defaultFiles')
+        self.webroot_path = fakenet.listeners.abs_config_path(path)
+        if self.webroot_path is None:
+            self.logger.error('Could not locate webroot directory: %s', path)
+            sys.exit(1)
 
-            # Try to locate the webroot directory relative to application path
-            self.webroot_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), self.webroot_path)
-        
-            if not os.path.exists(self.webroot_path):
-                self.logger.error('Could not locate webroot directory: %s', self.webroot_path)
-                sys.exit(1)
 
     def start(self):
         self.logger.debug('Starting...')
@@ -101,26 +97,22 @@ class HTTPListener():
             self.logger.debug('Using SSL socket.')
 
             keyfile_path = 'listeners/ssl_utils/privkey.pem'
-            if not os.path.exists(keyfile_path):
-                keyfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), keyfile_path)
-
-                if not os.path.exists(keyfile_path):
-                    self.logger.error('Could not locate privkey.pem')
-                    sys.exit(1)
+            keyfile_path = fakenet.listeners.abs_config_path(keyfile_path)
+            if keyfile_path is None:
+                self.logger.error('Could not locate %s', keyfile_path)
+                sys.exit(1)
 
             certfile_path = 'listeners/ssl_utils/server.pem'
-            if not os.path.exists(certfile_path):
-                certfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), certfile_path)
-
-                if not os.path.exists(certfile_path):
-                    self.logger.error('Could not locate certfile.pem')
-                    sys.exit(1)
+            certfile_path = fakenet.listeners.abs_config_path(certfile_path)
+            if certfile_path is None:
+                self.logger.error('Could not locate %s', certfile_path)
+                sys.exit(1)
 
             self.server.socket = ssl.wrap_socket(self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers='RSA')
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
-        self.server_thread.start()        
+        self.server_thread.start()
 
     def stop(self):
         self.logger.info('Stopping...')
@@ -236,7 +228,8 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             _, ext = posixpath.splitext(path)
             response_type = self.server.extensions_map.get(ext, 'text/html')
 
-        response_filename = os.path.join(self.server.webroot_path, path[1:])
+        # Do after checking for trailing '/' since normpath removes it
+        response_filename = fakenet.listeners.safe_join(self.server.webroot_path, path)
 
         # Check the requested path exists
         if not os.path.exists(response_filename):
@@ -293,9 +286,15 @@ def test(config):
     print '-'*80
 
 def main():
+    """
+    Run from the flare-fakenet-ng root dir with the following command:
+
+       python2 -m fakenet.listeners.HTTPListener
+
+    """
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
     
-    config = {'port': '80', 'usessl': 'No', 'webroot': '../defaultFiles' }
+    config = {'port': '8443', 'usessl': 'Yes', 'webroot': 'fakenet/defaultFiles' }
 
     listener = HTTPListener(config)
     listener.start()
