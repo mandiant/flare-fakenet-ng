@@ -23,7 +23,7 @@ elif platform.system().lower().startswith('linux'):
 
 setup(
     name='FakeNet NG',
-    version='1.2',
+    version='1.3',
     description="",
     long_description="",
     author="Peter Kacherginsky",
