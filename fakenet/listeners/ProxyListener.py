@@ -189,10 +189,10 @@ class ThreadedUDPClientSocket(threading.Thread):
             self.logger.debug('Listener socket exception %s' % e)
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
-    pass
+    daemon_threads = True
 
 class ThreadedUDPServer(SocketServer.ThreadingMixIn, SocketServer.UDPServer):
-    pass
+    daemon_threads = True
 
 def get_top_listener(config, data, listeners, diverter, orig_src_ip, 
         orig_src_port, proto):
@@ -285,7 +285,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 listener_sock = ThreadedTCPClientSocket('localhost', 
                         top_listener.port, listener_q, remote_q, 
                         self.server.config, self.server.logger)
-                listener_sock.setDaemon(True)
+                listener_sock.daemon = True
                 listener_sock.start()
                 remote_sock.setblocking(0)
 
@@ -358,7 +358,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
                         listener_q, remote_q, self.server.config, 
                         self.server.logger, top_listener.port, 
                         self.server.fwd_table, orig_src_ip, orig_src_port)
-                listener_sock.setDaemon(True)
+                listener_sock.daemon = True
                 listener_sock.start()
                 remote_sock.setblocking(0)
 
