@@ -13,12 +13,15 @@ import ssl
 import socket
 
 import posixpath
-import mimetypes
 
 import time
 
+import urllib
+
 from BaseHTTPServer import HTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
+
+import fakenet.listeners
 
 
 # BITS Protocol header keys
@@ -350,8 +353,8 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
             # case mutual supported protocol is found
             if protocols_intersection:
                 headers[K_BITS_PROTOCOL] = list(protocols_intersection)[0]
-                requested_path = self.path[1:] if self.path.startswith("/") else self.path
-                absolute_file_path = os.path.join(self.server.config.get('webroot','defaultFiles'), requested_path)
+                safe_path = self.server.bits_file_prefix + '_' + urllib.quote(self.path, '')
+                absolute_file_path = fakenet.listeners.safe_join(os.getcwd(), safe_path)
 
                 session_id = self.__get_current_session_id()
                 self.server.logger.info("Creating BITS-Session-Id: %s", session_id)
@@ -416,14 +419,7 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
             repr(e.internal_exception))
         self.__send_response(headers, status_code = status_code)
 
-class HTTPListener():
-
-    if not mimetypes.inited:
-        mimetypes.init() # try to read system mime.types
-    extensions_map = mimetypes.types_map.copy()
-    extensions_map.update({
-        '': 'text/html', # Default
-        })
+class BITSListener():
 
     def __init__(self, config={}, name='BITSListener', 
             logging_level=logging.DEBUG, running_listeners=None):
@@ -444,46 +440,28 @@ class HTTPListener():
         for key, value in config.iteritems():
             self.logger.debug('  %10s: %s', key, value)
 
-        # Initialize webroot directory
-        self.webroot_path = self.config.get('webroot','defaultFiles')
-        
-        # Try absolute path first
-        if not os.path.exists(self.webroot_path):
-
-            # Try to locate the webroot directory relative to application path
-            self.webroot_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), self.webroot_path)
-        
-            if not os.path.exists(self.webroot_path):
-                self.logger.error('Could not locate webroot directory: %s', self.webroot_path)
-                sys.exit(1)
+        self.bits_file_prefix = self.config.get('bitsfileprefix', 'bits')
 
     def start(self):
         self.logger.debug('Starting...')
 
         self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), SimpleBITSRequestHandler)
         self.server.logger = self.logger
+        self.server.bits_file_prefix = self.bits_file_prefix
         self.server.config = self.config
-        self.server.webroot_path = self.webroot_path
-        self.server.extensions_map = self.extensions_map
 
         if self.config.get('usessl') == 'Yes':
             self.logger.debug('Using SSL socket.')
 
-            keyfile_path = 'privkey.pem'
-            if not os.path.exists(keyfile_path):
-                keyfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), keyfile_path)
+            keyfile_path = fakenet.listeners.abs_config_path('privkey.pem')
+            if keyfile_path is None:
+                self.logger.error('Could not locate privkey.pem')
+                sys.exit(1)
 
-                if not os.path.exists(keyfile_path):
-                    self.logger.error('Could not locate privkey.pem')
-                    sys.exit(1)
-
-            certfile_path = 'server.pem'
-            if not os.path.exists(certfile_path):
-                certfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), certfile_path)
-
-                if not os.path.exists(certfile_path):
-                    self.logger.error('Could not locate certfile.pem')
-                    sys.exit(1)
+            certfile_path = fakenet.listeners.abs_config_path('server.pem')
+            if certfile_path is None:
+                self.logger.error('Could not locate certfile.pem')
+                sys.exit(1)
 
             self.server.socket = ssl.wrap_socket(self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers='RSA')
 
@@ -501,11 +479,17 @@ def test(config):
     pass
 
 def main():
+    """
+    Run from the flare-fakenet-ng root dir with the following command:
+
+       python2 -m fakenet.listeners.BITSListener
+
+    """
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
     
-    config = {'port': '80', 'usessl': 'No', 'webroot': '../defaultFiles' }
+    config = {'port': '80', 'usessl': 'No' }
 
-    listener = HTTPListener(config)
+    listener = BITSListener(config)
     listener.start()
 
     ###########################################################################
