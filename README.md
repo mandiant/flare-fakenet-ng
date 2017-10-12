@@ -866,6 +866,9 @@ Credits
 * Special thanks to Andrew Honig, Michael Sikorski and others for the
   original FakeNet which was the inspiration to develop this tool.
 * The Linux Diverter was designed and developed by Michael Bailey.
+* Thanks to Matthew Haigh for developing the proxy protocol autodetection feature.
+* Thanks to Cody Pierce and Antony Saba for reporting and fixing a 
+  file system traversal vulnerability.
 
 Contact
 =======
