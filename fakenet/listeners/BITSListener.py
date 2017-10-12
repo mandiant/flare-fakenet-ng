@@ -437,6 +437,18 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
 
 class BITSListener():
 
+    def taste(self, data, dport):
+        request_methods = ['BITS_POST',]
+
+        confidence = 1 if dport in [80, 443] else 0
+
+        for method in request_methods:
+            if data.lstrip().startswith(method):
+                confidence += 2
+                continue
+
+        return confidence
+        
     def __init__(self, config={}, name='BITSListener', 
             logging_level=logging.DEBUG, running_listeners=None):
         self.logger = logging.getLogger(name)
