@@ -172,7 +172,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             if hasattr(self.server, 'filename_path') and self.server.filename_path:
 
                 safe_file = self.server.tftp_file_prefix + "_" + urllib.quote(self.server.filename_path, '')
-                output_file = self.ListenerBase.safe_join(os.getcwd(),
+                output_file = ListenerBase.safe_join(os.getcwd(),
                                                           safe_file)
                 f = open(output_file, 'ab')
                 f.write(data[4:])
@@ -187,7 +187,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
     def handle_rrq(self, socket, filename):
 
-        filename_path = self.server.ListenerBase.safe_join(self.server.tftproot_path,
+        filename_path = ListenerBase.safe_join(self.server.tftproot_path,
                                                     filename)
 
         # If virtual filename does not exist return a default file based on extention
@@ -196,7 +196,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             file_basename, file_extension = os.path.splitext(filename)
 
             # Calculate absolute path to a fake file
-            filename_path = self.server.ListenerBase.safe_join(self.server.tftproot_path,
+            filename_path = ListenerBase.safe_join(self.server.tftproot_path,
                                                         EXT_FILE_RESPONSE.get(file_extension.lower(), u'FakeNetMini.exe'))
 
 
