@@ -516,6 +516,10 @@ to all ICMP requests while running. So in case a malware attempts to ping a
 host to test connectivity it will get a valid response. The Linux Diverter
 logs and forwards all ICMP packets to localhost.
 
+NOTE: Some listeners can handle file uploads (e.g. TFTPListener and BITSListener).
+All uploaded files will be stored in the current working directory with a
+configurable prefix (e.g. "tftp_" for TFTP uploads).
+
 Listener Filtering
 ------------------
 
@@ -629,7 +633,39 @@ Finally, to allow DNS traffic to still go to the default DNS server on the
 Internet, while redirecting all other traffic, add port 53 to the Diverter's
 UDP port blacklist as follows:
 
-    BlackListPortsUDP: 53
+    BlackListPortsUDP: 
+
+Proxy Listener
+--------------
+
+The latest release of FakeNet-NG implements a new proxy listener which is capable of
+dynamically detecting communicating protocol (including SSL traffic) and redirecting
+the connecting to an appropriate listener.
+
+You can configure the proxy listener to work on a specific port as illustrated in the
+configuration below:
+
+    [ProxyTCPListener]
+    Enabled:    True
+    Protocol:   TCP
+    Listener:   ProxyListener
+    Port:       38926
+    Listeners:  HTTPListener, RawListener, FTPListener, DNSListener, POPListener, SMTPListener, TFTPListener, IRCListener, BITSListener
+    Hidden:     False
+
+Note, the new `Listeners` parameter which defines a list of potential protocol handler
+to try for all incoming connections.
+
+It is also recommended to define a proxy listener as your default handler by updating
+the following diverter configurations:
+
+    RedirectAllTraffic:    Yes
+    DefaultTCPListener:    ProxyTCPListener
+    DefaultUDPListener:    ProxyUDPListener
+
+With the default listener pointing to the proxy listener, all unknown connections
+will be appropriately handled. You can still assign specific listeners to ports to
+enforce a specific protocol (e.g. always use HTTP listener for port 80).
 
 Development
 ===========
