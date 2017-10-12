@@ -9,6 +9,8 @@ import SocketServer
 import ssl
 import socket
 
+from . import *
+
 from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler, TLS_FTPHandler
 from pyftpdlib.filesystems import AbstractedFS
