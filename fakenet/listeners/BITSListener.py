@@ -23,7 +23,6 @@ from SimpleHTTPServer import SimpleHTTPRequestHandler
 
 from . import *
 
-
 # BITS Protocol header keys
 K_BITS_SESSION_ID = 'BITS-Session-Id'
 K_BITS_ERROR_CONTEXT = 'BITS-Error-Context'

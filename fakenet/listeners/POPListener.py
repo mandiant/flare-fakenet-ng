@@ -9,6 +9,8 @@ import SocketServer
 import ssl
 import socket
 
+from . import *
+
 EMAIL = """From: "Bob Example" <bob@example.org>
 To: Alice Example <alice@example.com>
 Cc: theboss@example.com

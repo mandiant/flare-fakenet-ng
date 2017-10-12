@@ -11,6 +11,8 @@ import socket
 
 import BannerFactory
 
+from . import *
+
 RPL_WELCOME = '001'
 SRV_WELCOME = "Welcome to FakeNet."
 

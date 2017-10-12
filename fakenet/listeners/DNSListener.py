@@ -8,6 +8,8 @@ from dnslib import *
 import ssl
 import socket
 
+from . import *
+
 class DNSListener():
 
     def taste(self, data, dport):
