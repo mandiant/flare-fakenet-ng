@@ -42,7 +42,7 @@ K_CONTENT_ENCODING = 'Content-Encoding'
 # BITS Protocol header values
 V_ACK = 'Ack'
 
-class ThreadedHTTPServer():
+class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
 
     def handle_error(self, request, client_address):
         exctype, value = sys.exc_info()[:2]
@@ -204,6 +204,21 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
     supported_protocols = ["{7df0354d-249b-430f-820d-3d2a9bef4931}"]  # The only existing protocol version to date
     fragment_size_limit = 100*1024*1024  # bytes
 
+    def do_HEAD(self):
+        self.server.logger.info('Received HEAD request')
+
+        # Process request
+        self.server.logger.info('%s', '-'*80)
+        self.server.logger.info(self.requestline)
+        for line in str(self.headers).split("\n"):
+            self.server.logger.info(line)
+        self.server.logger.info('%s', '-'*80)
+
+        # Prepare response
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+
     def __send_response(self, headers_dict={}, status_code=HTTPStatus.OK, data=""):
         """
             Sends server response w/ headers and status code
@@ -353,8 +368,9 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
             # case mutual supported protocol is found
             if protocols_intersection:
                 headers[K_BITS_PROTOCOL] = list(protocols_intersection)[0]
+
                 safe_path = self.server.bits_file_prefix + '_' + urllib.quote(self.path, '')
-                absolute_file_path = self.server.ListenerBase.safe_join(os.getcwd(), safe_path)
+                absolute_file_path = ListenerBase.safe_join(os.getcwd(), safe_path)
 
                 session_id = self.__get_current_session_id()
                 self.server.logger.info("Creating BITS-Session-Id: %s", session_id)
