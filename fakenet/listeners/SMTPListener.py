@@ -9,6 +9,8 @@ import SocketServer
 import ssl
 import socket
 
+from . import *
+
 class SMTPListener():
 
     def taste(self, data, dport):
