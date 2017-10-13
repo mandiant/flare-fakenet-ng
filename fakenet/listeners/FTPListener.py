@@ -279,7 +279,12 @@ class FTPListener():
         if self.config.get('usessl') == 'Yes':
             self.logger.debug('Using SSL socket.')
 
-            keyfile_path = 'privkey.pem'
+            keyfile_path = 'listeners/ssl_utils/privkey.pem'
+            keyfile_path = ListenerBase.abs_config_path(keyfile_path)
+            if keyfile_path is None:
+                self.logger.error('Could not locate %s', keyfile_path)
+                sys.exit(1)
+
             self.handler = TLS_FakeFTPHandler
             self.handler.certfile = keyfile_path
 

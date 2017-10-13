@@ -63,21 +63,17 @@ class RawListener():
         if self.config.get('usessl') == 'Yes':
             self.logger.debug('Using SSL socket.')
 
-            keyfile_path = 'privkey.pem'
-            if not os.path.exists(keyfile_path):
-                keyfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), keyfile_path)
+            keyfile_path = 'listeners/ssl_utils/privkey.pem'
+            keyfile_path = ListenerBase.abs_config_path(keyfile_path)
+            if keyfile_path is None:
+                self.logger.error('Could not locate %s', keyfile_path)
+                sys.exit(1)
 
-                if not os.path.exists(keyfile_path):
-                    self.logger.error('Could not locate privkey.pem')
-                    sys.exit(1)
-
-            certfile_path = 'server.pem'
-            if not os.path.exists(certfile_path):
-                certfile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), certfile_path)
-
-                if not os.path.exists(certfile_path):
-                    self.logger.error('Could not locate certfile.pem')
-                    sys.exit(1)
+            certfile_path = 'listeners/ssl_utils/server.pem'
+            certfile_path = ListenerBase.abs_config_path(certfile_path)
+            if certfile_path is None:
+                self.logger.error('Could not locate %s', certfile_path)
+                sys.exit(1)
 
             self.server.socket = ssl.wrap_socket(self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers='RSA')
         
