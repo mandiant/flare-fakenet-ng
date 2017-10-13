@@ -80,29 +80,30 @@ class TFTPListener():
         self.local_ip = '0.0.0.0'
         self.server = None
         self.name = 'TFTP'
-        self.port = self.config.get('port', 70)
-
-        self.logger.info('Starting...')
+        self.port = self.config.get('port', 69)
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
             self.logger.debug('  %10s: %s', key, value)
 
+        path = self.config.get('tftproot', 'defaultFiles')
+        self.tftproot_path = ListenerBase.abs_config_path(path)
+        if self.tftproot_path is None:
+            self.logger.error('Could not locate tftproot directory: %s', path)
+            sys.exit(1)
+
+        self.tftp_file_prefix = self.config.get('tftpfileprefix', 'tftp')
+
     def start(self):
+        self.logger.info('Starting...')
 
         # Start listener
         self.server = ThreadedUDPServer((self.local_ip, int(self.config['port'])), ThreadedUDPRequestHandler)
 
         self.server.logger = self.logger
         self.server.config = self.config
-
-        path = self.config.get('tftproot', 'defaultFiles')
-        self.server.tftproot_path = ListenerBase.abs_config_path(path)
-        if self.server.tftproot_path is None:
-            self.logger.error('Could not locate tftproot directory: %s', path)
-            sys.exit(1)
-
-        self.server.bits_file_prefix = self.config.get('tftpfileprefix', 'tftp')
+        self.server.tftproot_path = self.tftproot_path
+        self.server.tftp_file_prefix = self.tftp_file_prefix
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
@@ -147,23 +148,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
             elif opcode == OPCODE_DATA:
 
-                block_num = struct.unpack('!H', data[2:4])[0]
-
-                if hasattr(self.server, 'filename_path') and self.server.filename_path:
-
-                    safe_file = self.server.tftp_file_prefix + "_" + urllib.quote(self.server.filename_path, '')
-                    output_file = self.ListenerBase.safe_join(os.getcwd(),
-                                                              safe_file)
-                    f = open(output_file, 'ab')
-                    f.write(data[4:])
-                    f.close()
-
-                    # Send ACK packet for the given block number
-                    ack_packet = OPCODE_ACK + data[2:4]
-                    socket.sendto(ack_packet, self.client_address)
-
-                else:
-                    self.server.logger.error('Received DATA packet but don\'t know where to store it.')
+                self.handle_data(socket, data)
 
             elif opcode == OPCODE_ERROR:
 
@@ -179,6 +164,26 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
         except Exception, e:
             self.server.logger.error('Error: %s', e)
             raise e
+
+    def handle_data(self, socket, data):
+
+            block_num = struct.unpack('!H', data[2:4])[0]
+
+            if hasattr(self.server, 'filename_path') and self.server.filename_path:
+
+                safe_file = self.server.tftp_file_prefix + "_" + urllib.quote(self.server.filename_path, '')
+                output_file = self.ListenerBase.safe_join(os.getcwd(),
+                                                          safe_file)
+                f = open(output_file, 'ab')
+                f.write(data[4:])
+                f.close()
+
+                # Send ACK packet for the given block number
+                ack_packet = OPCODE_ACK + data[2:4]
+                socket.sendto(ack_packet, self.client_address)
+
+            else:
+                self.server.logger.error('Received DATA packet but don\'t know where to store it.')
 
     def handle_rrq(self, socket, filename):
 
