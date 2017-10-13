@@ -15,7 +15,6 @@ import mimetypes
 
 import time
 
-#import ..listeners
 from . import *
 
 MIME_FILE_RESPONSE = {
