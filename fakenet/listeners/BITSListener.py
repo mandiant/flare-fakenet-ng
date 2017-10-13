@@ -21,7 +21,7 @@ import urllib
 from BaseHTTPServer import HTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 
-import fakenet.listeners
+from . import *
 
 
 # BITS Protocol header keys
@@ -42,7 +42,7 @@ K_CONTENT_ENCODING = 'Content-Encoding'
 # BITS Protocol header values
 V_ACK = 'Ack'
 
-class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
+class ThreadedHTTPServer():
 
     def handle_error(self, request, client_address):
         exctype, value = sys.exc_info()[:2]
@@ -354,7 +354,7 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
             if protocols_intersection:
                 headers[K_BITS_PROTOCOL] = list(protocols_intersection)[0]
                 safe_path = self.server.bits_file_prefix + '_' + urllib.quote(self.path, '')
-                absolute_file_path = fakenet.listeners.safe_join(os.getcwd(), safe_path)
+                absolute_file_path = self.server.ListenerBase.safe_join(os.getcwd(), safe_path)
 
                 session_id = self.__get_current_session_id()
                 self.server.logger.info("Creating BITS-Session-Id: %s", session_id)
@@ -453,12 +453,12 @@ class BITSListener():
         if self.config.get('usessl') == 'Yes':
             self.logger.debug('Using SSL socket.')
 
-            keyfile_path = fakenet.listeners.abs_config_path('privkey.pem')
+            keyfile_path = ListenerBase.abs_config_path('privkey.pem')
             if keyfile_path is None:
                 self.logger.error('Could not locate privkey.pem')
                 sys.exit(1)
 
-            certfile_path = fakenet.listeners.abs_config_path('server.pem')
+            certfile_path = ListenerBase.abs_config_path('server.pem')
             if certfile_path is None:
                 self.logger.error('Could not locate certfile.pem')
                 sys.exit(1)
@@ -482,7 +482,7 @@ def main():
     """
     Run from the flare-fakenet-ng root dir with the following command:
 
-       python2 -m fakenet.listeners.BITSListener
+       python2 -m self.BITSListener
 
     """
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)

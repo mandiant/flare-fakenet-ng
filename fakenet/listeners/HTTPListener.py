@@ -15,7 +15,8 @@ import mimetypes
 
 import time
 
-import fakenet.listeners
+#import ..listeners
+from . import *
 
 MIME_FILE_RESPONSE = {
     'text/html':    'FakeNet.html',
@@ -77,7 +78,7 @@ class HTTPListener():
 
         # Initialize webroot directory
         path = self.config.get('webroot','defaultFiles')
-        self.webroot_path = fakenet.listeners.abs_config_path(path)
+        self.webroot_path = ListenerBase.abs_config_path(path)
         if self.webroot_path is None:
             self.logger.error('Could not locate webroot directory: %s', path)
             sys.exit(1)
@@ -97,13 +98,13 @@ class HTTPListener():
             self.logger.debug('Using SSL socket.')
 
             keyfile_path = 'listeners/ssl_utils/privkey.pem'
-            keyfile_path = fakenet.listeners.abs_config_path(keyfile_path)
+            keyfile_path = ListenerBase.abs_config_path(keyfile_path)
             if keyfile_path is None:
                 self.logger.error('Could not locate %s', keyfile_path)
                 sys.exit(1)
 
             certfile_path = 'listeners/ssl_utils/server.pem'
-            certfile_path = fakenet.listeners.abs_config_path(certfile_path)
+            certfile_path = ListenerBase.abs_config_path(certfile_path)
             if certfile_path is None:
                 self.logger.error('Could not locate %s', certfile_path)
                 sys.exit(1)
@@ -229,7 +230,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             response_type = self.server.extensions_map.get(ext, 'text/html')
 
         # Do after checking for trailing '/' since normpath removes it
-        response_filename = fakenet.listeners.safe_join(self.server.webroot_path, path)
+        response_filename = ListenerBase.safe_join(self.server.webroot_path, path)
 
         # Check the requested path exists
         if not os.path.exists(response_filename):

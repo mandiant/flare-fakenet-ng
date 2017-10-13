@@ -10,7 +10,7 @@ import socket
 import struct
 
 import urllib
-import fakenet.listeners
+from . import *
 
 EXT_FILE_RESPONSE = {
     '.html': 'FakeNet.html',
@@ -97,7 +97,7 @@ class TFTPListener():
         self.server.config = self.config
 
         path = self.config.get('tftproot', 'defaultFiles')
-        self.server.tftproot_path = fakenet.listeners.abs_config_path(path)
+        self.server.tftproot_path = ListenerBase.abs_config_path(path)
         if self.server.tftproot_path is None:
             self.logger.error('Could not locate tftproot directory: %s', path)
             sys.exit(1)
@@ -152,7 +152,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
                 if hasattr(self.server, 'filename_path') and self.server.filename_path:
 
                     safe_file = self.server.tftp_file_prefix + "_" + urllib.quote(self.server.filename_path, '')
-                    output_file = fakenet.listeners.safe_join(os.getcwd(),
+                    output_file = self.ListenerBase.safe_join(os.getcwd(),
                                                               safe_file)
                     f = open(output_file, 'ab')
                     f.write(data[4:])
@@ -182,7 +182,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
     def handle_rrq(self, socket, filename):
 
-        filename_path = fakenet.listeners.safe_join(self.server.tftproot_path,
+        filename_path = self.server.ListenerBase.safe_join(self.server.tftproot_path,
                                                     filename)
 
         # If virtual filename does not exist return a default file based on extention
@@ -191,7 +191,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             file_basename, file_extension = os.path.splitext(filename)
 
             # Calculate absolute path to a fake file
-            filename_path = fakenet.listeners.safe_join(self.server.tftproot_path,
+            filename_path = self.server.ListenerBase.safe_join(self.server.tftproot_path,
                                                         EXT_FILE_RESPONSE.get(file_extension.lower(), u'FakeNetMini.exe'))
 
 
