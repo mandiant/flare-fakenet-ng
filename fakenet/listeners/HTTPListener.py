@@ -69,8 +69,6 @@ class HTTPListener():
         self.name = 'HTTP'
         self.port = self.config.get('port', 80)
 
-        self.logger.info('Initializing...')
-
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
             self.logger.debug('  %10s: %s', key, value)
@@ -86,7 +84,6 @@ class HTTPListener():
     def start(self):
         self.logger.debug('Starting...')
             
-
         self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), ThreadedHTTPRequestHandler)
         self.server.logger = self.logger
         self.server.config = self.config
