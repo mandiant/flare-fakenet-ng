@@ -745,7 +745,7 @@ Another requirement is to ensure that the listener can reliably shutdown when
 the `stop()` method is called. For example, make use of connection timeouts to
 ensure that the listener does not block on some connection for too long.
 
-Listeners that implement the function taste(self, data, dport) will be 
+Listeners that implement the function `taste(self, data, dport)` will be 
 considered when packets are directed by the Proxy. The function must return
 a score which indicates the likelihood that the Listener handles the 
 protocol that is contained in the packet.
