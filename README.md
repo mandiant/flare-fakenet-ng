@@ -298,6 +298,7 @@ file:
     Listener:    DNSListener
     DNSResponse: 192.0.2.123
     NXDomains:   0
+    Hidden:      False
 
     [RawTCPListener]
     Enabled:     True
@@ -306,6 +307,7 @@ file:
     Listener:    RawListener
     UseSSL:      No
     Timeout:     10
+    Hidden:      False
 
 The configuration file is broken up into several sections. 
 
@@ -456,6 +458,7 @@ look at a sample listener configuration:
     Listener:    RawListener
     UseSSL:      Yes
     Timeout:     10
+    Hidden:      False
 
 The configuration above consists of the listener name `TCPListener1234`. It
 will be used for logging purposes so you can distinguish between different
@@ -479,6 +482,9 @@ The following settings are generic for all listeners:
                       feature is useful for extending FakeNet-NG's functionality
                       (e.g. launch a debugger on the connecting pid to help with
                       unpacking and decoding.)
+ * **Hidden**           - Do not allow traffic to be directed to this listener
+                      without going through the proxy which will determine the
+                      protocol based on the packet contents
 
 The `Port` and `Protocol` settings are necessary for the listeners to know to
 which ports to bind and, if they support multiple protocol (e.g RawListener), 
@@ -505,6 +511,8 @@ listeners:
                  a configurable file which can be specified using 
                  `DumpHTTPPosts` and `DumpHTTPPostsFilePrefix` settings.
 * **SMTPListener** - supports SMTP protocol.
+* **ProxyListener**- Detects protocol based on packet contents and redirects
+                 packets accordingly.
 
 
 NOTE: FakeNet-NG will attempt to locate the webroot directory, first by using 
@@ -653,7 +661,7 @@ configuration below:
     Listeners:  HTTPListener, RawListener, FTPListener, DNSListener, POPListener, SMTPListener, TFTPListener, IRCListener, BITSListener
     Hidden:     False
 
-Note, the new `Listeners` parameter which defines a list of potential protocol handler
+Note, the new `Listeners` parameter which defines a list of potential protocol handlers
 to try for all incoming connections.
 
 It is also recommended to define a proxy listener as your default handler by updating
@@ -666,6 +674,18 @@ the following diverter configurations:
 With the default listener pointing to the proxy listener, all unknown connections
 will be appropriately handled. You can still assign specific listeners to ports to
 enforce a specific protocol (e.g. always use HTTP listener for port 80).
+
+The Proxy determines the protocol of packets by polling all available listeners with 
+the function taste(). Each Listener that implements taste() will respond with a score 
+indicating the likelihood that the protocol handled by that listener matches the 
+packet contents. The Proxy will forward the packet to the Listener that returned the 
+highest score. The RawListener will always return a score of 1, so it will be chosen
+in the case that all other Listeners return 0, thus serving as the default.
+
+Users can alter the configuration parameter 'Hidden' in each Listener's configuration.
+If Hidden is 'False', the Listener will be bound to a specific port and automatically
+receive all traffic on that port. With Hidden set to 'True', the Listener can only
+receive traffic that is redirected through the Proxy.
 
 Development
 ===========
@@ -724,6 +744,11 @@ but spawn a new thread that handles incoming connections.
 Another requirement is to ensure that the listener can reliably shutdown when
 the `stop()` method is called. For example, make use of connection timeouts to
 ensure that the listener does not block on some connection for too long.
+
+Listeners that implement the function taste(self, data, dport) will be 
+considered when packets are directed by the Proxy. The function must return
+a score which indicates the likelihood that the Listener handles the 
+protocol that is contained in the packet.
 
 The logging convention used by FakeNet-NG's listeners is to use the self.logger
 object for the output. That way the logging is uniform across the application.
