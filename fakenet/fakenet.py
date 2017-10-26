@@ -162,7 +162,7 @@ class Fakenet():
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
 
             else:
-                self.logger.error('Error: Your system %s is currently not supported.', platform_name)
+                self.logger.error('Error: Your system %s is currently not supported.' % (platform_name))
                 sys.exit(1)
 
         # Start all of the listeners
@@ -305,14 +305,23 @@ def main():
             logfile = open(options.log_file, 'a')
         except IOError:
             print('Failed to open specified log file: %s' % (options.log_file))
-            return False
+            sys.exit(1)
             
         loghandler = logging.StreamHandler(stream=open(options.log_file, 'a'))
         loghandler.formatter = logging.Formatter('%(asctime)s [%(name)18s] %(message)s', datefmt=date_format)
         logger.addHandler(loghandler)
 
     if options.syslog:
-        sysloghandler = logging.handlers.SysLogHandler('/dev/log')
+        platform_name = platform.system()
+        sysloghandler = None
+        if platform_name == 'Windows':
+            sysloghandler = logging.handlers.NTEventLogHandler('FakeNet-NG')
+        elif platform_name.lower().startswith('linux'):
+            sysloghandler = logging.handlers.SysLogHandler('/dev/log')
+        else:
+            print('Error: Your system %s is currently not supported.' % (platform_name))
+            sys.exit(1)
+
         # Bothered to specify datefmt for consistency, but syslog generally
         # logs the time on each log line, so %(asctime) is omitted here.
         sysloghandler.formatter = logging.Formatter('FakeNet-NG: {"loggerName":"%(name)s", "moduleName":"%(module)s", "levelName":"%(levelname)s", "message":"%(message)s"}', datefmt=date_format)
