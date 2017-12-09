@@ -32,8 +32,8 @@ MIME_FILE_RESPONSE = {
 class HTTPListener():
 
     def taste(self, data, dport):
-        
-        request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
+
+        request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE',
             'OPTIONS', 'CONNECT', 'PATCH']
 
         confidence = 1 if dport in [80, 443] else 0
@@ -53,15 +53,15 @@ class HTTPListener():
         })
 
     def __init__(
-            self, 
-            config={}, 
-            name='HTTPListener', 
-            logging_level=logging.DEBUG, 
+            self,
+            config={},
+            name='HTTPListener',
+            logging_level=logging.DEBUG,
             ):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
-  
+
         self.config = config
         self.name = name
         self.local_ip  = '0.0.0.0'
@@ -83,7 +83,7 @@ class HTTPListener():
 
     def start(self):
         self.logger.debug('Starting...')
-            
+
         self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), ThreadedHTTPRequestHandler)
         self.server.logger = self.logger
         self.server.config = self.config
@@ -163,10 +163,13 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         response, response_type = self.get_response(self.path)
 
         # Prepare response
-        self.send_response(200)
-        self.send_header("Content-Type", response_type)
-        self.send_header("Content-Length", len(response))
-        self.end_headers()
+        # If response_type is empty, this means that a RAW HTML file
+        # has been used, so no need for headers
+        if response_type != '':
+            self.send_response(200)
+            self.send_header("Content-Type", response_type)
+            self.send_header("Content-Length", len(response))
+            self.end_headers()
 
         self.wfile.write(response)
 
@@ -201,16 +204,19 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
                     http_f.close()
                 else:
-                    self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)        
+                    self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)
 
         # Get response type based on the requested path
         response, response_type = self.get_response(self.path)
 
         # Prepare response
-        self.send_response(200)
-        self.send_header("Content-Type", response_type)
-        self.send_header("Content-Length", len(response))
-        self.end_headers()
+        # If response_type is empty, this means that a RAW HTML file
+        # has been used, so no need for headers
+        if response_type != '':
+            self.send_response(200)
+            self.send_header("Content-Type", response_type)
+            self.send_header("Content-Length", len(response))
+            self.end_headers()
 
         self.wfile.write(response)
 
@@ -229,7 +235,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         response_filename = ListenerBase.safe_join(self.server.webroot_path, path)
 
         # Check the requested path exists
-        if not os.path.exists(response_filename):
+        if not os.path.exists(response_filename) and not os.path.exists(response_filename + '.RAW'):
 
             self.server.logger.debug('Could not find path: %s', response_filename)
 
@@ -241,17 +247,32 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 self.server.logger.debug('Could not find path: %s', response_filename)
                 self.server.logger.error('Could not locate requested file or default handler.')
                 return (response, response_type)
+        else:
+            # RAW file
+            # if a file named <requestedfile>.RAW exists, it will be sent as it is
+            # without any additional headers
+            #
+            # in the file you can use the following placeholders replaced at runtime
+            # <RAW-DATE>       current time and date
+            # ...
+            if os.path.exists(response_filename + '.RAW'):
+               response_filename = response_filename + '.RAW'
+               response_type= ''
 
-        self.server.logger.info('Responding with mime type: %s file: %s', response_type, response_filename)
+            self.server.logger.info('Responding with mime type: %s file: %s', response_type, response_filename)
 
-        try:
-            f = open(response_filename, 'rb')
-        except Exception, e:
-            self.server.logger.error('Failed to open response file: %s', response_filename)
-            response_type = 'text/html'
-        else:            
-            response = f.read()
-            f.close()
+            try:
+                f = open(response_filename, 'rb')
+            except Exception, e:
+                self.server.logger.error('Failed to open response file: %s', response_filename)
+                response_type = 'text/html'
+            else:
+                response = f.read()
+                if response_type == '':
+                    # RAW file placeholders replacement
+                    current_time = time.strftime("%a, %-d %b %Y %H:%M:%S %Z")
+                    response = response.replace('<RAW-DATE>',current_time)
+                f.close()
 
         return (response, response_type)
 
@@ -290,7 +311,7 @@ def main():
 
     """
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
-    
+
     config = {'port': '8443', 'usessl': 'Yes', 'webroot': 'fakenet/defaultFiles' }
 
     listener = HTTPListener(config)
