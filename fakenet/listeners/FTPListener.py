@@ -15,6 +15,7 @@ from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler, TLS_FTPHandler
 from pyftpdlib.filesystems import AbstractedFS
 from pyftpdlib.servers import ThreadedFTPServer
+from pyftpdlib.log import logger as pyftpdlib_logger
 
 import BannerFactory
 
@@ -150,8 +151,29 @@ BANNERS = {
 
 class FakeFTPHandler(FTPHandler, object):
 
-    def ftp_PASS(self, line):
+    def log(self, msg, logfun=pyftpdlib_logger.info):
+        logmsg = dict({'src': self.remote_ip, 'src_port':self.remote_port, 'dest_port': self.server.address[1],
+                       'user': self.username, 'listener': __name__})
+        if msg.__class__ is dict:
+            # for log_cmd, preserve format
+            logmsg.update(msg)
+            self.logger.info(logmsg)
+        else:
+            logmsg['message'] = msg
+            self.logger.debug(logmsg)
 
+        # Finally, call superclass log method
+        super(FakeFTPHandler, self).log(msg, logfun)
+
+    def log_cmd(self, cmd, arg, respcode, respstr):
+        """ Log all ftp command and arguments to remote logger """
+        msg = dict({'ftp_cmd': cmd, 'ftp_cmd_args': arg, 'ftp_respcode': respcode})
+        if str(respcode)[0] in ('4', '5'):
+            msg['ftp_respmsg'] = respstr
+        self.log(msg)
+
+
+    def ftp_PASS(self, line):
         # Dynamically add user to authorizer
         if not self.authorizer.has_user(self.username):
             self.authorizer.add_user(self.username, line, self.ftproot_path, 'elradfmwM')
@@ -226,15 +248,17 @@ class FTPListener():
 
     def __init__(self, 
             config, 
-            name='FTPListener', 
+            name='FTPListener',
+            logger = None,
             logging_level=logging.INFO, 
             running_listeners=None, 
             diverter=None
             ):
 
-        self.logger = logging.getLogger(name)
+        self.logger = logger or logging.getLogger(name)
+        #self.logger.name = name
         self.logger.setLevel(logging_level)
-            
+
         self.config = config
         self.name = name
         self.local_ip = '0.0.0.0'
@@ -300,7 +324,8 @@ class FTPListener():
 
         # Override pyftpdlib logger name
         logging.getLogger('pyftpdlib').name = self.name
-
+        self.handler.logger = self.logger
+        self.handler.logger.name = self.name
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
@@ -333,7 +358,7 @@ def test(config):
 def main():
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
 
-    config = {'port': '21', 'usessl': 'No', 'protocol': 'tcp', 'ftproot': os.path.join('..', 'defaultFiles')}
+    config = {'port': '2121', 'usessl': 'No', 'protocol': 'tcp', 'ftproot': os.path.join('..', 'defaultFiles')}
 
     listener = FTPListener(config)
     listener.start()

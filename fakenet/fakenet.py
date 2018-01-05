@@ -6,6 +6,7 @@
 # Developed by Peter Kacherginsky
 
 import logging
+from splunk_http_handler import SplunkHttpHandler
 
 import os
 import sys
@@ -42,6 +43,9 @@ class Fakenet():
 
         # Diverter used to intercept and redirect traffic
         self.diverter = None
+
+        # Splunk logging options and parameters
+        self.splunk_config = dict()
 
         # FakeNet options and parameters
         self.fakenet_config = dict()
@@ -83,6 +87,18 @@ class Fakenet():
 
             elif section == 'Diverter':
                 self.diverter_config = dict(config.items(section))
+
+            elif section == 'Splunk' and config.getboolean(section, 'LogToSplunk'):
+                self.splunk_config = dict(config.items(section))
+                try:
+                    self.logger.addHandler(
+                        SplunkHttpHandler(self.splunk_config['splunkhost'], self.splunk_config['hectoken'],
+                            port=int(self.splunk_config['port']),
+                            source=self.splunk_config['source'], sourcetype=self.splunk_config['sourcetype'],
+                            ssl_verify=bool(self.splunk_config['cert_verify'])))
+                    self.logger.debug("Splunk handler config successful")
+                except Exception as e:
+                    self.logger.error("Failed to set Splunk log handler.  Exception: %s" % e)
 
             elif config.getboolean(section, 'enabled'):
                 self.listeners_config[section] = dict(config.items(section))
@@ -144,21 +160,21 @@ class Fakenet():
                 # Check Windows version
                 if platform.release() in ['2000', 'XP', '2003Server', 'post2003']:
                     self.logger.error('Error: FakeNet-NG only supports Windows Vista+.')
-                    self.logger.error('       Please use the original Fakenet for older versions of Windows.')
+                    self.logger.error('Please use the original Fakenet for older versions of Windows.')
                     sys.exit(1)
 
                 if self.diverter_config['networkmode'].lower() == 'auto':
                     self.diverter_config['networkmode'] = 'singlehost'
                 
                 from diverters.windows import Diverter
-                self.diverter = Diverter(self.diverter_config, self.listeners_config, self.logging_level)
+                self.diverter = Diverter(self.diverter_config, self.listeners_config, self.logger)
 
             elif platform_name.lower().startswith('linux'):
                 if self.diverter_config['networkmode'].lower() == 'auto':
                     self.diverter_config['networkmode'] = 'multihost'
 
                 from diverters.linux import Diverter
-                self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
+                self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logger)
 
             else:
                 self.logger.error('Error: Your system %s is currently not supported.', platform_name)
@@ -186,7 +202,7 @@ class Fakenet():
             else:
 
                 listener_provider_instance = listener_provider(
-                        listener_config, listener_name, self.logging_level)
+                        listener_config, listener_name, self.logger, self.logging_level)
 
                 # Store listener provider object
                 self.running_listener_providers.append(listener_provider_instance)

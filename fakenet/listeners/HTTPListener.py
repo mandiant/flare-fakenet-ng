@@ -1,4 +1,5 @@
 import logging
+import json
 
 import os
 import sys
@@ -56,12 +57,15 @@ class HTTPListener():
             self, 
             config={}, 
             name='HTTPListener', 
-            logging_level=logging.DEBUG, 
+            logger=None,
+            logging_level=logging.DEBUG
             ):
 
-        self.logger = logging.getLogger(name)
+        self.logger = logger or logging.getLogger(name)
+
+        #self.logger.name = name
         self.logger.setLevel(logging_level)
-  
+
         self.config = config
         self.name = name
         self.local_ip  = '0.0.0.0'
@@ -82,8 +86,9 @@ class HTTPListener():
 
 
     def start(self):
-        self.logger.debug('Starting...')
-            
+        http_str = 'HTTPS' if self.config.get('usessl') == 'Yes' else 'HTTP'
+        self.logger.info('Starting %s server on %s:%s' % (http_str, self.local_ip, self.config.get('port')))
+
         self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), ThreadedHTTPRequestHandler)
         self.server.logger = self.logger
         self.server.config = self.config
@@ -112,7 +117,8 @@ class HTTPListener():
         self.server_thread.start()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        http_str = 'HTTPS' if self.config.get('usessl') == 'Yes' else 'HTTP'
+        self.logger.info('Stopping %s server on %s:%s' % (http_str, self.local_ip, self.config.get('port')))
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -176,17 +182,17 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def do_POST(self):
         self.server.logger.info('Received a POST request')
 
-        post_body = ''
+        self.post_body = ''
 
         content_len = int(self.headers.get('content-length', 0))
-        post_body = self.rfile.read(content_len)
+        self.post_body = self.rfile.read(content_len)
 
         # Process request
         self.server.logger.info('%s', '-'*80)
         self.server.logger.info(self.requestline)
         for line in str(self.headers).split("\n"):
             self.server.logger.info(line)
-        for line in post_body.split("\n"):
+        for line in self.post_body.split("\n"):
             self.server.logger.info(line)
         self.server.logger.info('%s', '-'*80)
 
@@ -200,7 +206,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 if http_f:
                     http_f.write(self.requestline + "\r\n")
                     http_f.write(str(self.headers) + "\r\n")
-                    http_f.write(post_body)
+                    http_f.write(self.post_body)
 
                     http_f.close()
                 else:
@@ -259,6 +265,38 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         return (response, response_type)
 
     def log_message(self, format, *args):
+        '''Construct CIM compliant log message as a dict object which would be indexed in splunk as json'''
+
+        # http://docs.splunk.com/Documentation/CIM/4.9.1/User/Web
+        if 'user-agent' in self.headers.dict.keys():
+            self.headers.dict['http_user_agent'] = self.headers.dict.pop('user-agent')
+            self.headers.dict['http_user_agent_length'] = len(self.headers.dict['http_user_agent'])
+
+        if 'referrer' in self.headers.dict.keys():
+            self.headers.dict['http_referrer'] = self.headers.dict.pop('referrer')
+
+        if 'host' in self.headers.dict.keys():
+            self.headers.dict['site'] = self.headers.dict.pop('host')
+
+        try:
+            # Advertised fake web server signature
+            self.headers.dict['vendor'] = self.server.config.version
+        except:
+            pass
+
+        try:
+            self.headers.dict['protocol'] = self.server.config.protocol.lower()
+        except:
+            self.headers.dict['protocol'] = 'tcp'
+
+        logmsg = dict({'src': self.client_address[0], 'src_port':self.client_address[1], 'dest_port': self.server.server_port,
+                    'ssl':self.server.config['usessl'], 'http_method': self.command, 'http_header': self.headers.dict,
+                    'uri_query': self.path, 'http_protocol_version': self.protocol_version, 'listener': __name__})
+        if self.command == 'POST':
+            logmsg['post_body'] = self.post_body
+
+        #self.server.logger.info(json.dumps(logmsg, indent=2, sort_keys=True))
+        self.server.logger.info(logmsg)
         return
 
 

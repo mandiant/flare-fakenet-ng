@@ -203,6 +203,7 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
     supported_protocols = ["{7df0354d-249b-430f-820d-3d2a9bef4931}"]  # The only existing protocol version to date
     fragment_size_limit = 100*1024*1024  # bytes
 
+
     def do_HEAD(self):
         self.server.logger.info('Received HEAD request')
 
@@ -434,6 +435,40 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
             repr(e.internal_exception))
         self.__send_response(headers, status_code = status_code)
 
+    def log_message(self, format, *args):
+        """Construct CIM compliant log message as a dict object which would be indexed in splunk as json"""
+
+        # http://docs.splunk.com/Documentation/CIM/4.9.1/User/Web
+        if 'user-agent' in self.headers.dict.keys():
+            self.headers.dict['http_user_agent'] = self.headers.dict.pop('user-agent')
+            self.headers.dict['http_user_agent_length'] = len(self.headers.dict['http_user_agent'])
+
+        if 'referrer' in self.headers.dict.keys():
+            self.headers.dict['http_referrer'] = self.headers.dict.pop('referrer')
+
+        if 'host' in self.headers.dict.keys():
+            self.headers.dict['site'] = self.headers.dict.pop('host')
+
+        try:
+            # Advertised fake web server signature
+            self.headers.dict['vendor'] = self.server.config.version
+        except:
+            pass
+
+        try:
+            self.headers.dict['protocol'] = self.server.config.protocol.lower()
+        except:
+            self.headers.dict['protocol'] = 'tcp'
+
+        logmsg = dict({'src': self.client_address[0], 'src_port':self.client_address[1], 'dest_port': self.server.server_port,
+                       'ssl':self.server.config['usessl'], 'http_method': self.command, 'http_header': self.headers.dict,
+                       'uri_query': self.path, 'http_protocol_version': self.protocol_version, 'listener': __name__})
+        if self.command == 'POST':
+            logmsg['post_body'] = self.post_body
+
+        self.server.logger.info(logmsg)
+        return
+
 class BITSListener():
 
     def taste(self, data, dport):
@@ -449,8 +484,9 @@ class BITSListener():
         return confidence
         
     def __init__(self, config={}, name='BITSListener', 
-            logging_level=logging.DEBUG, running_listeners=None):
-        self.logger = logging.getLogger(name)
+            logger=None, logging_level=logging.DEBUG, running_listeners=None):
+
+        self.logger = logger or logging.getLogger(name)
         self.logger.setLevel(logging_level)
   
         self.config = config
@@ -461,8 +497,6 @@ class BITSListener():
         self.NAME = 'BITS'
         self.PORT = self.config.get('port')
 
-        self.logger.info('Starting...')
-
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
             self.logger.debug('  %10s: %s', key, value)
@@ -470,7 +504,8 @@ class BITSListener():
         self.bits_file_prefix = self.config.get('bitsfileprefix', 'bits')
 
     def start(self):
-        self.logger.debug('Starting...')
+        http_str = 'HTTPS' if self.config.get('usessl') == 'Yes' else 'HTTP'
+        self.logger.info('Starting %s server on %s:%s' % (http_str, self.local_ip, self.config.get('port')))
 
         self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), SimpleBITSRequestHandler)
         self.server.logger = self.logger
@@ -497,7 +532,8 @@ class BITSListener():
         self.server_thread.start()        
 
     def stop(self):
-        self.logger.info('Stopping...')
+        http_str = 'HTTPS' if self.config.get('usessl') == 'Yes' else 'HTTP'
+        self.logger.info('Stopping %s server on %s:%s' % (http_str, self.local_ip, self.config.get('port')))
         if self.server:
             self.server.shutdown()
             self.server.server_close()
