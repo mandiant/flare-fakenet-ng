@@ -13,6 +13,7 @@ from OpenSSL import SSL
 from ssl_utils import ssl_detector
 from . import *
 import os
+import ListenerBase
 
 BUF_SZ = 1024
 IP = '0.0.0.0'
@@ -24,18 +25,18 @@ class ProxyListener():
             self, 
             config={}, 
             name ='ProxyListener',
-            logger=None,
-            logging_level=logging.DEBUG, 
+            logging_level=logging.DEBUG,
             ):
 
-        self.logger = logger or logging.getLogger(name)
-
-        self.logger.setLevel(logging_level)
-
+        self.logger = ListenerBase.set_logger("%s:%s" % (self.__module__, name), config, logging_level)
         self.config = config
         self.name = name
+        self.local_ip  = '0.0.0.0'
         self.server = None
         self.udp_fwd_table = dict()
+
+        self.logger.info('Starting %s %s on %s:%s'
+                         % (self.config['protocol'], self.name, self.local_ip, self.config['port']))
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -76,16 +77,14 @@ class ProxyListener():
         self.server_thread = threading.Thread(
                 target=self.server.serve_forever)
         self.server_thread.daemon = True
-        self.logger.info('Starting %s %s on %s:%s'
-            % (self.config['protocol'], self.name, self.server.server_address[0], self.server.server_address[1]))
         self.server_thread.start()
         server_ip, server_port = self.server.server_address
         self.logger.info("%s Server(%s:%d) thread: %s" % (proto, server_ip, 
             server_port, self.server_thread.name))
 
     def stop(self):
-        self.logger.info('Starting %s %s on %s:%s'
-            % (self.config['protocol'], self.name, self.server.server_address[0], self.server.server_address[1]))
+        self.logger.info('Stopping %s %s on %s:%s'
+            % (self.config['protocol'], self.name, self.local_ip, self.config['port']))
         if self.server:
             self.server.shutdown()
             self.server.server_close()

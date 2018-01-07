@@ -19,6 +19,8 @@ from collections import OrderedDict
 from optparse import OptionParser,OptionGroup
 from ConfigParser import ConfigParser
 
+from listeners import ListenerBase
+
 import platform
 
 from optparse import OptionParser
@@ -88,17 +90,28 @@ class Fakenet():
             elif section == 'Diverter':
                 self.diverter_config = dict(config.items(section))
 
-            elif section == 'Splunk' and config.getboolean(section, 'LogToSplunk'):
-                self.splunk_config = dict(config.items(section))
+            elif section == 'RemoteLogger':
+                self.remotelogger_config = dict(config.items(section))
                 try:
-                    self.logger.addHandler(
-                        SplunkHttpHandler(self.splunk_config['splunkhost'], self.splunk_config['hectoken'],
-                            port=int(self.splunk_config['port']),
-                            source=self.splunk_config['source'], sourcetype=self.splunk_config['sourcetype'],
-                            ssl_verify=bool(self.splunk_config['cert_verify'])))
-                    self.logger.debug("Splunk handler config successful")
+                    if self.remotelogger_config['logger_type'] == 'splunk' and config.getboolean(section, 'enableremotelogger'):
+                        ListenerBase.add_splunk_logger(
+                            self.remotelogger_config['logger_host'],
+                            self.remotelogger_config['splunk_hectoken'],
+                            self.logger,
+                            self.remotelogger_config['logger_port'],
+                            self.remotelogger_config['splunk_cert_verify'],
+                            self.remotelogger_config['splunk_source']
+                        )
+                    elif self.remotelogger_config['logger_type'] == 'syslog' and config.getboolean(section, 'enableremotelogger'):
+                        ListenerBase.add_remote_logger(
+                            self.remotelogger_config['logger_host'],
+                            self.logger,
+                            int(self.remotelogger_config['logger_port']),
+                            self.remotelogger_config['logger_protocol']
+                        )
+                    self.logger.info("%s handler configured successfully." % self.remotelogger_config['logger_type'])
                 except Exception as e:
-                    self.logger.error("Failed to set Splunk log handler.  Exception: %s" % e)
+                    self.logger.warning("Failed to set remote log handler.  Exception: %s" % e)
 
             elif config.getboolean(section, 'enabled'):
                 self.listeners_config[section] = dict(config.items(section))
@@ -184,6 +197,8 @@ class Fakenet():
         for listener_name in self.listeners_config:
 
             listener_config = self.listeners_config[listener_name]
+            # Pass remote logger configs in case we want to enable it for listener
+            listener_config.update(self.remotelogger_config)
 
             # Anonymous listener
             if not 'listener' in listener_config:
@@ -202,7 +217,7 @@ class Fakenet():
             else:
 
                 listener_provider_instance = listener_provider(
-                        listener_config, listener_name, self.logger, self.logging_level)
+                        listener_config, listener_name, self.logging_level)
 
                 # Store listener provider object
                 self.running_listener_providers.append(listener_provider_instance)

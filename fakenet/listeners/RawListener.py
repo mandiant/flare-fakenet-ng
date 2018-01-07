@@ -1,4 +1,5 @@
 import logging
+import ListenerBase
 
 import os
 import sys
@@ -19,15 +20,10 @@ class RawListener():
     def __init__(self, 
             config, 
             name='RawListener',
-            logger=None,
-            logging_level=logging.INFO, 
+            logging_level=logging.INFO,
             ):
 
-        self.logger = logger or logging.getLogger(name)
-
-        #self.logger.name = name
-        self.logger.setLevel(logging_level)
-
+        self.logger = ListenerBase.set_logger("%s:%s" % (self.__module__, name), config, logging_level)
         self.config = config
         self.name = name
         self.local_ip = '0.0.0.0'
@@ -35,6 +31,8 @@ class RawListener():
         self.name = 'Raw'
         self.port = self.config.get('port', 1337)
 
+        self.logger.info('Starting %s %s Listener (SSL:%s) on %s:%s'
+                         % (self.name, self.config['protocol'], self.config.get('usessl'), self.local_ip, self.port))
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
             self.logger.debug('  %10s: %s', key, value)
@@ -81,8 +79,6 @@ class RawListener():
         
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
-        self.logger.info('Starting %s %s Listener (SSL:%s) on %s:%s'
-            % (self.name, self.config['protocol'], self.config.get('usessl'), self.local_ip, self.port))
         self.server_thread.start()
 
     def stop(self):

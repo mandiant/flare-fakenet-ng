@@ -1,5 +1,5 @@
 import logging
-import json
+import ListenerBase
 
 import os
 import sys
@@ -57,21 +57,19 @@ class HTTPListener():
             self, 
             config={}, 
             name='HTTPListener', 
-            logger=None,
             logging_level=logging.DEBUG
             ):
 
-        self.logger = logger or logging.getLogger(name)
-
-        #self.logger.name = name
-        self.logger.setLevel(logging_level)
-
+        self.logger = ListenerBase.set_logger("%s:%s" % (self.__module__, name), config, logging_level)
         self.config = config
         self.name = name
         self.local_ip  = '0.0.0.0'
         self.server = None
         self.name = 'HTTP'
         self.port = self.config.get('port', 80)
+
+        ssl_str = 'HTTPS' if self.config.get('usessl') == 'Yes' else 'HTTP'
+        self.logger.info('Starting %s server on %s:%s' % (ssl_str, self.local_ip, self.config.get('port')))
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -86,9 +84,6 @@ class HTTPListener():
 
 
     def start(self):
-        http_str = 'HTTPS' if self.config.get('usessl') == 'Yes' else 'HTTP'
-        self.logger.info('Starting %s server on %s:%s' % (http_str, self.local_ip, self.config.get('port')))
-
         self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), ThreadedHTTPRequestHandler)
         self.server.logger = self.logger
         self.server.config = self.config
@@ -117,8 +112,8 @@ class HTTPListener():
         self.server_thread.start()
 
     def stop(self):
-        http_str = 'HTTPS' if self.config.get('usessl') == 'Yes' else 'HTTP'
-        self.logger.info('Stopping %s server on %s:%s' % (http_str, self.local_ip, self.config.get('port')))
+        ssl_str = 'HTTPS' if self.config.get('usessl') == 'Yes' else 'HTTP'
+        self.logger.info('Stopping %s server on %s:%s' % (ssl_str, self.local_ip, self.config.get('port')))
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -295,7 +290,6 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         if self.command == 'POST':
             logmsg['post_body'] = self.post_body
 
-        #self.server.logger.info(json.dumps(logmsg, indent=2, sort_keys=True))
         self.server.logger.info(logmsg)
         return
 

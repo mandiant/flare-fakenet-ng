@@ -1,4 +1,5 @@
 import logging
+import ListenerBase
 
 import os
 import sys
@@ -72,9 +73,7 @@ class TFTPListener():
             logging_level=logging.INFO, 
             ):
 
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging_level)
-            
+        self.logger = ListenerBase.set_logger("%s:%s" % (self.__module__, name), config, logging_level)
         self.config = config
         self.name = name
         self.local_ip = '0.0.0.0'
@@ -82,6 +81,8 @@ class TFTPListener():
         self.name = 'TFTP'
         self.port = self.config.get('port', 69)
 
+        self.logger.info('Starting %s on %s:%s'
+                         % (self.name, self.local_ip, self.config['port']))
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
             self.logger.debug('  %10s: %s', key, value)
@@ -95,8 +96,6 @@ class TFTPListener():
         self.tftp_file_prefix = self.config.get('tftpfileprefix', 'tftp')
 
     def start(self):
-        self.logger.info('Starting...')
-
         # Start listener
         self.server = ThreadedUDPServer((self.local_ip, int(self.config['port'])), ThreadedUDPRequestHandler)
 
@@ -110,7 +109,8 @@ class TFTPListener():
         self.server_thread.start()
 
     def stop(self):
-        self.logger.debug('Stopping...')
+        self.logger.info('Stopping %s on %s:%s'
+                         % (self.name, self.local_ip, self.config['port']))
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -127,24 +127,43 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
             opcode = data[:2]
 
+            logmsg = dict({'src': self.client_address[0], 'src_port':self.client_address[1],
+                           'dest_port': self.server.server_address[1], 'listener': __name__})
+
             if opcode == OPCODE_RRQ:
-                
+
                 filename, mode = self.parse_rrq_wrq_packet(data)
-                self.server.logger.info('Received request to download %s', filename)
+                msg = 'Received request to download %s' % filename
+                self.server.logger.info(msg)
+                logmsg['tftp_cmd'] = 'get'
+                logmsg['tftp_cmd_args'] = dict({'filename':filename, 'mode':mode})
+                self.server.logger.info(logmsg)
 
                 self.handle_rrq(socket, filename)
 
             elif opcode == OPCODE_WRQ:
 
                 filename, mode = self.parse_rrq_wrq_packet(data)
-                self.server.logger.info('Received request to upload %s', filename)
+                msg = 'Received request to upload %s' % filename
+                self.server.logger.info(msg)
+                safe_file = self.server.tftp_file_prefix + "_" + urllib.quote(filename, '')
+                output_file = ListenerBase.safe_join(os.getcwd(),safe_file)
+                logmsg['message'] = msg + "(%s)" % output_file
+                logmsg['tftp_cmd'] = 'put'
+                logmsg['tftp_cmd_args'] = dict({'filename':filename, 'mode':mode})
+                self.server.logger.info(logmsg)
 
                 self.handle_wrq(socket, filename)
 
             elif opcode == OPCODE_ACK:
 
                 block_num = struct.unpack('!H', data[2:4])[0]
-                self.server.logger.debug('Received ACK for block %d', block_num)
+                msg = 'Received ACK for block %d' % block_num
+                self.server.logger.debug(msg)
+                logmsg['message'] = msg
+                logmsg['tftp_cmd'] = 'ack'
+                logmsg['tftp_cmd_args'] = dict({'blocknum':block_num})
+                self.server.logger.debug(logmsg)
 
             elif opcode == OPCODE_DATA:
 
@@ -155,11 +174,20 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
                     error_num = struct.unpack('!H', data[2:4])[0]
                     error_msg = data[4:]
 
-                    self.server.logger.info('Received error message %d:%s', error_num, error_msg)
+                    msg = 'Received error message %d:%s' % (error_num, error_msg)
+                    self.server.logger.info(msg)
+                    logmsg['tftp_cmd'] = 'error'
+                    logmsg['tftp_cmd_args'] = dict({'errornum': error_num, 'errormsg': error_msg})
+                    logmsg['message'] = msg
+                    self.server.logger.info(logmsg)
 
             else:
 
-                self.server.logger.error('Unknown opcode: %d', struct.unpack('!H', data[:2])[0])
+                msg = 'Unknown opcode: %d' % struct.unpack('!H', data[:2])[0]
+                self.server.logger.error(msg)
+                logmsg['tftp_cmd'] = struct.unpack('!H', data[:2])[0]
+                logmsg['message'] = msg
+                self.server.logger.info(logmsg)
 
         except Exception, e:
             self.server.logger.error('Error: %s', e)

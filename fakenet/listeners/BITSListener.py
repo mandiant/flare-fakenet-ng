@@ -1,6 +1,7 @@
 # Based on a simple BITS server by Dor Azouri <dor.azouri@safebreach.com>
 
 import logging
+import ListenerBase
 
 import os
 import sys
@@ -484,11 +485,9 @@ class BITSListener():
         return confidence
         
     def __init__(self, config={}, name='BITSListener', 
-            logger=None, logging_level=logging.DEBUG, running_listeners=None):
+            logging_level=logging.DEBUG, running_listeners=None):
 
-        self.logger = logger or logging.getLogger(name)
-        self.logger.setLevel(logging_level)
-  
+        self.logger = ListenerBase.set_logger("%s:%s" % (self.__module__, name), config, logging_level)
         self.config = config
         self.name = name
         self.local_ip  = '0.0.0.0'
@@ -497,6 +496,9 @@ class BITSListener():
         self.NAME = 'BITS'
         self.PORT = self.config.get('port')
 
+        ssl_str = 'HTTPS' if self.config.get('usessl') == 'Yes' else 'HTTP'
+        self.logger.info('Starting %s server on %s:%s' % (ssl_str, self.local_ip, self.config.get('port')))
+
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
             self.logger.debug('  %10s: %s', key, value)
@@ -504,9 +506,6 @@ class BITSListener():
         self.bits_file_prefix = self.config.get('bitsfileprefix', 'bits')
 
     def start(self):
-        http_str = 'HTTPS' if self.config.get('usessl') == 'Yes' else 'HTTP'
-        self.logger.info('Starting %s server on %s:%s' % (http_str, self.local_ip, self.config.get('port')))
-
         self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), SimpleBITSRequestHandler)
         self.server.logger = self.logger
         self.server.bits_file_prefix = self.bits_file_prefix
