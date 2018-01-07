@@ -13,6 +13,7 @@ from OpenSSL import SSL
 from ssl_utils import ssl_detector
 from . import *
 import os
+import ListenerBase
 
 BUF_SZ = 1024
 IP = '0.0.0.0'
@@ -23,19 +24,19 @@ class ProxyListener():
     def __init__(
             self, 
             config={}, 
-            name ='ProxyListener', 
-            logging_level=logging.DEBUG, 
+            name ='ProxyListener',
+            logging_level=logging.DEBUG,
             ):
 
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging_level)
-
+        self.logger = ListenerBase.set_logger("%s:%s" % (self.__module__, name), config, logging_level)
         self.config = config
         self.name = name
+        self.local_ip  = '0.0.0.0'
         self.server = None
         self.udp_fwd_table = dict()
 
-        self.logger.info('Starting...')
+        self.logger.info('Starting %s %s on %s:%s'
+                         % (self.config['protocol'], self.name, self.local_ip, self.config['port']))
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -82,7 +83,8 @@ class ProxyListener():
             server_port, self.server_thread.name))
 
     def stop(self):
-        self.logger.debug('Stopping...')
+        self.logger.info('Stopping %s %s on %s:%s'
+            % (self.config['protocol'], self.name, self.local_ip, self.config['port']))
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -200,7 +202,10 @@ def get_top_listener(config, data, listeners, diverter, orig_src_ip,
 
     top_listener = None
     top_confidence = 0
-    dport = diverter.getOriginalDestPort(orig_src_ip, orig_src_port, proto)
+    if diverter is not None:
+        dport = diverter.getOriginalDestPort(orig_src_ip, orig_src_port, proto)
+    else:
+        dport = None
 
     for listener in listeners:
   
@@ -216,8 +221,13 @@ def get_top_listener(config, data, listeners, diverter, orig_src_ip,
     return top_listener
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
+    def log_mesage(self, hexdump):
+        logmsg = dict({'protocol':'tcp', 'src': self.client_address[0], 'src_port': self.client_address[1],
+                       'dest_port': self.server.server_address[1], 'hexdump': hexdump, 'listener': __name__})
 
-    
+        self.server.logger.info(logmsg)
+        return
+
     def handle(self):
 
         remote_sock = self.request
@@ -251,6 +261,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             for line in hexdump_table(data):
                 self.server.logger.debug(line)
             self.server.logger.debug('%s', '-'*80,)
+            # Log message in json format
+            self.log_mesage(hexdump_table(data))
 
         except Exception as e:
             self.server.logger.info('recv() error: %s' % e.message)
@@ -317,7 +329,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             remote_sock.send(data)
 
 class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
+    def log_mesage(self, hexdump):
+        logmsg = dict({'protocol':'udp', 'src': self.client_address[0], 'src_port': self.client_address[1],
+                       'dest_port': self.server.server_address[1], 'hexdump': hexdump, 'listener': __name__})
 
+        self.server.logger.info(logmsg)
+        return
 
     def handle(self):
 
@@ -334,6 +351,8 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             for line in hexdump_table(data):
                 self.server.logger.debug(line)
             self.server.logger.debug('%s', '-'*80,)
+            # Log message in json format
+            self.log_mesage(hexdump_table(data))
 
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]

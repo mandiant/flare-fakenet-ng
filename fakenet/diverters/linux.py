@@ -200,9 +200,9 @@ class Diverter(DiverterBase, LinUtilMixin):
 
 
     def __init__(self, diverter_config, listeners_config, ip_addrs,
-                 logging_level=logging.INFO):
+                 logger=None, logging_level=logging.INFO):
         self.init_base(diverter_config, listeners_config, ip_addrs,
-                       logging_level)
+                       logger, logging_level)
 
         self.init_linux_mixin()
         self.init_diverter_linux()

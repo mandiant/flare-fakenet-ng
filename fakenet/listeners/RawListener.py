@@ -1,4 +1,5 @@
 import logging
+import ListenerBase
 
 import os
 import sys
@@ -18,13 +19,11 @@ class RawListener():
 
     def __init__(self, 
             config, 
-            name='RawListener', 
-            logging_level=logging.INFO, 
+            name='RawListener',
+            logging_level=logging.INFO,
             ):
 
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging_level)
-            
+        self.logger = ListenerBase.set_logger("%s:%s" % (self.__module__, name), config, logging_level)
         self.config = config
         self.name = name
         self.local_ip = '0.0.0.0'
@@ -32,8 +31,8 @@ class RawListener():
         self.name = 'Raw'
         self.port = self.config.get('port', 1337)
 
-        self.logger.info('Starting...')
-
+        self.logger.info('Starting %s %s Listener (SSL:%s) on %s:%s'
+                         % (self.name, self.config['protocol'], self.config.get('usessl'), self.local_ip, self.port))
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
             self.logger.debug('  %10s: %s', key, value)
@@ -83,15 +82,22 @@ class RawListener():
         self.server_thread.start()
 
     def stop(self):
-        self.logger.debug('Stopping...')
+        self.logger.info('Stopping %s %s Listener (SSL:%s) on %s:%s'
+                         % (self.name, self.config['protocol'], self.config.get('usessl'), self.local_ip, self.port))
         if self.server:
             self.server.shutdown()
             self.server.server_close()
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
+    def log_mesage(self, hexdump):
+        logmsg = dict({'protocol':'tcp', 'src': self.client_address[0], 'src_port': self.client_address[1],
+                       'dest_port': self.server.server_address[1], 'hexdump': hexdump, 'listener': __name__})
 
-    def handle(self):                
+        self.server.logger.info(logmsg)
+        return
 
+
+    def handle(self):
         # Timeout connection to prevent hanging
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
 
@@ -109,6 +115,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 for line in hexdump_table(data):
                     self.server.logger.info(line)
                 self.server.logger.info('%s', '-'*80,)
+                # Log message in json format
+                self.log_mesage(hexdump_table(data))
 
                 self.request.sendall(data)
 
@@ -122,6 +130,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             self.server.logger.error('Error: %s', e)
 
 class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
+    def log_mesage(self, hexdump):
+        logmsg = dict({'protocol':'udp', 'src': self.client_address[0], 'src_port': self.client_address[1],
+                       'dest_port': self.server.server_address[1], 'hexdump': hexdump, 'listener': __name__})
+
+        self.server.logger.info(logmsg)
+        return
+
 
     def handle(self):
 
@@ -136,6 +151,8 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             for line in hexdump_table(data):
                 self.server.logger.debug(line)
             self.server.logger.debug('%s', '-'*80,)
+            # Log message in json format
+            self.log_mesage(hexdump_table(data))
 
             socket.sendto(data, self.client_address)
 

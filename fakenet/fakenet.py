@@ -6,6 +6,7 @@
 # Developed by Peter Kacherginsky
 
 import logging
+from splunk_http_handler import SplunkHttpHandler
 
 import os
 import sys
@@ -17,6 +18,8 @@ from collections import OrderedDict
 
 from optparse import OptionParser,OptionGroup
 from ConfigParser import ConfigParser
+
+from listeners import ListenerBase
 
 import platform
 
@@ -42,6 +45,9 @@ class Fakenet():
 
         # Diverter used to intercept and redirect traffic
         self.diverter = None
+
+        # Splunk logging options and parameters
+        self.splunk_config = dict()
 
         # FakeNet options and parameters
         self.fakenet_config = dict()
@@ -83,6 +89,29 @@ class Fakenet():
 
             elif section == 'Diverter':
                 self.diverter_config = dict(config.items(section))
+
+            elif section == 'RemoteLogger':
+                self.remotelogger_config = dict(config.items(section))
+                try:
+                    if self.remotelogger_config['logger_type'] == 'splunk' and config.getboolean(section, 'enableremotelogger'):
+                        ListenerBase.add_splunk_logger(
+                            self.remotelogger_config['logger_host'],
+                            self.remotelogger_config['splunk_hectoken'],
+                            self.logger,
+                            self.remotelogger_config['logger_port'],
+                            self.remotelogger_config['splunk_cert_verify'],
+                            self.remotelogger_config['splunk_source']
+                        )
+                    elif self.remotelogger_config['logger_type'] == 'syslog' and config.getboolean(section, 'enableremotelogger'):
+                        ListenerBase.add_remote_logger(
+                            self.remotelogger_config['logger_host'],
+                            self.logger,
+                            int(self.remotelogger_config['logger_port']),
+                            self.remotelogger_config['logger_protocol']
+                        )
+                    self.logger.info("%s handler configured successfully." % self.remotelogger_config['logger_type'])
+                except Exception as e:
+                    self.logger.warning("Failed to set remote log handler.  Exception: %s" % e)
 
             elif config.getboolean(section, 'enabled'):
                 self.listeners_config[section] = dict(config.items(section))
@@ -144,21 +173,21 @@ class Fakenet():
                 # Check Windows version
                 if platform.release() in ['2000', 'XP', '2003Server', 'post2003']:
                     self.logger.error('Error: FakeNet-NG only supports Windows Vista+.')
-                    self.logger.error('       Please use the original Fakenet for older versions of Windows.')
+                    self.logger.error('Please use the original Fakenet for older versions of Windows.')
                     sys.exit(1)
 
                 if self.diverter_config['networkmode'].lower() == 'auto':
                     self.diverter_config['networkmode'] = 'singlehost'
                 
                 from diverters.windows import Diverter
-                self.diverter = Diverter(self.diverter_config, self.listeners_config, self.logging_level)
+                self.diverter = Diverter(self.diverter_config, self.listeners_config, self.logger)
 
             elif platform_name.lower().startswith('linux'):
                 if self.diverter_config['networkmode'].lower() == 'auto':
                     self.diverter_config['networkmode'] = 'multihost'
 
                 from diverters.linux import Diverter
-                self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
+                self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logger)
 
             else:
                 self.logger.error('Error: Your system %s is currently not supported.', platform_name)
@@ -168,6 +197,8 @@ class Fakenet():
         for listener_name in self.listeners_config:
 
             listener_config = self.listeners_config[listener_name]
+            # Pass remote logger configs in case we want to enable it for listener
+            listener_config.update(self.remotelogger_config)
 
             # Anonymous listener
             if not 'listener' in listener_config:
