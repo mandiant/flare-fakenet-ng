@@ -9,6 +9,7 @@ import ssl
 import socket
 
 from . import *
+import ListenerBase
 
 class DNSListener():
 
@@ -30,16 +31,14 @@ class DNSListener():
             logging_level=logging.INFO, 
             ):
 
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging_level)
-            
+        self.logger = ListenerBase.set_logger("%s:%s" % (self.__module__, name), config, logging_level)
         self.config = config
         self.local_ip = '0.0.0.0'
         self.server = None
         self.name = 'DNS'
         self.port = self.config.get('port', 53)
 
-        self.logger.info('Starting...')
+        self.logger.info('Starting %s %s server on %s:%s' % (self.config['protocol'], self.name, self.local_ip, self.config.get('port')))
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -49,12 +48,10 @@ class DNSListener():
 
         # Start UDP listener  
         if self.config['protocol'].lower() == 'udp':
-            self.logger.debug('Starting UDP ...')
             self.server = ThreadedUDPServer((self.local_ip, int(self.config.get('port', 53))), self.config, self.logger, UDPHandler)
 
         # Start TCP listener
         elif self.config['protocol'].lower() == 'tcp':
-            self.logger.debug('Starting TCP ...')
             self.server = ThreadedTCPServer((self.local_ip, int(self.config.get('port', 53))), self.config, self.logger, TCPHandler)
 
         self.server.nxdomains = int(self.config.get('nxdomains', 0))
@@ -64,8 +61,8 @@ class DNSListener():
         self.server_thread.start()
 
     def stop(self):
-        self.logger.debug('Stopping...')
-        
+        self.logger.info('Stopping %s %s server on %s:%s' % (self.config['protocol'], self.name, self.local_ip, self.config.get('port')))
+
         # Stop listener
         if self.server:
             self.server.shutdown()
@@ -177,7 +174,17 @@ class DNSHandler():
                     response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
 
                 response = response.pack()
-                
+
+                logmsg = dict({'src': self.client_address[0], 'src_port':self.client_address[1],
+                               'dest_port': self.server.config['port'], 'protocol': self.server.config['protocol'],
+                               'query_type': qtype, 'query': qname, 'listener': __name__})
+                if qtype in ['A', 'MX', 'TXT']:
+                    logmsg['answer'] = fake_record
+                else:
+                    logmsg['answer'] = "Not Implemented"
+
+                self.server.logger.info(logmsg)
+
         return response  
 
 class UDPHandler(DNSHandler, SocketServer.BaseRequestHandler):
