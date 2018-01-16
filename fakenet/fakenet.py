@@ -6,7 +6,6 @@
 # Developed by Peter Kacherginsky
 
 import logging
-from splunk_http_handler import SplunkHttpHandler
 
 import os
 import sys
@@ -78,6 +77,8 @@ class Fakenet():
 
         config = ConfigParser()
         config.read(config_filename)
+        # For list of valid remote logger configs
+        self.remoteloggers = {}
 
         self.logger.info('Loaded configuration file: %s', config_filename)
 
@@ -90,28 +91,11 @@ class Fakenet():
             elif section == 'Diverter':
                 self.diverter_config = dict(config.items(section))
 
-            elif section == 'RemoteLogger':
-                self.remotelogger_config = dict(config.items(section))
-                try:
-                    if self.remotelogger_config['logger_type'] == 'splunk' and config.getboolean(section, 'enableremotelogger'):
-                        ListenerBase.add_splunk_logger(
-                            self.remotelogger_config['logger_host'],
-                            self.remotelogger_config['splunk_hectoken'],
-                            self.logger,
-                            self.remotelogger_config['logger_port'],
-                            self.remotelogger_config['splunk_cert_verify'],
-                            self.remotelogger_config['splunk_source']
-                        )
-                    elif self.remotelogger_config['logger_type'] == 'syslog' and config.getboolean(section, 'enableremotelogger'):
-                        ListenerBase.add_remote_logger(
-                            self.remotelogger_config['logger_host'],
-                            self.logger,
-                            int(self.remotelogger_config['logger_port']),
-                            self.remotelogger_config['logger_protocol']
-                        )
-                    self.logger.info("%s handler configured successfully." % self.remotelogger_config['logger_type'])
-                except Exception as e:
-                    self.logger.warning("Failed to set remote log handler.  Exception: %s" % e)
+            elif section.startswith('RemoteLogger'):
+                remotelogger_config = dict(config.items(section))
+                if ListenerBase.add_remote_logger(self.logger, remotelogger_config):
+                    # for adding to listeners when we initialize them
+                    self.remoteloggers[section] = remotelogger_config
 
             elif config.getboolean(section, 'enabled'):
                 self.listeners_config[section] = dict(config.items(section))
@@ -198,7 +182,7 @@ class Fakenet():
 
             listener_config = self.listeners_config[listener_name]
             # Pass remote logger configs in case we want to enable it for listener
-            listener_config.update(self.remotelogger_config)
+            listener_config.update(self.remoteloggers)
 
             # Anonymous listener
             if not 'listener' in listener_config:
