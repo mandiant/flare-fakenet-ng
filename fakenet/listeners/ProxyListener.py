@@ -221,7 +221,7 @@ def get_top_listener(config, data, listeners, diverter, orig_src_ip,
     return top_listener
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
-    def log_mesage(self, hexdump):
+    def log_message(self, hexdump):
         logmsg = dict({'protocol':'tcp', 'src': self.client_address[0], 'src_port': self.client_address[1],
                        'dest_port': self.server.server_address[1], 'hexdump': hexdump, 'listener': __name__})
 
@@ -262,7 +262,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 self.server.logger.debug(line)
             self.server.logger.debug('%s', '-'*80,)
             # Log message in json format
-            self.log_mesage(hexdump_table(data))
+            self.log_message(hexdump_table(data))
 
         except Exception as e:
             self.server.logger.info('recv() error: %s' % e.message)
@@ -329,7 +329,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             remote_sock.send(data)
 
 class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
-    def log_mesage(self, hexdump):
+    def log_message(self, hexdump):
         logmsg = dict({'protocol':'udp', 'src': self.client_address[0], 'src_port': self.client_address[1],
                        'dest_port': self.server.server_address[1], 'hexdump': hexdump, 'listener': __name__})
 
@@ -352,7 +352,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
                 self.server.logger.debug(line)
             self.server.logger.debug('%s', '-'*80,)
             # Log message in json format
-            self.log_mesage(hexdump_table(data))
+            self.log_message(hexdump_table(data))
 
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
