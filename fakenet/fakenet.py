@@ -28,6 +28,7 @@ from optparse import OptionParser
 # Listener services
 import listeners
 from listeners import *
+from listeners.ListenerBase import JSONExcludeFilter
 
 ###############################################################################
 # FakeNet
@@ -41,6 +42,13 @@ class Fakenet():
         self.logger.setLevel(logging_level)
 
         self.logging_level = logging_level
+
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(logging_level)
+        stream_formatter = logging.Formatter('%(asctime)s [%(name)18s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p')
+        stream_handler.setFormatter(stream_formatter)
+        stream_handler.addFilter(JSONExcludeFilter())
+        self.logger.addHandler(stream_handler)
 
         # Diverter used to intercept and redirect traffic
         self.diverter = None

@@ -50,6 +50,14 @@ class JSONIncludeFilter(logging.Filter):
     def filter(self, record):
         return record.getMessage().startswith('{') and record.getMessage().endswith('}')
 
+
+class JSONExcludeFilter(logging.Filter):
+    """
+    Logging filter to filter out any non-json formatted events.
+    """
+    def filter(self, record):
+        return not record.getMessage().startswith('{') and not record.getMessage().endswith('}')
+
 def add_remote_logger(logger, config=None):
     """
     Process remote logger configuration
@@ -190,11 +198,14 @@ def set_logger(name="FakeNetListener", config=None, logging_level=logging.INFO):
     stream_handler.setLevel(logging_level)
     stream_formatter = logging.Formatter('%(asctime)s [%(name)18s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p')
     stream_handler.setFormatter(stream_formatter)
-    logger.addHandler(stream_handler)
 
     if not config.has_key('remotelogging') or config['remotelogging'] == 1:
         for k in config.iterkeys():
             if config[k].__class__ is dict and config[k].has_key('logger_host'):
                 add_remote_logger(logger, config[k])
+    else:
+        stream_handler.addFilter(JSONExcludeFilter())
+        logger.addHandler(stream_handler)
+
     return logger
 
