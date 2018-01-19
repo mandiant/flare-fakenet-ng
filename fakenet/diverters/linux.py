@@ -157,7 +157,7 @@ class PacketHandler:
 
                     if ((not (self.diverter.pdebug_level & DGENPKTV)) and
                         pid and (pid != self.diverter.pid)):
-                        self.logger.info('  pid:  %d name: %s' %
+                        self.logger.debug('  pid:  %d name: %s' %
                                          (pid, comm if comm else 'Unknown'))
 
                     hdr_latest = self.hdr
