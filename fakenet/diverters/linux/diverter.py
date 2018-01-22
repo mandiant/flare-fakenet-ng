@@ -1,221 +1,156 @@
+
+from scapy.all import *
+
+import os
 import sys
 import dpkt
 import time
 import socket
 import logging
+import traceback
 import threading
 import subprocess
-import diverterbase
+import subprocess as sp
 import netfilterqueue
-from linutil import *
-from diverterbase import *
+
 from collections import namedtuple
 from netfilterqueue import NetfilterQueue
 
+from diverters.linux.utils import *
+from diverters.linux import utils as lutils
+from diverters.linux.packet_handler import PacketHandler
+from diverters.linux.nfqueue import make_nfqueue
 
-class PacketHandler:
-    """Used to encapsulate common patterns in packet hooks."""
+from diverters.monitor import make_monitor
 
-    def __init__(self, pkt, diverter, label, callbacks3, callbacks4):
-        self.logger = logging.getLogger('Diverter')
-
-        self.pkt = pkt
-        self.diverter = diverter  # Relies on Diverter for certain operations
-        self.label = label
-        self.callbacks3 = callbacks3
-        self.callbacks4 = callbacks4
-
-        self.raw = self.pkt.get_payload()
-        self.ipver = ((ord(self.raw[0]) & 0xf0) >> 4)
-        self.hdr, self.proto = self.diverter.parse_pkt[self.ipver](self.ipver,
-                                                                   self.raw)
-
-    def handle_pkt(self):
-        """Generic packet hook.
-
-        1.) Common prologue:
-            A.) Unconditionally Write unmangled packet to pcap
-            B.) Parse IP packet
-
-        2.) Call layer 3 (network) callbacks...
-
-        3.) Parse higher-layer protocol (TCP, UDP) for port numbers
-
-        4.) Call layer 4 (transport) callbacks...
-
-        5.) Common epilogue:
-            A.) If the packet headers have been modified:
-                i.) Double-write the mangled packet to the pcap for SSL
-                    decoding purposes
-                ii.) Update the packet payload with NetfilterQueue
-            B.) Accept the packet with NetfilterQueue
-        """
-
-        # 1A: Unconditionally write unmangled packet to pcap
-        self.diverter.write_pcap(self.hdr.pack())
-
-        if (self.hdr, self.proto) == (None, None):
-            self.logger.warning('%s: Failed to parse IP packet' % (self.label))
-        else:
-            proto_name = self.diverter.handled_protocols.get(self.proto)
-
-            self.diverter.pdebug(DGENPKT, '%s %s' % (self.label,
-                                 self.diverter.hdr_to_str(proto_name,
-                                 self.hdr)))
-
-            # 1B: Parse IP packet (actually done in ctor)
-            self.src_ip = socket.inet_ntoa(self.hdr.src)
-            self.dst_ip = socket.inet_ntoa(self.hdr.dst)
-
-            # 2: Call layer 3 (network) callbacks
-            for cb in self.callbacks3:
-                # These debug outputs are useful for figuring out which
-                # callback is responsible for an exception that was masked by
-                # python-netfilterqueue's global callback.
-                self.diverter.pdebug(DCB, 'Calling %s' % (cb))
-
-                cb(self.label, self.hdr, self.ipver, self.proto, proto_name,
-                   self.src_ip, self.dst_ip)
-
-                self.diverter.pdebug(DCB, '%s finished' % (cb))
-
-            if proto_name:
-
-                if len(self.callbacks4):
-                    # 3: Parse higher-layer protocol
-                    self.sport = self.hdr.data.sport
-                    self.dport = self.hdr.data.dport
-                    self.skey = self.diverter.gen_endpoint_key(proto_name,
-                                                               self.src_ip,
-                                                               self.sport)
-                    self.dkey = self.diverter.gen_endpoint_key(proto_name,
-                                                               self.dst_ip,
-                                                               self.dport)
-
-                    pid, comm = self.diverter.linux_get_pid_comm_by_endpoint(
-                        self.ipver, proto_name, self.src_ip, self.sport)
-
-                    if proto_name == 'UDP':
-                        fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
-                        logline = fmt.format(
-                                label=self.label,
-                                proto=proto_name,
-                                pid=pid,
-                                comm=comm,
-                                src=self.src_ip,
-                                sport=self.sport,
-                                dst=self.dst_ip,
-                                dport=self.dport,
-                                length=len(self.raw),
-                                flags='',
-                                seqack='',
-                            )
-                        self.diverter.pdebug(DGENPKTV, logline)
-
-                    elif proto_name == 'TCP':
-                        tcp = self.hdr.data
-                        # Interested in:
-                        # SYN
-                        # SYN,ACK
-                        # ACK
-                        # PSH
-                        # FIN
-                        syn = (tcp.flags & dpkt.tcp.TH_SYN) != 0
-                        ack = (tcp.flags & dpkt.tcp.TH_ACK) != 0
-                        fin = (tcp.flags & dpkt.tcp.TH_FIN) != 0
-                        psh = (tcp.flags & dpkt.tcp.TH_PUSH) != 0
-                        rst = (tcp.flags & dpkt.tcp.TH_RST) != 0
-
-                        sa = 'Seq=%d, Ack=%d' % (tcp.seq, tcp.ack)
-                        f = []
-                        if rst:
-                            f.append('RST')
-                        if syn:
-                            f.append('SYN')
-                        if ack:
-                            f.append('ACK')
-                        if fin:
-                            f.append('FIN')
-                        if psh:
-                            f.append('PSH')
-
-                        fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
-                        logline = fmt.format(
-                                label=self.label,
-                                proto=proto_name,
-                                pid=pid,
-                                comm=comm,
-                                src=self.src_ip,
-                                sport=self.sport,
-                                dst=self.dst_ip,
-                                dport=self.dport,
-                                length=len(self.raw),
-                                flags=','.join(f),
-                                seqack=sa,
-                            )
-                        self.diverter.pdebug(DGENPKTV, logline)
-
-                    if ((not (self.diverter.pdebug_level & DGENPKTV)) and
-                        pid and (pid != self.diverter.pid)):
-                        self.logger.info('  pid:  %d name: %s' %
-                                         (pid, comm if comm else 'Unknown'))
-
-                    hdr_latest = self.hdr
-                    modified = False
-
-                    # 4: Layer 4 (Transport layer) callbacks
-                    for cb in self.callbacks4:
-                        # These debug outputs are useful for figuring out which
-                        # callback is responsible for an exception that was
-                        # masked by python-netfilterqueue's global callback.
-                        self.diverter.pdebug(DCB, 'Calling %s' % (cb))
-
-                        hdr_mod = cb(self.label, pid, comm, self.ipver,
-                                     hdr_latest, proto_name,
-                                     self.src_ip, self.sport, self.skey,
-                                     self.dst_ip, self.dport, self.dkey)
-
-                        if hdr_mod:
-                            hdr_latest = hdr_mod
-                            modified = True
-
-                        self.diverter.pdebug(DCB, '%s finished' % (cb))
-
-                    if modified:
-                        # 5Ai: Double write mangled packets to represent changes
-                        # made by FakeNet-NG while still allowing SSL decoding
-                        self.diverter.write_pcap(hdr_latest.pack())
-
-                        # 5Aii: Finalize changes with nfq
-                        self.pkt.set_payload(hdr_latest.pack())
-            else:
-                self.diverter.pdebug(DGENPKT, '%s: Not handling protocol %s' %
-                                     (self.label, self.proto))
-
-        # 5B: NF_ACCEPT
-        self.pkt.accept()
+from diverters import constants
+from diverters import DiverterBase
+from diverters import condition
 
 
-class Diverter(DiverterBase, LinUtilMixin):
+def make_diverter(dconf, lconf, ip_addrs, loglevel):
+    config = {
+        'diverter_config': dconf,
+        'listeners_config': lconf,
+        'log_level': loglevel,
+        'ip_addrs': ip_addrs,
+    }
+    diverter = Diverter(config)
+    if not diverter.initialize():
+        return None
+    return diverter
+
+class Diverter(DiverterBase):
+
+    def __init__(self, config):
+        super(Diverter, self).__init__(config)
+        self._current_iptables_rules = None
+        self._old_dns = None
+
+        self.pdebug_level = 0
+        self.pdebug_labels = dict()
+        self.pid = os.getpid()
+        self.ip_addrs = self.config.get('ip_addrs', list())
+
+        self.pcap = None
+        self.pcap_filename = ''
+        self.pcap_lock = None
+
+        # Local IP address
+        self.external_ip = socket.gethostbyname(socket.gethostname())
+        self.loopback_ip = socket.gethostbyname('localhost')
+
+        # Sessions cache
+        # NOTE: A dictionary of source ports mapped to destination address,
+        # port tuples
+        self.sessions = dict()
+
+        #######################################################################
+        # Listener specific configuration
+        # NOTE: All of these definitions have protocol as the first key
+        #       followed by a list or another nested dict with the actual
+        #       definitions
+
+        # Diverted ports
+        # TODO: a more meaningful name might be BOUND ports indicating ports
+        # that FakeNet-NG has bound to with a listener
+        self.diverted_ports = dict()
+
+        # Listener Port Process filtering
+        # TODO: Allow PIDs
+        self.port_process_whitelist = dict()
+        self.port_process_blacklist = dict()
+
+        # Listener Port Host filtering
+        # TODO: Allow domain name resolution
+        self.port_host_whitelist = dict()
+        self.port_host_blacklist = dict()
+
+        # Execute command list
+        self.port_execute = dict()
+
+        # Intercept filter
+        self.filter = None
+
+        # Default TCP/UDP listeners
+        self.default_listener = dict()
+
+        # Global TCP/UDP port blacklist
+        self.blacklist_ports = {'TCP': [], 'UDP': []}
+
+        # Global process blacklist
+        # TODO: Allow PIDs
+        self.blacklist_processes = []
+        self.whitelist_processes = []
+
+        # Global host blacklist
+        # TODO: Allow domain resolution
+        self.blacklist_hosts = []
+
+    def initialize(self):
+        if not super(Diverter, self).initialize():
+            return False
+        
+        # Check active interfaces
+        if not lutils.check_active_ethernet_adapters():
+            self.logger.warning('WARNING: No active ethernet interfaces ' +
+                                'detected!')
+            self.logger.warning('         Please enable a network interface.')
+
+        # Check configured gateways
+        if not lutils.check_gateways():
+            self.logger.warning('WARNING: No gateways configured!')
+            self.logger.warning('         Please configure a default ' +
+                                'gateway or route in order to intercept ' +
+                                'external traffic.')
+
+        # Check configured DNS servers
+        if not lutils.check_dns_servers():
+            self.logger.warning('WARNING: No DNS servers configured!')
+            self.logger.warning('         Please configure a DNS server in ' +
+                                'order to allow network resolution.')
 
 
-    def __init__(self, diverter_config, listeners_config, ip_addrs,
-                 logging_level=logging.INFO):
-        self.init_base(diverter_config, listeners_config, ip_addrs,
-                       logging_level)
+        if not self._parse_listeners_config():
+            return False
 
-        self.init_linux_mixin()
-        self.init_diverter_linux()
+        if not self._parse_diverter_config():
+            return False
 
-    def init_diverter_linux(self):
-        """Linux-specific Diverter initialization."""
         # String list configuration item that is specific to the Linux
         # Diverter, will not be parsed by DiverterBase, and needs to be
         # accessed as an array in the future.
-        slists = ['linuxredirectnonlocal', 'DebugLevel']
-        self.reconfigure(portlists=[], stringlists=slists)
+        # slists = ['linuxredirectnonlocal', 'DebugLevel']
+        # self.reconfigure(portlists=[], stringlists=slists)
+
+        if not self.check_privileged():
+            self.logger.error('The Linux Diverter requires administrative ' +
+                              'privileges')
+            return False
 
         dbg_lvl = 0
+        dconfig = self.config.get('diverter_config')
+        '''
         if self.is_configured('DebugLevel'):
             for label in self.getconfigval('DebugLevel'):
                 label = label.upper()
@@ -227,45 +162,22 @@ class Diverter(DiverterBase, LinUtilMixin):
                 else:
                     dbg_lvl |= DLABELS_INV[label]
         self.set_debug_level(dbg_lvl, DLABELS)
+        '''
+        
 
-        # SingleHost vs MultiHost mode
-        mode = 'SingleHost'  # Default
-        self.single_host_mode = True
-        if self.is_configured('networkmode'):
-            mode = self.getconfigval('networkmode')
-            available_modes = ['singlehost', 'multihost']
-
-            # Constrain argument values
-            if mode.lower() not in available_modes:
-                self.logger.error('NetworkMode must be one of %s' %
-                                  (available_modes))
-                sys.exit(1)
-
-            # Adjust previously assumed mode if user specifies MultiHost
-            if mode.lower() == 'multihost':
-                self.single_host_mode = False
-
-        if self.single_host_mode:
-            while True:
-                prompt = ('You acknowledge that SingleHost mode on Linux is ' +
-                          'experimental and not functionally complete? ' +
-                          '[Y/N] ')
-                acknowledgement = raw_input(prompt)
-                okay = ['y', 'yes', 'yeah', 'sure', 'okay', 'whatever']
-                nope = ['n', 'no', 'nah', 'nope']
-                if acknowledgement.lower() in okay:
-                    self.logger.info('Okay, we\'ll take it for a spin!')
-                    break
-                elif acknowledgement.lower() in nope:
-                    self.logger.error('User opted out of crowd-sourced ' +
-                                      'alpha testing program ;-)')
-                    sys.exit(1)
-
+        mode = dconfig.get('networkmode', 'singlehost').lower()
+        available_modes = ['singlehost', 'multihost']
+        if mode is None or mode not in available_modes:
+            self.logger.error('Network mode must be one of %s ' % (available_modes,))
+            return False
+        self.single_host_mode = True if mode == 'singlehost' else False
+        if self.single_host_mode and not self._confirm_experimental():
+            return False
         self.logger.info('Running in %s mode' % (mode))
 
         self.parse_pkt = dict()
-        self.parse_pkt[4] = self.parse_ipv4
-        self.parse_pkt[6] = self.parse_ipv6
+        self.parse_pkt[4] = lutils.parse_nfqueue_ipv4_packet
+        self.parse_pkt[6] = lutils.parse_nfqueue_ipv6_packet
 
         self.nfqueues = list()
 
@@ -346,21 +258,19 @@ class Diverter(DiverterBase, LinUtilMixin):
         # IP redirection is only for SingleHost mode
         if self.single_host_mode:
             self.outgoing_trans_cbs.append(self.maybe_redir_ip)
+        
+        return True
 
     def start(self):
         self.logger.info('Starting Linux Diverter...')
 
-        if not self.check_privileged():
-            self.logger.error('The Linux Diverter requires administrative ' +
-                              'privileges')
-            sys.exit(1)
+        self._current_iptables_rules = lutils.capture_iptables(self.logger)
+        if self._current_iptables_rules == None:
+            self.logger.error('Failed to capture current iptables rules')
+            return False
 
-        ret = self.linux_capture_iptables()
-        if ret != 0:
-            sys.exit(1)
-
-        if self.is_set('linuxflushiptables'):
-            self.linux_flush_iptables()
+        if self.diverter_config.get('linuxflushiptables', False):
+            lutils.flush_iptables()
         else:
             self.logger.warning('LinuxFlushIptables is disabled, this may ' +
                                 'result in unanticipated behavior depending ' +
@@ -383,69 +293,73 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         nhooks = len(callbacks)
 
-        self.pdebug(DNFQUEUE, ('Discovering the next %d available NFQUEUE ' +
-                    'numbers') % (nhooks))
-        qnos = self.linux_get_next_nfqueue_numbers(nhooks)
+        self.logger.debug('<DNFQUEUE> Discovering the next '
+                          '%d available NFQUEUE numbers' % (nhooks,))
+        qnos = lutils.get_next_nfqueue_numbers(nhooks)
         if len(qnos) != nhooks:
             self.logger.error('Could not procure a sufficient number of ' +
                               'netfilter queue numbers')
-            sys.exit(1)
+            return False
 
-        self.pdebug(DNFQUEUE, 'Next available NFQUEUE numbers: ' + str(qnos))
-
-        self.pdebug(DNFQUEUE, 'Enumerating queue numbers and hook ' +
-                    'specifications to create NFQUEUE objects')
+        self.logger.debug('<DNFQUEUE> Next available NFQUEUE '
+                          'numbers: ' + str(qnos))
+        self.logger.debug('<DNFQUEUE> Enumerating queue numbers and hook '
+                          'specifications to create NFQUEUE objects')
+                          
         self.nfqueues = list()
         for qno, hk in zip(qnos, callbacks):
             self.pdebug(DNFQUEUE, ('Creating NFQUEUE object for chain %s / ' +
                         'table %s / queue # %d => %s') % (hk.chain, hk.table,
                         qno, str(hk.callback)))
-            q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback)
+            q = make_nfqueue(qno, hk.chain, hk.table, hk.callback)
+            if q is None:
+                self.logger.error('Failed to create nfqueue')
+                return False
+
             self.nfqueues.append(q)
             ok = q.start()
             if not ok:
                 self.logger.error('Failed to start NFQUEUE for %s' % (str(q)))
                 self.stop()
-                sys.exit(1)
+                return False
+        
+        if self.single_host_mode:
+            if self.diverter_config.get('fixgateway', None):
+                self.logger.info('fixing gateway')
+                if not lutils.get_default_gw():
+                    self.logger.info("fixing gateway")
+                    lutils.set_default_gw(self.ip_addrs)
 
-        if self.single_host_mode and self.is_set('fixgateway'):
-            if not self.linux_get_default_gw():
-                self.linux_set_default_gw()
+            if self.diverter_config.get('modifylocaldns', None):
+                self.logger.info('modifying local DNS')
+                self._old_dns = lutils.modifylocaldns_ephemeral(self.ip_addrs)
+            
+            cmd = self.diverter_config.get('linuxflushdnscommand', None)
+            if cmd is not None:
+                ret = subprocess.call(cmd.split())
+                if not ret == 0:
+                    self.logger.error('Failed to flush DNS cache. Local machine may use cached DNS results.')
 
-        if self.single_host_mode and self.is_set('modifylocaldns'):
-            self.linux_modifylocaldns_ephemeral()
-
-        if self.is_configured('linuxflushdnscommand') and self.single_host_mode:
-            cmd = self.getconfigval('linuxflushdnscommand')
-            ret = subprocess.call(cmd.split())
-            if ret != 0:
-                self.logger.error(
-                'Failed to flush DNS cache. Local machine may use cached DNS results.')
-
-        if self.is_configured('linuxredirectnonlocal'):
-            self.pdebug(DMISC, 'Processing LinuxRedirectNonlocal')
-            specified_ifaces = self.getconfigval('linuxredirectnonlocal')
-            self.pdebug(DMISC, 'Processing linuxredirectnonlocal on ' +
-                        'interfaces: %s' % (specified_ifaces))
-            ok, rules = self.linux_iptables_redir_nonlocal(specified_ifaces)
-
+        specified_ifaces = self.diverter_config.get('linuxredirectnonlocal', None)
+        if specified_ifaces is not None:
+            ok, rules = lutils.iptables_redir_nonlocal(specified_ifaces)
             # Irrespective of whether this failed, we want to add any
             # successful iptables rules to the list so that stop() will be able
             # to remove them using linux_remove_iptables_rules().
             self.rules_added += rules
-
             if not ok:
                 self.logger.error('Failed to process LinuxRedirectNonlocal')
                 self.stop()
-                sys.exit(1)
-
-        ok, rule = self.linux_redir_icmp()
+                return False
+        
+        ok, rule = lutils.redir_icmp()
         if not ok:
             self.logger.error('Failed to redirect ICMP')
             self.stop()
-            sys.exit(1)
+            return False
 
         self.rules_added.append(rule)
+        return True
 
     def stop(self):
         self.logger.info('Stopping Linux Diverter...')
@@ -456,7 +370,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         self.pdebug(DIPTBLS, 'Removing iptables rules not associated with any ' +
                     'NFQUEUE object')
-        self.linux_remove_iptables_rules(self.rules_added)
+        lutils.remove_iptables_rules(self.rules_added)
 
         for q in self.nfqueues:
             self.pdebug(DNFQUEUE, 'Stopping NFQUEUE for %s' % (str(q)))
@@ -468,16 +382,16 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         self.logger.info('Stopped Linux Diverter')
 
-        if self.single_host_mode and self.is_set('modifylocaldns'):
-            self.linux_restore_local_dns()
+        if self.single_host_mode and self.diverter_config.get('modifylocaldns', None):
+            lutils.restore_local_dns(self._old_dns)
 
-        self.linux_restore_iptables()
+        lutils.restore_iptables(self._current_iptables_rules)
 
     def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
         """Return original destination port, or None if it was not redirected
         """ 
         
-        orig_src_key = self.gen_endpoint_key(proto, orig_src_ip, orig_src_port)
+        orig_src_key = utils.gen_endpoint_key(proto, orig_src_ip, orig_src_port)
         self.port_fwd_table_lock.acquire()
         
         try:
@@ -532,20 +446,8 @@ class Diverter(DiverterBase, LinUtilMixin):
         h = PacketHandler(pkt, self, 'handle_outgoing', self.outgoing_net_cbs,
                 self.outgoing_trans_cbs)
         h.handle_pkt()
+        
 
-    def parse_ipv4(self, ipver, raw):
-        hdr = dpkt.ip.IP(raw)
-        if hdr.hl < 5:
-            return (None, None)  # An IP header length less than 5 is invalid
-        return hdr, hdr.p
-
-    def parse_ipv6(self, ipver, raw):
-        hdr = dpkt.ip6.IP6(raw)
-        return hdr, hdr.nxt
-
-    def gen_endpoint_key(self, proto_name, ip, port):
-        """e.g. 192.168.19.132:tcp/3030"""
-        return str(ip) + ':' + str(proto_name) + '/' + str(port)
 
     def check_log_icmp(self, label, hdr, ipver, proto, proto_name, src_ip,
                        dst_ip):
@@ -588,6 +490,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def check_should_ignore(self, pid, comm, ipver, hdr, proto_name, src_ip,
                             sport, dst_ip, dport):
+
         # SingleHost mode checks
         if self.single_host_mode:
             if comm:
@@ -645,7 +548,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.pdebug(DIGN, '  %s' % (self.hdr_to_str(proto_name, hdr)))
             return True
 
-        global_host_blacklist = self.getconfigval('hostblacklist')
+        global_host_blacklist = self.diverter_config.get('hostblacklist', None)
         if global_host_blacklist and dst_ip in global_host_blacklist:
             self.pdebug(DIGN, ('Ignoring %s packet to %s in the host ' +
                         'blacklist.') % (proto_name, dst_ip))
@@ -799,7 +702,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # IP addresses will be modified by the Windows Diverter when
         # RedirectAllTraffic is disabled. So, the Linux Diverter implementation
         # will follow suit.
-        if not self.is_set('redirectalltraffic'):
+        if not 'redirectalltraffic' in self.diverter_config:
             self.pdebug(DIGN, 'Ignoring %s packet %s' %
                         (proto_name, self.hdr_to_str(proto_name, hdr)))
             return hdr_modified  # None
@@ -920,7 +823,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                                      sport, dst_ip, dport)
                 if cmd:
                     self.logger.info('Executing command: %s', cmd)
-                    self.execute_detached(cmd)
+                    utils.execute_detached(cmd, False, self.logger)
 
         return hdr_modified
 
@@ -978,6 +881,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         Optimized logic derived by truth table + k-map. See docs/internals.md
         for details.
         """
+
         # A, B, C, D for easy manipulation; full names for readability only.
         a = src_local = (src_ip in self.ip_addrs[ipver])
         c = sport_bound = sport in (bound_ports)
@@ -1042,13 +946,322 @@ class Diverter(DiverterBase, LinUtilMixin):
         else:
             return '%s->%s' % (src_ip, dst_ip)
 
+    def set_debug_level(self, lvl, labels={}):
+        """Enable debug output if necessary and set the debug output level."""
+        if lvl:
+            self.logger.setLevel(logging.DEBUG)
+
+        self.pdebug_level = lvl
+
+        self.pdebug_labels = labels
+
+    def pdebug(self, lvl, s):
+        """Log only the debug trace messages that have been enabled."""
+        if self.pdebug_level & lvl:
+            label = self.pdebug_labels.get(lvl)
+            prefix = '[' + label + '] ' if label else '[some component] '
+            self.logger.debug(prefix + str(s))
+
+    def check_privileged(self):
+        try:
+            privileged = (os.getuid() == 0)
+        except AttributeError:
+            privileged = (ctypes.windll.shell32.IsUserAnAdmin() != 0)
+
+        return privileged
+
+
+    def _build_cmd(self, tmpl, pid, comm, src_ip, sport, dst_ip, dport):
+        cmd = None
+
+        try:
+            cmd = tmpl.format(
+                pid = str(pid),
+                procname = str(comm),
+                src_addr = str(src_ip),
+                src_port = str(sport),
+                dst_addr = str(dst_ip),
+                dst_port = str(dport))
+        except KeyError as e:
+            self.logger.error(('Failed to build ExecuteCmd for port %d due ' +
+                              'to erroneous format key: %s') %
+                              (dport, e.message))
+
+        return cmd
+
+
+
+    def build_cmd(self, proto_name, pid, comm, src_ip, sport, dst_ip, dport):
+        cmd = None
+
+        if ((proto_name in self.port_execute) and
+                (dport in self.port_execute[proto_name])
+           ):
+            template = self.port_execute[proto_name][dport]
+            cmd = self._build_cmd(template, pid, comm, src_ip, sport, dst_ip,
+                                  dport)
+
+        return cmd
+
+    
+
+    def write_pcap(self, data):
+        if self.pcap and self.pcap_lock:
+            self.pcap_lock.acquire()
+            try:
+                self.pcap.writepkt(data)
+            finally:
+                self.pcap_lock.release()
+
     def _calc_csums(self, hdr):
         """The roundabout dance of inducing dpkt to recalculate checksums."""
         hdr.sum = 0
         hdr.data.sum = 0
         str(hdr)  # This has the side-effect of invoking dpkt.in_cksum() et al
+    
 
+    def _confirm_experimental(self):
+        while True:
+            prompt = ('You acknowledge that SingleHost mode on Linux is ' +
+                        'experimental and not functionally complete? ' +
+                        '[Y/N] ')
+            acknowledgement = raw_input(prompt)
+            okay = ['y', 'yes', 'yeah', 'sure', 'okay', 'whatever']
+            nope = ['n', 'no', 'nah', 'nope']
+            if acknowledgement.lower() in okay:
+                self.logger.info('Okay, we\'ll take it for a spin!')
+                return True
+            elif acknowledgement.lower() in nope:
+                self.logger.error('User opted out of crowd-sourced ' +
+                                    'alpha testing program ;-)')
+                return False
+        return False
+
+    def _parse_listeners_config(self):
+        listeners_config = self.listeners_config
+        #######################################################################
+        # Populate diverter ports and process filters from the configuration
+        for listener_name, listener_config in listeners_config.iteritems():
+            if 'port' in listener_config:
+                port = int(listener_config['port'])
+                hidden = listener_config.get('hidden', 'false') == 'True'
+                if not 'protocol' in listener_config:
+                    self.logger.error('ERROR: Protocol not defined for ' +
+                                      'listener %s', listener_name)
+                    return False
+
+                protocol = listener_config['protocol'].upper()
+                if not protocol in ['TCP', 'UDP']:
+                    self.logger.error('ERROR: Invalid protocol %s for ' +
+                                      'listener %s', protocol, listener_name)
+                    return False
+
+                # diverted_ports[protocol][port] is True if the listener is 
+                # configured as 'Hidden', which means it will not receive 
+                # packets unless the ProxyListener determines that the protocol
+                # matches the listener
+                if not protocol in self.diverted_ports:
+                    self.diverted_ports[protocol] = dict()
+
+                self.diverted_ports[protocol][port] = hidden
+
+                ###############################################################
+                # Process filtering configuration
+                if 'processwhitelist' in listener_config and 'processblacklist' in listener_config:
+                    self.logger.error('ERROR: Listener can\'t have both ' +
+                                      'process whitelist and blacklist.')
+                    return False
+
+                elif 'processwhitelist' in listener_config:
+
+                    self.logger.debug('Process whitelist:')
+
+                    if not protocol in self.port_process_whitelist:
+                        self.port_process_whitelist[protocol] = dict()
+
+                    self.port_process_whitelist[protocol][port] = [
+                        process.strip() for process in
+                        listener_config['processwhitelist'].split(',')]
+
+                    for port in self.port_process_whitelist[protocol]:
+                        self.logger.debug(' Port: %d (%s) Processes: %s',
+                                          port, protocol, ', '.join(
+                            self.port_process_whitelist[protocol][port]))
+
+                elif 'processblacklist' in listener_config:
+                    self.logger.debug('Process blacklist:')
+
+                    if not protocol in self.port_process_blacklist:
+                        self.port_process_blacklist[protocol] = dict()
+
+                    self.port_process_blacklist[protocol][port] = [
+                        process.strip() for process in
+                        listener_config['processblacklist'].split(',')]
+
+                    for port in self.port_process_blacklist[protocol]:
+                        self.logger.debug(' Port: %d (%s) Processes: %s',
+                                          port, protocol, ', '.join(
+                            self.port_process_blacklist[protocol][port]))
+
+                ###############################################################
+                # Host filtering configuration
+                if 'hostwhitelist' in listener_config and 'hostblacklist' in listener_config:
+                    self.logger.error('ERROR: Listener can\'t have both ' +
+                                      'host whitelist and blacklist.')
+                    return False
+
+                elif 'hostwhitelist' in listener_config:
+
+                    self.logger.debug('Host whitelist:')
+
+                    if not protocol in self.port_host_whitelist:
+                        self.port_host_whitelist[protocol] = dict()
+
+                    self.port_host_whitelist[protocol][port] = [host.strip() 
+                        for host in
+                        listener_config['hostwhitelist'].split(',')]
+
+                    for port in self.port_host_whitelist[protocol]:
+                        self.logger.debug(' Port: %d (%s) Hosts: %s', port,
+                                          protocol, ', '.join(
+                            self.port_host_whitelist[protocol][port]))
+
+                elif 'hostblacklist' in listener_config:
+                    self.logger.debug('Host blacklist:')
+
+                    if not protocol in self.port_host_blacklist:
+                        self.port_host_blacklist[protocol] = dict()
+
+                    self.port_host_blacklist[protocol][port] = [host.strip()
+                        for host in
+                        listener_config['hostblacklist'].split(',')]
+
+                    for port in self.port_host_blacklist[protocol]:
+                        self.logger.debug(' Port: %d (%s) Hosts: %s', port,
+                                          protocol, ', '.join(
+                            self.port_host_blacklist[protocol][port]))
+
+                ###############################################################
+                # Execute command configuration
+                if 'executecmd' in listener_config:
+                    template = listener_config['executecmd'].strip()
+
+                    # Would prefer not to get into the middle of a debug
+                    # session and learn that a typo has ruined the day, so we
+                    # test beforehand by 
+                    test = self._build_cmd(template, 0, 'test', '1.2.3.4',
+                                           12345, '4.3.2.1', port)
+                    if not test:
+                        self.logger.error(('Terminating due to incorrectly ' +
+                                          'configured ExecuteCmd for ' +
+                                          'listener %s') % (listener_name))
+                        sys.exit(1)
+
+                    if not protocol in self.port_execute:
+                        self.port_execute[protocol] = dict()
+
+                    self.port_execute[protocol][port] = \
+                        listener_config['executecmd'].strip()
+                    self.logger.debug('Port %d (%s) ExecuteCmd: %s', port,
+                                      protocol,
+                                      self.port_execute[protocol][port])
+        return True
+
+    def _parse_diverter_config(self):
+        dconf = self.diverter_config
+        blist = dconf.get('processblacklist', None)
+        wlist = dconf.get('processwhitelist', None)
+
+        if blist is not None and wlist is not None:
+            self.logger.error('ERROR: Diverter can\'t have both process '
+                              'whitelist and blacklist.')
+            return False
+
+
+        # Do not redirect blacklisted processes
+        if blist is not None:
+            self.blacklist_processes = [process.strip() for process in
+                                        blist.split(',')]
+            self.logger.debug('Blacklisted processes: %s', ', '.join(
+                [str(p) for p in self.blacklist_processes]))
+
+        if wlist is not None:
+            self.whitelist_processes = [process.strip() for process in
+                                        wlist.split(',')]
+            self.logger.debug('Whitelisted processes: %s', ', '.join(
+                [str(p) for p in self.whitelist_processes]))
+
+        if dconf.get('dumppackets', False):
+            prefix = dconf.get('dumppacketsfileprefix', 'packets')
+            self.pcap_filename = '%s_%s.pcap' % (prefix, time.strftime('%Y%m%d_%H%M%S'))
+            self.logger.info('Capturing traffic to %s', self.pcap_filename)
+            self.pcap = dpkt.pcap.Writer(open(self.pcap_filename, 'wb'),
+                linktype=dpkt.pcap.DLT_RAW)
+            self.pcap_lock = threading.Lock()            
+
+
+        # Do not redirect blacklisted hosts
+        '''
+        if self.is_configured('hostblacklist'):
+            self.logger.debug('Blacklisted hosts: %s', ', '.join(
+                [str(p) for p in self.getconfigval('hostblacklist')]))
+        '''
+
+        # Redirect all traffic
+        self.default_listener = dict()
+        if 'redirectalltraffic' in dconf:
+            tcplistener = dconf.get('defaulttcplistener', None)
+            udplistener = dconf.get('defaultudplistener', None)
+
+            if tcplistener is None:
+                self.logger.error('ERROR: No default TCP listener specified ' +
+                                  'in the configuration.')
+                return False
+            if tcplistener not in self.listeners_config:
+                self.logger.error('ERROR: No configuration exists for ' +
+                                  'default TCP listener %s', tcplistener)
+                return False
+            
+            if udplistener is None:
+                self.logger.error('ERROR: No default UDP listener specified ' +
+                                  'in the configuration.')
+                return False
+
+            if udplistener not in self.listeners_config:
+                self.logger.error('ERROR: No configuration exists for ' +
+                                  'default UDP listener %s', udplistener)
+                return False
+
+        
+            self.default_listener['TCP'] = int(
+                self.listeners_config[tcplistener]['port'])
+            self.logger.error('Using default listener %s on port %d',
+                              tcplistener, self.default_listener['TCP'])
+
+            self.default_listener['UDP'] = int(
+                self.listeners_config[udplistener]['port'])
+            self.logger.error('Using default listener %s on port %d',
+                              udplistener, self.default_listener['UDP'])
+
+            # Re-marshall these into a readily usable form...
+
+            # Do not redirect blacklisted TCP ports
+            tcpports_blist = dconf.get('blacklistportstcp', None)
+            if tcpports_blist is not None:
+                self.blacklist_ports['TCP'] = tcpports_blist
+                self.logger.debug('Blacklisted TCP ports: %s', ', '.join(
+                    [str(p) for p in tcpports_blist]))
+
+            # Do not redirect blacklisted UDP ports
+            udpports_blist = dconf.get('blacklistportsudp', None)
+            if udpports_blist is not None:
+                self.blacklist_ports['UDP'] = udpports_blist
+                self.logger.debug('Blacklisted UDP ports: %s', ', '.join(
+                    [str(p) for p in udpports_blist]))
+        return True
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(message)s')
     diverterbase.test_redir_logic(Diverter)
+
+

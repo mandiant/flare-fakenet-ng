@@ -1,0 +1,6 @@
+HIDDEN = 'hidden'
+PROCESS_WHITE_LIST = 'processwhitelist'
+PROCESS_BLACK_LIST = 'procsesblacklist'
+HOST_BLACK_LIST = 'hostblacklist'
+HOST_WHITE_LIST = 'hostwhitelist'
+EXECUTE_COMMAND = 'executecommand'

@@ -27,6 +27,8 @@ from optparse import OptionParser
 import listeners
 from listeners import *
 
+from diverters.factory import make_diverter
+
 ###############################################################################
 # FakeNet
 ###############################################################################
@@ -149,16 +151,20 @@ class Fakenet():
 
                 if self.diverter_config['networkmode'].lower() == 'auto':
                     self.diverter_config['networkmode'] = 'singlehost'
-                
-                from diverters.windows import Diverter
-                self.diverter = Diverter(self.diverter_config, self.listeners_config, self.logging_level)
+
+                from diverters.windows import make_diverter
+                self.diverter = make_diverter(self.diverter_config, self.listeners_config, self.logging_level)
+                if self.diverter is None:
+                    sys.exit(1)
 
             elif platform_name.lower().startswith('linux'):
                 if self.diverter_config['networkmode'].lower() == 'auto':
                     self.diverter_config['networkmode'] = 'multihost'
 
-                from diverters.linux import Diverter
-                self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
+                from diverters.linux.diverter import make_diverter
+                self.diverter = make_diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
+                if self.diverter is None:
+                    sys.exit(1)
 
             else:
                 self.logger.error('Error: Your system %s is currently not supported.', platform_name)
@@ -203,14 +209,14 @@ class Fakenet():
 
         for listener in self.running_listener_providers:
 
-            # Only listeners that implement acceptListeners(listeners) 
+            # Only listeners that implement acceptListeners(listeners)
             # interface receive running_listener_providers
             try:
                 listener.acceptListeners(self.running_listener_providers)
             except AttributeError:
                 self.logger.debug("acceptListeners() not implemented by Listener %s" % listener.name)
 
-            # Only listeners that implement acceptDiverter(diverter) 
+            # Only listeners that implement acceptDiverter(diverter)
             # interface receive diverter
             try:
                 listener.acceptDiverter(self.diverter)
@@ -231,7 +237,7 @@ class Fakenet():
 
 def get_ips(ipvers):
     """Return IP addresses bound to local interfaces including loopbacks.
-    
+
     Parameters
     ----------
     ipvers : list
@@ -265,19 +271,19 @@ def get_ips(ipvers):
 def main():
 
     print """
-  ______      _  ________ _   _ ______ _______     _   _  _____ 
+  ______      _  ________ _   _ ______ _______     _   _  _____
  |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
- | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __ 
+ | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
  |  __/ /\ \ |  < |  __| | . ` |  __|    | |______| . ` | | |_ |
  | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
  |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
                          Version  1.3
   _____________________________________________________________
-                         Developed by            
-             Peter Kacherginsky and Michael Bailey      
-       FLARE (FireEye Labs Advanced Reverse Engineering)       
-  _____________________________________________________________               
+                         Developed by
+             Peter Kacherginsky and Michael Bailey
+       FLARE (FireEye Labs Advanced Reverse Engineering)
+  _____________________________________________________________
                                                """
 
     # Parse command line arguments
