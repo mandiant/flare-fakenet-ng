@@ -1,10 +1,13 @@
-from scapy.all import TCP, UDP
+from scapy.all import TCP, UDP, IP
 import subprocess as sp
 import netifaces
 import hashlib
 
 from diverters import constants
 
+def pack_into_ippacket(ipver, proto_name, src_ip, sport, dst_ip, dport):
+    tport = TCP if proto_name == 'TCP' else UDP
+    return IP(src=src_ip, dst=dst_ip)/tport(sport=sport, dport=dport)
 
 def tport_from_ippacket(ip_packet):
     '''
@@ -93,6 +96,18 @@ def get_ip_version(bytez):
 
 def gen_endpoint_key(tport, ip, port):
     return '%s://%s:%s' % (str(tport), str(ip), str(port))
+
+def gen_endpoint_key_from_ippacket_src(ip_packet):
+    tport = tport_from_ippacket(ip_packet)
+    if tport is None:
+        return None
+    return gen_endpoint_key(tport.name, ip_packet.src, tport.sport)
+
+def gen_endpoint_key_from_ippacket_dst(ip_packet):
+    tport = tport_from_ippacket(ip_packet)
+    if tport is None:
+        return None
+    return gen_endpoint_key(tport.name, ip_packet.dst, tport.dport)
 
 
 def execute_detached(execute_cmd, winders=False, logger=None):

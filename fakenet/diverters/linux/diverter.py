@@ -23,6 +23,8 @@ from diverters.linux.nfqueue import make_nfqueue
 
 from diverters.monitor import make_monitor
 
+from diverters.mangler import make_mangler
+
 from diverters import constants
 from diverters import DiverterBase
 from diverters import condition
@@ -149,21 +151,7 @@ class Diverter(DiverterBase):
             return False
 
         dbg_lvl = 0
-        dconfig = self.config.get('diverter_config')
-        '''
-        if self.is_configured('DebugLevel'):
-            for label in self.getconfigval('DebugLevel'):
-                label = label.upper()
-                if label == 'OFF':
-                    dbg_lvl = 0
-                    break
-                if not label in DLABELS_INV:
-                    self.logger.warning('No such DebugLevel as %s' % (label))
-                else:
-                    dbg_lvl |= DLABELS_INV[label]
-        self.set_debug_level(dbg_lvl, DLABELS)
-        '''
-        
+        dconfig = self.config.get('diverter_config')        
 
         mode = dconfig.get('networkmode', 'singlehost').lower()
         available_modes = ['singlehost', 'multihost']
@@ -258,8 +246,39 @@ class Diverter(DiverterBase):
         # IP redirection is only for SingleHost mode
         if self.single_host_mode:
             self.outgoing_trans_cbs.append(self.maybe_redir_ip)
-        
+
+        # XXX: dirty!
+
+        self.__incoming_conditions = self.__make_incoming_conditions()      
+        if self.__incoming_conditions is None:
+            self.logger.error('Failed to make incoming conditions')
+            return False
+        __incoming_mangler_config = {
+            'ip_forward_table': self.ip_fwd_table,
+            'type': 'SrcIpFwdMangler',
+        }
+        self.__incoming_mangler = make_mangler(__incoming_mangler_config)
+        if self.__incoming_mangler is None:
+            self.logger.error('Failed to make incoming mangler')
+            return False
         return True
+    
+
+    def __make_incoming_conditions(self):
+        """
+        Make a bunch of conditions to filter incoming data based on local 
+        listeners:
+        1. If there is a session going on: ignore it.
+        2. If dst ip is not me and dport has a listener: fix dst ip it
+        3. If dst ip is not me and dport does not have a listener: ignore, for now
+        """
+
+        lconf = self.listeners_config
+        cb = lutils.get_procname_from_ip_packet
+        is_divert = True
+        logger = self.logger
+        conds = condition.make_forwarder_conditions(lconf, cb, is_divert, logger)
+        return [conds]
 
     def start(self):
         self.logger.info('Starting Linux Diverter...')
@@ -654,6 +673,15 @@ class Diverter(DiverterBase):
 
     def maybe_fixup_srcip(self, label, pid, comm, ipver, hdr, proto_name,
                           src_ip, sport, skey, dst_ip, dport, dkey):
+        ip_packet = utils.pack_into_ippacket(ipver, proto_name, src_ip, sport,
+                                             dst_ip, dport)
+        ip_packet = self.__incoming_mangler.mangle(ip_packet)
+        hdr.src = socket.inet_aton(ip_packet.src)
+        self._calc_csums(hdr)
+        return hdr
+
+    def _maybe_fixup_srcip(self, label, pid, comm, ipver, hdr, proto_name,
+                          src_ip, sport, skey, dst_ip, dport, dkey):
         """Conditionally fix up the source IP address if the remote endpoint
         had their connection IP-forwarded.
 
@@ -666,6 +694,9 @@ class Diverter(DiverterBase):
         """
         hdr_modified = None
 
+
+
+        self.logger.error('%s->%s' % (src_ip, dst_ip))
         # Condition 4: If the local endpoint (IP/port/proto) combo
         # corresponds to an endpoint that initiated a conversation with a
         # foreign endpoint in the past, then fix up the source IP for this
@@ -675,19 +706,23 @@ class Diverter(DiverterBase):
         self.ip_fwd_table_lock.acquire()
         try:
             if self.single_host_mode and (dkey in self.ip_fwd_table):
-                self.pdebug(DIPNAT, 'Condition 4 satisfied')
-                self.pdebug(DIPNAT, ' = FOUND ipfwd key entry: ' + dkey)
+                self.logger.error('Condition 4 satisfied')
+                self.logger.error(' = FOUND ipfwd key entry: ' + dkey)
                 new_srcip = self.ip_fwd_table[dkey]
                 hdr_modified = self.mangle_srcip(
                     hdr, proto_name, hdr.src, new_srcip)
             else:
-                self.pdebug(DIPNAT, ' ! NO SUCH ipfwd key entry: ' + dkey)
+                self.logger.error(' ! NO SUCH ipfwd key entry: ' + dkey)
         finally:
             self.ip_fwd_table_lock.release()
-
         return hdr_modified
 
     def maybe_redir_port(self, label, pid, comm, ipver, hdr, proto_name,
+                         src_ip, sport, skey, dst_ip, dport, dkey):
+        '''Nothing todo for now'''
+        return None
+
+    def _maybe_redir_port(self, label, pid, comm, ipver, hdr, proto_name,
                          src_ip, sport, skey, dst_ip, dport, dkey):
         hdr_modified = None
 
