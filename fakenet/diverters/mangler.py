@@ -180,7 +180,8 @@ class DstIpFwdMangler(IpForwardMangler):
         if tport is None:
             return None
         sendpoint = utils.gen_endpoint_key_from_ippacket_src(ip_packet)
-        new_dst = self._tbl.get(sendpoint, ip_packet.dst)
+        new_dst = self.config.get('inet.dst', ip_packet.dst)
+        self._tbl[sendpoint] = ip_packet.dst
         ipkt = IP(id=ip_packet.id, flags=ip_packet.flags,
                   frag=ip_packet.frag, src=ip_packet.src, dst=new_dst)/tport
         return ipkt
