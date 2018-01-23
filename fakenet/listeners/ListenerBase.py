@@ -192,8 +192,9 @@ def set_logger(name="FakeNetListener", config=None, logging_level=logging.INFO):
     stream_handler.setFormatter(stream_formatter)
     logger.addHandler(stream_handler)
 
-    for k in config.iterkeys():
-        if config[k].__class__ is dict and config[k].has_key('logger_host'):
-            add_remote_logger(logger, config[k])
+    if not config.has_key('remotelogging') or config['remotelogging'] == 1:
+        for k in config.iterkeys():
+            if config[k].__class__ is dict and config[k].has_key('logger_host'):
+                add_remote_logger(logger, config[k])
     return logger
 
