@@ -261,8 +261,30 @@ class Diverter(DiverterBase):
         if self.__incoming_mangler is None:
             self.logger.error('Failed to make incoming mangler')
             return False
+        
+        self.__outgoing_conditions = self.__make_outgoing_conditions()
+        if self.__outgoing_conditions is None:
+            self.logger.error('Failed to make out going conditions')
+            return False
+        
+        __outgoing_mangler_config = {
+            'ip_forward_table': self.ip_fwd_table,
+            'type': 'DstIpFwdMangler',
+            'inet.dst': '127.0.0.1',
+        }
+        self.__outgoing_mangler = make_mangler(__outgoing_mangler_config)
+        if self.__outgoing_mangler is None:
+            self.logger.error('Failed to make out going mangler')
+            return False
         return True
-    
+
+    def __make_outgoing_conditions(self):
+        lconf = self.listeners_config
+        cb = lutils.get_procname_from_ip_packet
+        is_divert = True
+        logger = self.logger
+        conds = condition.make_forwarder_conditions(lconf, cb, is_divert, logger)
+        return [conds]
 
     def __make_incoming_conditions(self):
         """
@@ -621,6 +643,20 @@ class Diverter(DiverterBase):
         return False
 
     def maybe_redir_ip(self, label, pid, comm, ipver, hdr, proto_name, src_ip,
+                       sport, skey, dst_ip, dport, dkey):
+        ip_packet = utils.pack_into_ippacket(ipver, proto_name, src_ip, sport,
+                                             dst_ip, dport)
+        conds = self.__outgoing_conditions
+        for cond in conds:
+            if not cond.is_pass(ip_packet):
+                return None
+        new_ip_packet = self.__outgoing_mangler.mangle(ip_packet)
+        print ip_packet.dst, '!! ->', new_ip_packet.dst
+        hdr.dst = socket.inet_aton(new_ip_packet.dst)
+        self._calc_csums(hdr)
+        return hdr
+
+    def _maybe_redir_ip(self, label, pid, comm, ipver, hdr, proto_name, src_ip,
                        sport, skey, dst_ip, dport, dkey):
         """Conditionally redirect foreign destination IPs to localhost.
 
