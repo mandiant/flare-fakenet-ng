@@ -2,12 +2,27 @@ from scapy.all import TCP, UDP, IP
 import subprocess as sp
 import netifaces
 import hashlib
+import logging
 
 from diverters import constants
 
 def pack_into_ippacket(ipver, proto_name, src_ip, sport, dst_ip, dport):
     tport = TCP if proto_name == 'TCP' else UDP
     return IP(src=src_ip, dst=dst_ip)/tport(sport=sport, dport=dport)
+
+
+def ip_packet_from_bytez(bytez, logger=None):
+    logger = logging.getLogger() if logger is None else logger
+    try:
+        ip_packet = IP(bytez)
+    except:
+        import traceback
+        traceback.print_exc()
+        logger.warning("Failed to get ip packet from bytez")
+        ip_packet = None
+    return ip_packet
+
+
 
 def tport_from_ippacket(ip_packet):
     '''
