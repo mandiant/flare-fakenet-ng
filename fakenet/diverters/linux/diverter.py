@@ -19,7 +19,7 @@ from netfilterqueue import NetfilterQueue
 from diverters.linux.utils import *
 from diverters.linux import utils as lutils
 from diverters.linux.packet_handler import PacketHandler
-from diverters.linux.nfqueue import make_nfqueue
+from diverters.linux.nfqueue import make_nfqueue_monitor
 
 from diverters.monitor import make_monitor
 
@@ -276,31 +276,84 @@ class Diverter(DiverterBase):
         if self.__outgoing_mangler is None:
             self.logger.error('Failed to make out going mangler')
             return False
+        
+        if not self.__initialize_nfqueue_monitors():
+            return False
+        return True
+    
+    def __initialize_nfqueue_monitors(self):
+        hookspec = namedtuple('hookspec', ['chain', 'table', 'callback'])
+
+        callbacks = list()
+
+        if not self.single_host_mode:
+            callbacks.append(hookspec('PREROUTING', 'raw',
+                                      self.handle_nonlocal))
+
+        callbacks.append(hookspec('INPUT', 'mangle', self.handle_incoming))
+        callbacks.append(hookspec('OUTPUT', 'raw', self.handle_outgoing))
+
+        nhooks = len(callbacks)
+
+        qnos = lutils.get_next_nfqueue_numbers(nhooks)
+        if len(qnos) != nhooks:
+            self.logger.error('Could not procure a sufficient number of ' +
+                              'netfilter queue numbers')
+            return False                          
+        self.nfqueues = list()
+
+        for qno, hk in zip(qnos, callbacks):
+
+            if hk.chain == 'OUTPUT':
+                conditions = self.__outgoing_conditions
+                mangler = self.__outgoing_mangler
+            elif hk.chain == 'INPUT':
+                conditions = self.__incoming_conditions
+                mangler = self.__incoming_mangler
+            
+            q = make_nfqueue_monitor(qno, hk.chain, hk.table, hk.callback, conditions, mangler)
+            if q is None:
+                self.logger.error('Failed to create nfqueue')
+                return False
+
+            self.nfqueues.append(q)
         return True
 
     def __make_outgoing_conditions(self):
+        conditions = list()
+
+        # 1. IpDstCondition to not be part of myself:
+        ipaddrs = self.config.get('ip_addrs')[4]
+        cond = condition.IpDstCondition({'addr.inet': ipaddrs, 'not': True})
+        if not cond.initialize():
+            return None
+        
+        conditions.append(cond)
+
+        # 2. Make listeners conditions
         lconf = self.listeners_config
         cb = lutils.get_procname_from_ip_packet
         is_divert = True
         logger = self.logger
         conds = condition.make_forwarder_conditions(lconf, cb, is_divert, logger)
-        return [conds]
+        conditions.append(conds)
+
+        return conditions
+
 
     def __make_incoming_conditions(self):
-        """
-        Make a bunch of conditions to filter incoming data based on local 
-        listeners:
-        1. If there is a session going on: ignore it.
-        2. If dst ip is not me and dport has a listener: fix dst ip it
-        3. If dst ip is not me and dport does not have a listener: ignore, for now
-        """
+        return [condition.make_match_all_condition()]
 
-        lconf = self.listeners_config
-        cb = lutils.get_procname_from_ip_packet
-        is_divert = True
-        logger = self.logger
-        conds = condition.make_forwarder_conditions(lconf, cb, is_divert, logger)
-        return [conds]
+        conditions = list()
+
+        # 1. IpDstCondition to not be part of myself:
+        ipaddrs = self.config.get('ip_addrs')[4]
+        cond = condition.IpDstCondition({'addr.inet': ipaddrs, 'not': True})
+        if not cond.initialize():
+            return None
+        
+        conditions.append(cond)
+        return conditions
 
     def start(self):
         self.logger.info('Starting Linux Diverter...')
@@ -317,37 +370,9 @@ class Diverter(DiverterBase):
                                 'result in unanticipated behavior depending ' +
                                 'upon what rules are already present')
 
-        hookspec = namedtuple('hookspec', ['chain', 'table', 'callback'])
+        
 
-        callbacks = list()
-
-        # If you are considering adding or moving hooks that mangle packets,
-        # see the section of docs/internals.md titled Explaining Hook Location
-        # Choices for an explanation of how to avoid breaking the Linux NAT
-        # implementation.
-        if not self.single_host_mode:
-            callbacks.append(hookspec('PREROUTING', 'raw',
-                                      self.handle_nonlocal))
-
-        callbacks.append(hookspec('INPUT', 'mangle', self.handle_incoming))
-        callbacks.append(hookspec('OUTPUT', 'raw', self.handle_outgoing))
-
-        nhooks = len(callbacks)
-
-        self.logger.debug('<DNFQUEUE> Discovering the next '
-                          '%d available NFQUEUE numbers' % (nhooks,))
-        qnos = lutils.get_next_nfqueue_numbers(nhooks)
-        if len(qnos) != nhooks:
-            self.logger.error('Could not procure a sufficient number of ' +
-                              'netfilter queue numbers')
-            return False
-
-        self.logger.debug('<DNFQUEUE> Next available NFQUEUE '
-                          'numbers: ' + str(qnos))
-        self.logger.debug('<DNFQUEUE> Enumerating queue numbers and hook '
-                          'specifications to create NFQUEUE objects')
-                          
-        self.nfqueues = list()
+        '''
         for qno, hk in zip(qnos, callbacks):
             self.pdebug(DNFQUEUE, ('Creating NFQUEUE object for chain %s / ' +
                         'table %s / queue # %d => %s') % (hk.chain, hk.table,
@@ -363,6 +388,9 @@ class Diverter(DiverterBase):
                 self.logger.error('Failed to start NFQUEUE for %s' % (str(q)))
                 self.stop()
                 return False
+        '''
+        for q in self.nfqueues:
+            q.start()
         
         if self.single_host_mode:
             if self.diverter_config.get('fixgateway', None):
