@@ -3,20 +3,24 @@ import threading
 import netfilterqueue
 from diverters.linux.utils import IptCmdTemplate
 from diverters.linux import utils as lutils
+from diverters.monitor import TrafficMonitor
 from diverters import BaseObject
 from diverters import utils
 import logging
 
 
-def make_nfqueue(qno, chain, table, callback):
-    config = {'qno': qno, 'chain': chain, 'table': table, 'callback': callback}
-    q = LinuxDiverterNfqueue(config)
+def make_nfqueue_monitor(qno, chain, table, callback, conditions, mangler):
+    config = {
+        'qno': qno, 'chain': chain, 'table': table,
+        'callback': callback, 'conditions': conditions, 'mangler': mangler,
+    }
+    q = NfQueueMonitor(config)
     if not q.initialize():
         return None
     return q
 
 
-class LinuxDiverterNfqueue(BaseObject):
+class NfQueueMonitor(TrafficMonitor):
     """NetfilterQueue object wrapper.
 
     Handles iptables rule addition/removal, NetfilterQueue management,
@@ -35,9 +39,10 @@ class LinuxDiverterNfqueue(BaseObject):
         0x04: 'udp',
         0x06: 'tcp',
     }
-
+    TIMEOUT_SECS = 0.5
+    
     def __init__(self, config):
-        super(LinuxDiverterNfqueue, self).__init__(config)
+        super(NfQueueMonitor, self).__init__(config)
 
         # e.g. iptables <-I> <INPUT> -t <mangle> -j NFQUEUE --queue-num <0>'
 
@@ -64,7 +69,7 @@ class LinuxDiverterNfqueue(BaseObject):
         return '%s/%s@%d' % (self.chain, self.table, self.qno)
     
     def initialize(self):
-        if not super(LinuxDiverterNfqueue, self).initialize():
+        if not super(NfQueueMonitor, self).initialize():
             return False
     
         self.qno = self.config.get('qno', None)
@@ -81,7 +86,7 @@ class LinuxDiverterNfqueue(BaseObject):
         self._rule = IptCmdTemplate(self.fmt, [self.chain, self.table, self.qno])
         return True
 
-    def start(self, timeout_sec=0.5):
+    def start(self):
         """Binds to the netfilter queue number specified in the ctor, obtains
         the netlink socket, sets a timeout of <timeout_sec>, and starts the
         thread procedure which checks _stopflag every time the netlink socket
@@ -97,8 +102,8 @@ class LinuxDiverterNfqueue(BaseObject):
 
         # Bind the specified callback to the specified queue
         try:
-            self._nfqueue.bind(self.qno, self._callback)
-            # self._nfqueue.bind(self.qno, self._process)
+            # self._nfqueue.bind(self.qno, self._callback)
+            self._nfqueue.bind(self.qno, self._process)
             self._bound = True
         except OSError as e:
             self.logger.error('Failed to start queue for %s: %s' %
@@ -113,7 +118,7 @@ class LinuxDiverterNfqueue(BaseObject):
         # Facilitate _stopflag monitoring and thread joining
         self._sk = socket.fromfd(
             self._nfqueue.get_fd(), socket.AF_UNIX, socket.SOCK_STREAM)
-        self._sk.settimeout(timeout_sec)
+        self._sk.settimeout(self.config.get('timeout_secs', self.TIMEOUT_SECS))
 
         # Start a thread to run the queue and monitor the stop flag
         self._thread = threading.Thread(target=self._threadproc)
@@ -162,18 +167,15 @@ class LinuxDiverterNfqueue(BaseObject):
     
     def _process(self, pkt):
         bytez = pkt.get_payload()
-        ipver = utils.get_ip_version(bytez)
-        hdr, proto = lutils.parse_nfqueue_packet(bytez)
-
-        protoname = self._PROTO.get(proto, 'tcp')
-        sip, dip = socket.inet_ntoa(hdr.src), socket.inet_ntoa(hdr.dst)
-        dport, sport = hdr.data.sport, hdr.data.dport
+        ip_packet = utils.ip_packet_from_bytez(bytez)
+        tport=utils.tport_from_ippacket(ip_packet)
         
-        skey = utils.gen_endpoint_key(protoname, sip, sport)
-        dkey = utils.gen_endpoint_key(protoname, dip, dport)
-
-        pid, comm = lutils.get_pid_comm_by_endpoint(ipver, protoname, sip, sport)
-        
+        if self.is_mangle(ip_packet):
+            new_ip_packet = self.mangler.mangle(ip_packet)
+            if new_ip_packet is not None:
+                ip_packet = new_ip_packet
+                tport = utils.tport_from_ippacket(ip_packet)
+            pkt.set_payload(str(ip_packet))
         pkt.accept()
         return True
 
