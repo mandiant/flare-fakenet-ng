@@ -62,7 +62,11 @@ class TPortMangler(Mangler):
 
     def mangle_udp(self, ip_packet):
         '''NOTE: Can we avoid the copy for better performance?'''
-        return str(UDP(str(ip_packet[UDP])))
+        otport = ip_packet[UDP]
+        ntport = UDP(
+            sport=otport.sport, dport=otport.dport,
+        )/otport.payload
+        return ntport
 
 
 class IPMangler(TPortMangler):
@@ -166,7 +170,7 @@ class SrcIpFwdMangler(IpForwardMangler):
     def mangle(self, ip_packet):
         tport = super(SrcIpFwdMangler, self).mangle(ip_packet)
         if tport is None:
-            return None
+            return ip_packet
         dendpoint = utils.gen_endpoint_key_from_ippacket_dst(ip_packet)
         new_src = self._tbl.get(dendpoint, ip_packet.src)
         ipkt = IP(id=ip_packet.id, flags=ip_packet.flags,
@@ -178,7 +182,7 @@ class DstIpFwdMangler(IpForwardMangler):
     def mangle(self, ip_packet):
         tport = super(DstIpFwdMangler, self).mangle(ip_packet)
         if tport is None:
-            return None
+            return ip_packet
         sendpoint = utils.gen_endpoint_key_from_ippacket_src(ip_packet)
         new_dst = self.config.get('inet.dst', ip_packet.dst)
         self._tbl[sendpoint] = ip_packet.dst
