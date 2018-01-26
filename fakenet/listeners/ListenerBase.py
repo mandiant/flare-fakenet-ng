@@ -53,7 +53,7 @@ class JSONIncludeFilter(logging.Filter):
 
 class JSONExcludeFilter(logging.Filter):
     """
-    Logging filter to filter out any non-json formatted events.
+    Logging filter to filter out any json formatted events.
     """
     def filter(self, record):
         return not record.getMessage().startswith('{') and not record.getMessage().endswith('}')
@@ -101,7 +101,8 @@ def add_remote_logger(logger, config=None):
 
 
 def add_syslog_logger(host, logger=logging.getLogger('FakeNet Listener'), logging_level=logging.INFO,
-                      port=514, proto='TCP', json_only=False):
+                      port=514, proto='TCP', json_only=False,
+                      facility=logging.handlers.SysLogHandler.LOG_LOCAL6):
     """
     Attach a remote syslog handler to existing logger
 
@@ -115,9 +116,15 @@ def add_syslog_logger(host, logger=logging.getLogger('FakeNet Listener'), loggin
 
     socket_type = {'UDP': SOCK_DGRAM, 'TCP': SOCK_STREAM }
     try:
-        remote_handler = logging.handlers.SysLogHandler(
+        if str(host).startswith('/dev'):
+            remote_handler = logging.handlers.SysLogHandler(
+                host,
+                facility
+            )
+        else:
+            remote_handler = logging.handlers.SysLogHandler(
                         (host, int(port)),
-                        logging.handlers.SysLogHandler.LOG_DAEMON,
+                        facility,
                         socket_type[proto.upper()]
                         )
         try:
@@ -198,14 +205,12 @@ def set_logger(name="FakeNetListener", config=None, logging_level=logging.INFO):
     stream_handler.setLevel(logging_level)
     stream_formatter = logging.Formatter('%(asctime)s [%(name)18s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p')
     stream_handler.setFormatter(stream_formatter)
+    stream_handler.addFilter(JSONExcludeFilter())
+    logger.addHandler(stream_handler)
 
-    if not config.has_key('remotelogging') or config['remotelogging'] == 1:
+    if (config is not None) and (not config.has_key('remotelogging') or config['remotelogging']) == 1:
         for k in config.iterkeys():
             if config[k].__class__ is dict and config[k].has_key('logger_host'):
                 add_remote_logger(logger, config[k])
-    else:
-        stream_handler.addFilter(JSONExcludeFilter())
-        logger.addHandler(stream_handler)
-
     return logger
 
