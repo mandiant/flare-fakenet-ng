@@ -101,7 +101,8 @@ def add_remote_logger(logger, config=None):
 
 
 def add_syslog_logger(host, logger=logging.getLogger('FakeNet Listener'), logging_level=logging.INFO,
-                      port=514, proto='TCP', json_only=False):
+                      port=514, proto='TCP', json_only=False,
+                      facility=logging.handlers.SysLogHandler.LOG_LOCAL6):
     """
     Attach a remote syslog handler to existing logger
 
@@ -118,12 +119,12 @@ def add_syslog_logger(host, logger=logging.getLogger('FakeNet Listener'), loggin
         if str(host).startswith('/dev'):
             remote_handler = logging.handlers.SysLogHandler(
                 host,
-                logging.handlers.SysLogHandler.LOG_DAEMON
+                facility
             )
         else:
             remote_handler = logging.handlers.SysLogHandler(
                         (host, int(port)),
-                        logging.handlers.SysLogHandler.LOG_DAEMON,
+                        facility,
                         socket_type[proto.upper()]
                         )
         try:
