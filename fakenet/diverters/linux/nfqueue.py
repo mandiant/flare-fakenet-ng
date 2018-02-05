@@ -168,13 +168,11 @@ class NfQueueMonitor(TrafficMonitor):
     def _process(self, pkt):
         bytez = pkt.get_payload()
         ip_packet = utils.ip_packet_from_bytez(bytez)
-        tport=utils.tport_from_ippacket(ip_packet)
         
         if self.is_mangle(ip_packet):
             new_ip_packet = self.mangler.mangle(ip_packet)
             if new_ip_packet is not None:
                 ip_packet = new_ip_packet
-                tport = utils.tport_from_ippacket(ip_packet)
             pkt.set_payload(str(ip_packet))
         pkt.accept()
         return True
