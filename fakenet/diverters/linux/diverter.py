@@ -19,7 +19,6 @@ from collections import namedtuple
 from netfilterqueue import NetfilterQueue
 from diverters.linux.utils import *
 from diverters.linux import utils as lutils
-from diverters.linux.packet_handler import PacketHandler
 from diverters.linux.nfqueue import make_nfqueue_monitor
 
 from diverters.mangler import make_mangler
