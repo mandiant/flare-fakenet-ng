@@ -162,7 +162,7 @@ class Fakenet():
                     self.diverter_config['networkmode'] = 'multihost'
 
                 from diverters.linux.diverter import make_diverter
-                self.diverter = make_diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
+                self.diverter = make_diverter(self.diverter_config, self.listeners_config, self.logging_level)
                 if self.diverter is None:
                     sys.exit(1)
 

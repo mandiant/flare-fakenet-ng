@@ -6,13 +6,12 @@ from diverters.linux import utils as lutils
 from diverters.monitor import TrafficMonitor
 from diverters import BaseObject
 from diverters import utils
-import logging
 
 
-def make_nfqueue_monitor(qno, chain, table, callback, conditions, mangler):
+def make_nfqueue_monitor(qno, chain, table, conditions, mangler):
     config = {
         'qno': qno, 'chain': chain, 'table': table,
-        'callback': callback, 'conditions': conditions, 'mangler': mangler,
+        'conditions': conditions, 'mangler': mangler,
     }
     q = NfQueueMonitor(config)
     if not q.initialize():
@@ -50,7 +49,6 @@ class NfQueueMonitor(TrafficMonitor):
         self.nqo = None
         self.chain = None
         self.table = None
-        self._callback = None
         self._rule = None
         self._nfqueue = netfilterqueue.NetfilterQueue()
         self._sk = None
@@ -62,9 +60,6 @@ class NfQueueMonitor(TrafficMonitor):
         self._bound = False
         self._started = False
 
-        if self.config.get('chain') == 'OUTPUT':
-            self.logger.error("OUTPUT CHAIN")
-
     def __repr__(self):
         return '%s/%s@%d' % (self.chain, self.table, self.qno)
     
@@ -75,15 +70,12 @@ class NfQueueMonitor(TrafficMonitor):
         self.qno = self.config.get('qno', None)
         self.chain = self.config.get('chain', None)
         self.table = self.config.get('table', None)
-        self._callback = self.config.get('callback', None)
 
         if self.qno is None or self.chain is None or self.table is None:
             return False
         
-        if self._callback is None:
-            return False
-
         self._rule = IptCmdTemplate(self.fmt, [self.chain, self.table, self.qno])
+        self.logger.error('Monitor for %s initialized' % (self.chain,))
         return True
 
     def start(self):
@@ -93,6 +85,9 @@ class NfQueueMonitor(TrafficMonitor):
         times out.
         """
 
+        if not super(NfQueueMonitor, self).start():
+            return False
+
         # Execute iptables to add the rule
         ret = self._rule.add()
         if ret != 0:
@@ -100,9 +95,7 @@ class NfQueueMonitor(TrafficMonitor):
 
         self._rule_added = True
 
-        # Bind the specified callback to the specified queue
         try:
-            # self._nfqueue.bind(self.qno, self._callback)
             self._nfqueue.bind(self.qno, self._process)
             self._bound = True
         except OSError as e:
@@ -133,7 +126,7 @@ class NfQueueMonitor(TrafficMonitor):
         return self._started
 
     def _threadproc(self):
-        while not self._stopflag:
+        while self.is_running():
             try:
                 self._nfqueue.run_socket(self._sk)
             except socket.timeout:
@@ -142,19 +135,11 @@ class NfQueueMonitor(TrafficMonitor):
                 # current state of the stop flag.
                 pass
 
-    def stop_nonblocking(self):
-        """Call this on each LinuxDiverterNfqueue object in turn to stop them
-        all as close as possible to the same time rather than waiting for each
-        one to time out and stop before moving on to the next.
-
-        Perfect synchrony is a non-goal because halting the Diverter could
-        disrupt existing connections anyway. Hence, it is up to the user to
-        halt FakeNet-NG after any critical network operations have concluded.
-        """
-        self._stopflag = True
-
     def stop(self):
-        self.stop_nonblocking()  # Ensure somebody has set the stop flag
+        if not super(NfQueueMonitor, self).stop():
+            return False
+
+        self.signal_stop()  # Ensure somebody has set the stop flag
 
         if self._started:
             self._thread.join()  # Wait for the netlink socket to time out
@@ -164,6 +149,7 @@ class NfQueueMonitor(TrafficMonitor):
 
         if self._rule_added:
             self._rule.remove()  # Shell out to iptables to remove the rule
+        return True
     
     def _process(self, pkt):
         bytez = pkt.get_payload()
