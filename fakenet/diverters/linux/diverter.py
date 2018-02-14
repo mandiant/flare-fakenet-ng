@@ -22,8 +22,6 @@ from diverters.linux import utils as lutils
 from diverters.linux.packet_handler import PacketHandler
 from diverters.linux.nfqueue import make_nfqueue_monitor
 
-from diverters.monitor import make_monitor
-
 from diverters.mangler import make_mangler
 
 from diverters import constants
@@ -150,6 +148,7 @@ class Diverter(DiverterBase):
         mangler = make_mangler(mangler_config)
         if mangler is None:
             return None
+
         return make_nfqueue_monitor(qno, 'OUTPUT', 'raw', conds, mangler)
 
 
