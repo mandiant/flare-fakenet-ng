@@ -43,12 +43,19 @@ def make_diverter(dconf, lconf, loglevel):
 
 
 class LinuxProcessResolver(condition.ProcessResolver):
+    '''
+    @implements ProcessResolver to resolve process name and process ID from
+    an ip_packet. This class is used in ProcessNameCondition.
+    '''
     def get_process_name_from_ip_packet(self, ip_packet):
         return lutils.get_procname_from_ip_packet(ip_packet)
 
 
 
 class Diverter(DiverterBase):
+    '''
+    Linux implementation for the Diverter class.
+    '''
     CACHE_MAX_LENGTH = 0xfff
     CACHE_MAX_AGE_SECONDS = 120
 
@@ -120,99 +127,6 @@ class Diverter(DiverterBase):
         return True
     
 
-    def __make_input_monitor(self, qno):
-        conds = self.__make_incoming_conditions()
-        if conds is None:
-            return None
-        mangler_config = {
-            'ip_forward_table': self.ip_fwd_table,
-            'type': 'SrcIpFwdMangler',
-        }
-        mangler = make_mangler(mangler_config)
-        if mangler is None:
-            return None
-        
-        return make_nfqueue_monitor(qno, 'INPUT', 'mangle', conds, mangler)
-    
-
-    def __make_output_monitor(self, qno):
-        conds = self.__make_outgoing_conditions()
-        if conds is None:
-            return None
-
-        mangler_config  = {
-            'ip_forward_table': self.ip_fwd_table,
-            'type': 'DstIpFwdMangler',
-            'inet.dst': '127.0.0.1',
-        }
-        mangler = make_mangler(mangler_config)
-        if mangler is None:
-            return None
-
-        return make_nfqueue_monitor(qno, 'OUTPUT', 'raw', conds, mangler)
-
-
-
-    def __initialize_monitors(self):
-        nhooks = 2  # INPUT and OUTPUT chains
-
-        qnos = lutils.get_next_nfqueue_numbers(nhooks)
-        if len(qnos) != nhooks:
-            self.logger.error('Could not procure a sufficient number of ' +
-                              'netfilter queue numbers')
-            return False                          
-        self.monitors = list()
-
-        imon = self.__make_input_monitor(qnos[0])
-        if imon is None:
-            self.logger.error('Failed to initialize INPUT queue monitor')
-            return False
-        omon = self.__make_output_monitor(qnos[1])
-        if omon is None:
-            self.logger.error('Failed to initialize OUTPUT queue monitor')
-            return False
-        
-        self.monitors = [imon, omon]
-        return True
-
-
-    def __make_outgoing_conditions(self):
-        conditions = list()
-
-        # 1. IpDstCondition to not be part of myself:
-        ipaddrs = self.ip_addrs
-        cond = condition.IpDstCondition({'addr.inet': ipaddrs, 'not': True})
-        if not cond.initialize():
-            return None
-        
-        conditions.append(cond)
-
-        # 2. Make listeners conditions
-        lconf = self.listeners_config
-        resolver = LinuxProcessResolver({})
-        resolver.initialize()
-        is_divert = True
-        logger = self.logger
-        conds = condition.make_forwarder_conditions(lconf, resolver, is_divert, logger)
-        conditions.append(conds)
-
-        return conditions
-
-
-    def __make_incoming_conditions(self):
-        if self.single_host_mode:
-            return [condition.make_match_all_condition()]
-
-        conditions = list()
-
-        # 1. IpDstCondition to not be part of myself:
-        ipaddrs = self.config.get('ip_addrs')[4]
-        cond = condition.IpDstCondition({'addr.inet': ipaddrs, 'not': True})
-        if not cond.initialize():
-            return None
-        
-        conditions.append(cond)
-        return conditions
 
     def start(self):
         self.logger.info('Starting Linux Diverter...')
@@ -419,3 +333,115 @@ class Diverter(DiverterBase):
                                       self.port_execute[protocol][port])
         return True
 
+
+    def __make_input_monitor(self, qno):
+        '''
+        Make a network monitor to monitor the INPUT queue.
+        @param qno  :   Available queue number for the INPUT queue
+        @return     :   None on error, an NfQueueMonitor object on success  
+        ''' 
+        conds = self.__make_incoming_conditions()
+        if conds is None:
+            return None
+        mangler_config = {
+            'ip_forward_table': self.ip_fwd_table,
+            'type': 'SrcIpFwdMangler',
+        }
+        mangler = make_mangler(mangler_config)
+        if mangler is None:
+            return None
+        
+        return make_nfqueue_monitor(qno, 'INPUT', 'mangle', conds, mangler)
+    
+
+    def __make_output_monitor(self, qno):
+        '''
+        Make a network monitor to monitor the OUTPUT queue.
+        @param qno  :   Available queue number for the INPUT queue
+        @return     :   None on error, an NfQueueMonitor object on success
+        '''
+        conds = self.__make_outgoing_conditions()
+        if conds is None:
+            return None
+
+        mangler_config  = {
+            'ip_forward_table': self.ip_fwd_table,
+            'type': 'DstIpFwdMangler',
+            'inet.dst': '127.0.0.1',
+        }
+        mangler = make_mangler(mangler_config)
+        if mangler is None:
+            return None
+
+        return make_nfqueue_monitor(qno, 'OUTPUT', 'raw', conds, mangler)
+
+
+    def __initialize_monitors(self):
+        nhooks = 2  # INPUT and OUTPUT chains
+
+        qnos = lutils.get_next_nfqueue_numbers(nhooks)
+        if len(qnos) != nhooks:
+            self.logger.error('Could not procure a sufficient number of ' +
+                              'netfilter queue numbers')
+            return False                          
+        self.monitors = list()
+
+        imon = self.__make_input_monitor(qnos[0])
+        if imon is None:
+            self.logger.error('Failed to initialize INPUT queue monitor')
+            return False
+        omon = self.__make_output_monitor(qnos[1])
+        if omon is None:
+            self.logger.error('Failed to initialize OUTPUT queue monitor')
+            return False
+        
+        self.monitors = [imon, omon]
+        return True
+
+
+    def __make_outgoing_conditions(self):
+        '''
+        Make a list of conditions that must be matched for out-going packets to
+        be filtered/diverted.
+        '''
+        conditions = list()
+
+        # 1. IpDstCondition: Traffic is not sending to one of my IPs
+        ipaddrs = self.ip_addrs
+        cond = condition.IpDstCondition({'addr.inet': ipaddrs, 'not': True})
+        if not cond.initialize():
+            return None
+        
+        conditions.append(cond)
+
+        # 2. Make listeners conditions
+        lconf = self.listeners_config
+        resolver = LinuxProcessResolver({})
+        resolver.initialize()
+        is_divert = True
+        logger = self.logger
+        conds = condition.make_forwarder_conditions(lconf, resolver, is_divert, logger)
+        conditions.append(conds)
+
+        return conditions
+
+
+    def __make_incoming_conditions(self):
+        '''
+        Make a list of conditions to be matched before an IP packet is mangled.
+        If within single mode, all IP packets must be mangled. 
+        If within multihost mode, only match packets NOT directed at us.
+        '''
+        if self.single_host_mode:
+            return [condition.make_match_all_condition()]
+
+        conditions = list()
+
+        # 1. IpDstCondition to not be part of myself:
+        ipaddrs = self.config.get('ip_addrs')[4]
+        cond = condition.IpDstCondition({'addr.inet': ipaddrs, 'not': True})
+        if not cond.initialize():
+            return None
+        
+        conditions.append(cond)
+        return conditions
