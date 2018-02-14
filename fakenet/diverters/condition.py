@@ -20,11 +20,12 @@ def make_match_all_condition():
     return cond
 
 
-def make_forwarder_conditions(listeners_config, cb, is_divert, logger=None, ):
+def make_forwarder_conditions(listeners_config, resolver, is_divert,
+                              logger=None):
     '''
     Make the conditions for a monitor/forwarder.
     @param  listeners_config        : listener configs, as a dictionary
-    @param  cb                      : callback to get proces name from ip packet
+    @param  resolver                : Object that implements ProcessResolver
     @param  is_divert (True|False)  : The process names are blacklisted/ignored
     @param  logger (OPTIONAL)       : a Logger to use, None to use default
     @return                         : None on error, condition object on success
@@ -45,7 +46,7 @@ def make_forwarder_conditions(listeners_config, cb, is_divert, logger=None, ):
         blprocs = [_.strip() for _ in blprocs]
         if len(blprocs) > 0:
             # if diverting, the process name is blacklisted/ignored
-            pnames_cond = make_procnames_condition(blprocs, cb, logger, is_divert)
+            pnames_cond = make_procnames_condition(blprocs, resolver, logger, is_divert)
             if pnames_cond is None:
                 return None
             cond = AndCondition({'conditions': [port_condition, pnames_cond]})
@@ -86,11 +87,11 @@ def make_listener_port_condition(lconfig, logger=None, negate=False):
     return pcond
 
 
-def make_procnames_condition(proc_names, cb, logger=None, negate=False):
+def make_procnames_condition(proc_names, resolver, logger=None, negate=False):
     '''
     Make a ProcessNamesCondition with provided names.
     @param proc_names           : comma separated list of process names
-    @param cb                   : callback to get proces name from ip packet
+    @param resolver             : Object that implements ProcessResolver
     @param logger (OPTIONAL)    : Logger to use,
     @param nagate               : True|False flag, negate the condition
     @return                     : condition on success, None on error
@@ -102,12 +103,24 @@ def make_procnames_condition(proc_names, cb, logger=None, negate=False):
 
     cond = ProcessNamesCondition({
             'process_names': procs,
-            'process_callback': cb,
+            'resolver': resolver,
             'not': negate})
     if not cond.initialize():
         logger.error('Failed to initialize ProcessNameCondition')
         return None
     return cond
+
+
+class ProcessResolver(BaseObject):
+    '''
+    Generic interface to resolve process information from an ip_packet. Each
+    platforms must implement its own.
+    '''
+    def get_process_name_from_ip_packet(self, ip_packet):
+        raise NotImplementedError
+    
+    def get_process_id_from_ip_packet(self, ip_packet):
+        raise NotImplementedError
 
 
 class Condition(BaseObject):
@@ -312,7 +325,7 @@ class ProcessNamesCondition(Condition):
             'nc',                   # netcat
             'com.apple.WebKit',     # safari
         ],
-        'process_callback': callback_function
+        'resolver': <object that implements ProcessResolver>
     }
     '''
     def initialize(self):
@@ -324,12 +337,12 @@ class ProcessNamesCondition(Condition):
             self.logger.error('Bad process names')
             return False
 
-        self.cb = self.config.get('process_callback', None)
-        if self.cb is None:
+        self.resolver = self.config.get('resolver', None)
+        if self.resolver is None:
             return False
         return True
     
     def is_pass(self, ip_packet):
-        procname = self.cb(ip_packet)
+        procname = self.resolver.get_process_name_from_ip_packet(ip_packet)
         rc = procname in self.proc_names
         return rc if not self.negate else not rc

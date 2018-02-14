@@ -42,6 +42,14 @@ def make_diverter(dconf, lconf, loglevel):
         return None
     return diverter
 
+
+
+class LinuxProcessResolver(condition.ProcessResolver):
+    def get_process_name_from_ip_packet(self, ip_packet):
+        return lutils.get_procname_from_ip_packet(ip_packet)
+
+
+
 class Diverter(DiverterBase):
     CACHE_MAX_LENGTH = 0xfff
     CACHE_MAX_AGE_SECONDS = 120
@@ -147,15 +155,6 @@ class Diverter(DiverterBase):
 
 
     def __initialize_monitors(self):
-        hookspec = namedtuple('hookspec', ['chain', 'table'])
-        callbacks = list()
-
-        if not self.single_host_mode:
-            callbacks.append(hookspec('PREROUTING', 'raw'))
-
-        callbacks.append(hookspec('INPUT', 'mangle'))
-        callbacks.append(hookspec('OUTPUT', 'raw'))
-
         nhooks = 2  # INPUT and OUTPUT chains
 
         qnos = lutils.get_next_nfqueue_numbers(nhooks)
@@ -191,10 +190,11 @@ class Diverter(DiverterBase):
 
         # 2. Make listeners conditions
         lconf = self.listeners_config
-        cb = lutils.get_procname_from_ip_packet
+        resolver = LinuxProcessResolver({})
+        resolver.initialize()
         is_divert = True
         logger = self.logger
-        conds = condition.make_forwarder_conditions(lconf, cb, is_divert, logger)
+        conds = condition.make_forwarder_conditions(lconf, resolver, is_divert, logger)
         conditions.append(conds)
 
         return conditions
