@@ -225,3 +225,12 @@ def parse_listeners_config(listeners_config, logger=None):
         pconf[constants.EXECUTE_COMMAND] = lconf.get(constants.EXECUTE_COMMAND, None)
     
     return result
+
+
+def get_ip_addresses(ipversion=netifaces.AF_INET, logger=None):
+    logger = logging.getLogger() if logger is None else logger
+    ips = list()
+    for iface in netifaces.interfaces():
+        for link in netifaces.ifaddresses(iface)[netifaces.AF_INET]:
+            ips.append(link['addr'])
+    return ips
