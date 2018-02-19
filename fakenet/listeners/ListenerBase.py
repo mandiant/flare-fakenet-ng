@@ -134,6 +134,8 @@ def add_syslog_logger(host, logger=logging.getLogger('FakeNet Listener'), loggin
 
         if json_only:
             remote_handler.addFilter(JSONIncludeFilter())
+	else:
+            remote_handler.addFilter(JSONExcludeFilter())
 
         logger.addHandler(remote_handler)
         return True
@@ -189,7 +191,7 @@ def add_splunk_logger(host, hectoken, logger=logging.getLogger('FakeNet Listener
         return False
 
 
-def set_logger(name="FakeNetListener", config=None, logging_level=logging.INFO):
+def set_logger(name="FakeNetListener", config=None, logging_level=logging.WARNING):
     """
     Set default logger for listeners
 
@@ -206,7 +208,7 @@ def set_logger(name="FakeNetListener", config=None, logging_level=logging.INFO):
     stream_formatter = logging.Formatter('%(asctime)s [%(name)18s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p')
     stream_handler.setFormatter(stream_formatter)
     stream_handler.addFilter(JSONExcludeFilter())
-    logger.addHandler(stream_handler)
+    #logger.addHandler(stream_handler)
 
     if (config is not None) and (not config.has_key('remotelogging') or config['remotelogging']) == 1:
         for k in config.iterkeys():
