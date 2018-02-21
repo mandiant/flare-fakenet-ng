@@ -95,8 +95,9 @@ class Diverter(DiverterBase):
             self.logger.warning('         Please configure a DNS server in ' +
                                 'order to allow network resolution.')
 
+        self.all_listener_ports = self._parse_listeners_config()
 
-        if not self._parse_listeners_config():
+        if not self.all_listener_ports:
             return False
 
         if not self.check_privileged():
@@ -115,6 +116,13 @@ class Diverter(DiverterBase):
         if self.single_host_mode and not self._confirm_experimental():
             return False
         self.logger.info('Running in %s mode' % (mode))
+
+        default_listener_tcp = dconfig.get('defaulttcplistener')
+        self.default_listener_port_tcp = int(
+            self.listeners_config.get(default_listener_tcp).get('port'))
+        default_listener_udp = dconfig.get('defaultudplistener')
+        self.default_listener_port_udp = int(
+            self.listeners_config.get(default_listener_udp).get('port'))
 
         # Track iptables rules not associated with any nfqueue object
         self.rules_added = []
@@ -276,9 +284,11 @@ class Diverter(DiverterBase):
         listeners_config = self.listeners_config
         #######################################################################
         # Populate diverter ports and process filters from the configuration
+        all_ports = []
         for listener_name, listener_config in listeners_config.iteritems():
             if 'port' in listener_config:
                 port = int(listener_config['port'])
+                all_ports.append(port)
                 if not 'protocol' in listener_config:
                     self.logger.error('ERROR: Protocol not defined for ' +
                                       'listener %s', listener_name)
@@ -289,7 +299,7 @@ class Diverter(DiverterBase):
                     self.logger.error('ERROR: Invalid protocol %s for ' +
                                       'listener %s', protocol, listener_name)
                     return False
-
+                
                 ###############################################################
                 # Process filtering configuration
                 if 'processwhitelist' in listener_config and 'processblacklist' in listener_config:
@@ -330,7 +340,7 @@ class Diverter(DiverterBase):
                     self.logger.debug('Port %d (%s) ExecuteCmd: %s', port,
                                       protocol,
                                       self.port_execute[protocol][port])
-        return True
+        return all_ports
 
 
     def __make_input_monitor(self, qno):
@@ -345,6 +355,8 @@ class Diverter(DiverterBase):
         mangler_config = {
             'ip_forward_table': self.ip_fwd_table,
             'type': 'SrcIpFwdMangler',
+            'default_listener_port_tcp' : self.default_listener_port_tcp,
+            'default_listener_port_udp' : self.default_listener_port_udp,
         }
         mangler = make_mangler(mangler_config)
         if mangler is None:
@@ -442,6 +454,12 @@ class Diverter(DiverterBase):
         cond = condition.IpDstCondition({'addr.inet': ipaddrs, 'not': True})
         if not cond.initialize():
             return None
-        
+   
         conditions.append(cond)
+        default_cond = condition.DefaultListenerCondition(
+            {'ports' : self.all_listener_ports, 'not': False})
+        if not default_cond.initialize():
+            return None
+        conditions.append(default_cond)
+        print("__make_incoming_conditions created default_cond: %s\nconditions:%s\n" % (default_cond, conditions))
         return conditions

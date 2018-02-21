@@ -11,6 +11,7 @@ def make_mangler(config):
         'DlinkPacketMangler': DlinkPacketMangler,
         'SrcIpFwdMangler': SrcIpFwdMangler,
         'DstIpFwdMangler': DstIpFwdMangler,
+        'DefaultListenerMangler': DefaultListenerMangler,
     }
     _type = config.get('type', None)
 
@@ -68,6 +69,41 @@ class TPortMangler(Mangler):
         )/otport.payload
         return ntport
 
+class DefaultListenerMangler(Mangler):
+    '''
+    This mangler ensures that packets headed for unbound ports are 
+    redirected to the default listener
+    '''
+    def mangle(self, ip_packet):
+        print("DefaultListenerMangler start\n")
+        if TCP in ip_packet:
+            return self.mangle_tcp(ip_packet)
+        if UDP in ip_packet:
+            return self.mangle_udp(ip_packet)
+        return None
+
+    def mangle_tcp(self, ip_packet):
+        '''
+        NOTE: Can we avoid the copy for better performance?
+        '''
+        otport = ip_packet[TCP]
+        default_port = self.config.get('default_listener_port_tcp')
+        ntport = TCP(sport=otport.sport, dport=default_port,
+                     seq=otport.seq, ack=otport.ack,
+                     dataofs=otport.dataofs, window=otport.window,
+                     flags=otport.flags,
+                     options=otport.options)/otport.payload
+        return ntport
+
+    def mangle_udp(self, ip_packet):
+        '''NOTE: Can we avoid the copy for better performance?'''
+        otport = ip_packet[UDP]
+        default_port = self.config.get('default_listener_port_tcp')
+        ntport = UDP(
+            sport=otport.sport, dport=default_port,
+        )/otport.payload
+        return ntport
+    
 
 class IPMangler(TPortMangler):
     '''
