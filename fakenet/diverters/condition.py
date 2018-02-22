@@ -36,7 +36,6 @@ def make_forwarder_conditions(listeners_config, resolver, is_divert,
     for lname, lconfig in listeners_config.iteritems():
         logger.debug('Initializing listener config for %s' % (lname,))
 
-        # check here for default listener?
         port_condition = make_listener_port_condition(lconfig, logger)
         if port_condition is None:
             _err = 'Failed to initialize port condition for %s' % (lname,)
@@ -65,7 +64,7 @@ def make_forwarder_conditions(listeners_config, resolver, is_divert,
 
 def make_listener_port_condition(lconfig, logger=None, negate=False):
     '''
-    Make the condition for destination port based on a listener config.
+    Make the condition for destination port based on a listner config.
     @param lconfig          : dictionary of listener config
     @param logger (OPTIONAL): Logger to use
     @param negate           : Negate the condition, default to False
@@ -242,6 +241,7 @@ class DstPortCondition(PortCondition):
         rc = tport.dport in self.ports
         return rc if not self.negate else not rc
 
+
 class SrcPortCondition(PortCondition):
     def is_pass(self, ip_packet):
         '''@override'''
@@ -251,17 +251,6 @@ class SrcPortCondition(PortCondition):
         rc = tport.sport in self.ports
         return rc if not self.negate else not rc
 
-class DefaultListenerCondition(PortCondition):
-    def is_pass(self, ip_packet):
-        '''@override'''
-        print("DefaultListenerCondition\n")
-        tport = dutils.tport_from_ippacket(ip_packet)
-        print("tport: %d\n" % tport)
-        if tport is None:
-            return self.default
-        rc = not tport.sport in self.ports
-        print("returning: %s\n" % rc)
-        return rc if not self.negate else not rc
 
 class CompoundCondition(Condition):
     '''This class is a compound class, matching multiple conditions.

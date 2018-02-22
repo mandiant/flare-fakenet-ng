@@ -67,11 +67,9 @@ class IptCmdTemplate:
 
     def gen_remove_cmd(self): return self._remcmd
 
-    def add(self): 
-        return subprocess.call(self._addcmd.split())
+    def add(self): return subprocess.call(self._addcmd.split())
 
-    def remove(self): 
-        return subprocess.call(self._remcmd.split())
+    def remove(self): return subprocess.call(self._remcmd.split())
 
 
 class ProcfsReader:
