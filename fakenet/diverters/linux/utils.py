@@ -222,6 +222,7 @@ def get_current_nfnlq_bindings(logger=None):
     logger = logger if logger is not None else logging.getLogger()
 
     procfs_path = '/proc/net/netfilter/nfnetlink_queue'
+    nfqueue = netfilterqueue.NetfilterQueue()
 
     qnos = list()
     try:

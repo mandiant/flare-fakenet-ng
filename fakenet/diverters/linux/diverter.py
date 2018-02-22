@@ -437,7 +437,7 @@ class Diverter(DiverterBase):
         conditions = list()
 
         # 1. IpDstCondition to not be part of myself:
-        ipaddrs = self.config.get('ip_addrs')[4]
+        ipaddrs = self.ip_addrs
         cond = condition.IpDstCondition({'addr.inet': ipaddrs, 'not': True})
         if not cond.initialize():
             return None
