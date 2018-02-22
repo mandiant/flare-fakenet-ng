@@ -467,17 +467,10 @@ class Diverter(DiverterBase):
         conditions = list()
 
         # 1. IpDstCondition to not be part of myself:
-        #ipaddrs = self.config.get('ip_addrs')[4]
-        ipaddrs = self.ip_addrs
+        ipaddrs = self.config.get('ip_addrs')[4]
         cond = condition.IpDstCondition({'addr.inet': ipaddrs, 'not': True})
         if not cond.initialize():
             return None
    
         conditions.append(cond)
-        default_cond = condition.DefaultListenerCondition(
-            {'ports' : self.all_listener_ports, 'not': False})
-        if not default_cond.initialize():
-            return None
-        conditions.append(default_cond)
-        print("__make_incoming_conditions created default_cond: %s\nconditions:%s\n" % (default_cond, conditions))
         return conditions
