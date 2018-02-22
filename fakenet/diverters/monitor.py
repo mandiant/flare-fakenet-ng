@@ -5,7 +5,7 @@ import logging
 
 from diverters import BaseObject
 from diverters.mangler import make_mangler
-from diverters.injector import make_injector
+#from diverters.injector import make_injector
 from diverters import condition
 from diverters import utils as dutils
 from scapy.all import Ether, IP
