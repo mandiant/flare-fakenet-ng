@@ -29,18 +29,14 @@ from diverters import condition
 
 
 def make_diverter(dconf, lconf, loglevel):
-    print("linux/diverter.py make_diverter.\ndconf:%s lconf:%s\n" % (dconf, lconf))
     config = {
         'diverter_config': dconf,
         'listeners_config': lconf,
         'log_level': loglevel,
     }
     diverter = Diverter(config)
-    print("Diverter() complete\n")
     if not diverter.initialize():
-        print("linux/diverter.py initialize() fail\n")
         return None
-    print("diverter initialize() complete\n")
     return diverter
 
 
@@ -60,11 +56,9 @@ class Diverter(DiverterBase):
     Linux implementation for the Diverter class.
     '''
     CACHE_MAX_LENGTH = 0xfff
-    print("Diverter()")
     CACHE_MAX_AGE_SECONDS = 120
 
     def __init__(self, config):
-        print("Diverter() __init__. config:%s\n" % config)
         super(Diverter, self).__init__(config)
         self._current_iptables_rules = None
         self._old_dns = None
@@ -77,12 +71,8 @@ class Diverter(DiverterBase):
         self.monitors = list()
 
     def initialize(self):
-        print("linux\diverter.py initialize() start\n")
-        print("self.config:%s\n" % self.config)
         if not super(Diverter, self).initialize():
-            print("DiverterBase initialize() returned False\n")
             return False
-        print("DiverterBase initialize() returned True\n")
         
         # Check active interfaces
         if not lutils.check_active_ethernet_adapters():
@@ -90,7 +80,6 @@ class Diverter(DiverterBase):
                               'detected!')
             self.logger.error('         Please enable a network interface.')
             return False
-        print("interfaces checked\n")
 
         # Check configured gateways
         if not lutils.check_gateways():
@@ -99,17 +88,14 @@ class Diverter(DiverterBase):
                               'gateway or route in order to intercept ' +
                               'external traffic.')
             return False
-        print("gateways checked")
 
         # Check configured DNS servers
         if not lutils.check_dns_servers():
             self.logger.warning('WARNING: No DNS servers configured!')
             self.logger.warning('         Please configure a DNS server in ' +
                                 'order to allow network resolution.')
-        print("dns servers checked\n")
 
         self.all_listener_ports = self._parse_listeners_config()
-        print("listener_ports parsed:%s\n" % self.all_listener_ports)
 
         if not self.all_listener_ports:
             return False
@@ -120,7 +106,6 @@ class Diverter(DiverterBase):
             return False
 
         dconfig = self.config.get('diverter_config')        
-        print("dconfig parsed:%s\n" % dconfig)
 
         mode = dconfig.get('networkmode', 'singlehost').lower()
         available_modes = ['singlehost', 'multihost']
@@ -132,8 +117,6 @@ class Diverter(DiverterBase):
             return False
         self.logger.info('Running in %s mode' % (mode))
 
-        #TODO: replace with default listener parsing from original diverterbase.py
-        print("setting up default listeners\n")
         default_listener_tcp = dconfig.get('defaulttcplistener')
         self.default_listener_port_tcp = int(
             self.listeners_config.get(default_listener_tcp).get('port'))
@@ -299,7 +282,6 @@ class Diverter(DiverterBase):
 
     def _parse_listeners_config(self):
         listeners_config = self.listeners_config
-        print("_parse_listeners_config:%s\n" % listeners_config)
         #######################################################################
         # Populate diverter ports and process filters from the configuration
         all_ports = []

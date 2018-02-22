@@ -1,16 +1,12 @@
 
 import logging
 from diverters import utils
-import time
-import dpkt
 
 class BaseObject(object):
-    print("BaseObject()")
     _logger = None
     _config = None
 
     def __init__(self, config):
-        print("BaseObject() __init__(). config:%s\n" % config)
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(self.config.get('log_level', logging.INFO))
@@ -39,12 +35,10 @@ class BaseObject(object):
 
 
 class DiverterBase(BaseObject):
-    print("DiverterBase()")
     _diverter_config = None
     _listeners_config = None
     
     def initialize(self):
-        print("DiverterBase() initialize()")
         if not super(DiverterBase, self).initialize():
             return False
         
@@ -54,23 +48,11 @@ class DiverterBase(BaseObject):
             return False
         
         lc = self.config.get('listeners_config', None)
-        self.listeners_config = utils.parse_listeners_config(lc, self.logger)
-        #self.listeners_config = lc
+        self.lc = utils.parse_listeners_config(lc, self.logger)
+        self.listeners_config = lc
         if self.listeners_config is None:
             self.logger.critical('Bad listeners config')
             return False
-
-        if self.diverter_config.get('dumppackets').lower() is not None:
-            print("setting up pcap\n")
-            self.pcap_filename = '%s_%s.pcap' % (self.diverter_config.get(
-                'dumppacketsfileprefix', 'packets'),
-                time.strftime('%Y%m%d_%H%M%S'))
-            self.logger.info('Capturing traffic to %s' % self.pcap_filename)
-            self.pcap = dpkt.pcap.Writer(open(self.pcap_filename, 'wb'),
-                linktype=dpkt.pcap.DLT_RAW)
-            print("pcap setup complete\n")
-            #self.pcap_lock = threading.Lock()
-
         return True
     # --------------------------------------------------------------------------
     # property stuffs
