@@ -256,7 +256,7 @@ class DefaultListenerCondition(PortCondition):
         '''@override'''
         print("DefaultListenerCondition\n")
         tport = dutils.tport_from_ippacket(ip_packet)
-        print("tport: %d\n" % tport)
+        print("tport: %s\ntport.sport:%s\n" % (tport, tport.sport))
         if tport is None:
             return self.default
         rc = not tport.sport in self.ports
