@@ -518,6 +518,70 @@ class Diverter(WinUtilMixin):
 
         return packet
 
+    def check_black_white_list(self, packet, protocol, default_listener_port, blacklist_ports, conn_pid, process_name):
+        """Return True if the packet matches a blacklist or does not match a
+        whitelist
+        """
+
+        # Meta strings
+        interface_string = 'loopback' if packet.is_loopback else 'external'
+        direction_string = 'inbound' if packet.is_inbound else 'outbound'
+
+        # Protocol specific filters
+        diverted_ports         = self.diverted_ports.get(protocol)
+        port_process_whitelist = self.port_process_whitelist.get(protocol)
+        port_process_blacklist = self.port_process_blacklist.get(protocol)
+        port_host_whitelist    = self.port_host_whitelist.get(protocol)
+        port_host_blacklist    = self.port_host_blacklist.get(protocol)
+        port_execute           = self.port_execute.get(protocol)
+
+        # Check host blacklist
+        if packet.dst_addr in self.blacklist_hosts:
+            self.logger.debug('Ignoring %s %s %s request packet to %s in the host blacklist.', direction_string, interface_string, protocol, packet.dst_addr)
+            self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)   
+            return True
+
+        # Check the port host whitelist
+        if packet.dst_addr and port_host_whitelist and \
+            ((packet.dst_port in port_host_whitelist and not packet.dst_addr in port_host_whitelist[packet.dst_port]) or\
+              (default_listener_port and default_listener_port in port_host_whitelist and not packet.dst_addr in port_host_whitelist[default_listener_port]))  :
+            self.logger.debug('Ignoring %s %s %s request packet to %s not in the listener host whitelist.', direction_string, interface_string, protocol, packet.dst_addr)
+            self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+            return True
+
+        # Check the port host blacklist
+        if packet.dst_addr and port_host_blacklist and \
+            ((packet.dst_port in port_host_blacklist and packet.dst_addr in port_host_blacklist[packet.dst_port]) or\
+              (default_listener_port and default_listener_port in port_host_blacklist and packet.dst_addr in port_host_blacklist[default_listener_port]))  :
+            self.logger.debug('Ignoring %s %s %s request packet to %s in the listener host blacklist.', direction_string, interface_string, protocol, packet.dst_addr)
+            self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+            return True
+
+        if process_name:
+            # Check process blacklist
+            if process_name in self.blacklist_processes:
+                self.logger.debug('Ignoring %s %s %s request packet from process %s in the process blacklist.', direction_string, interface_string, protocol, process_name)
+                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)                
+                return True
+
+            # Check the port process whitelist
+            if port_process_whitelist and \
+                ((packet.dst_port in port_process_whitelist and not process_name in port_process_whitelist[packet.dst_port]) or\
+                  (default_listener_port and default_listener_port in port_process_whitelist and not process_name in port_process_whitelist[default_listener_port]))  :
+                self.logger.debug('Ignoring %s %s %s request packet from process %s not in the listener process whitelist.', direction_string, interface_string, protocol, process_name)
+                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+                return True
+
+            # Check the port process blacklist
+            if port_process_blacklist and \
+                ((packet.dst_port in port_process_blacklist and process_name in port_process_blacklist[packet.dst_port]) or\
+                  (default_listener_port and default_listener_port in port_process_blacklist and process_name in port_process_blacklist[default_listener_port]))  :
+                self.logger.debug('Ignoring %s %s %s request packet from process %s in the listener process blacklist.', direction_string, interface_string, protocol, process_name)
+                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+                return True
+
+        return False
+
     def handle_tcp_udp_packet(self, packet, protocol, default_listener_port, blacklist_ports):
 
         # Meta strings
@@ -532,65 +596,52 @@ class Diverter(WinUtilMixin):
         port_host_blacklist    = self.port_host_blacklist.get(protocol)
         port_execute           = self.port_execute.get(protocol)
 
-        if (packet.is_loopback and packet.src_addr == self.loopback_ip and packet.dst_addr == self.loopback_ip):
+        bIsLoopback = (packet.is_loopback and
+                       packet.src_addr == self.loopback_ip and
+                       packet.dst_addr == self.loopback_ip)
+
+        bIsBlacklistedPort = (packet.src_port in blacklist_ports or
+                              packet.dst_port in blacklist_ports)
+
+        # Pass as-is if the packet is a loopback packet
+        if bIsLoopback:
             self.logger.debug('Ignoring loopback packet')
             self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+            return packet
 
-        elif packet.src_port in blacklist_ports or packet.dst_port in blacklist_ports:
+        # Pass as-is if the source or destination port is in the blacklist
+        if bIsBlacklistedPort:
             self.logger.debug('Forwarding blacklisted port %s %s %s packet:', direction_string, interface_string, protocol)
             self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+            return packet
 
-        # Check if a packet must be diverted to a local listener
-        # Rules:
+        # Criteria to divert a packet to a local listener:
         # 1) Divert outbound packets only
         # 2) Make sure we are not diverting response packet based on the source port
         # 3) Make sure the destination port is a known diverted port or we have a default listener port defined
-        elif diverted_ports and (packet.dst_port in diverted_ports or default_listener_port != None) and not packet.src_port in diverted_ports:
+        bDivertLocally = (diverted_ports and
+                          not packet.src_port in diverted_ports and
+                          (packet.dst_port in diverted_ports or
+                           default_listener_port != None))
 
+
+        # Check to see if it is a listener reply needing fixups
+        bIsListenerReply = diverted_ports and packet.src_port in diverted_ports
+
+        ############################################################
+        # If a packet must be diverted to a local listener
+        ############################################################
+        if bDivertLocally:
             # Find which process ID is sending the request
             conn_pid = self.get_pid_port_tcp(packet.src_port) if packet.tcp else self.get_pid_port_udp(packet.src_port)
             process_name = self.get_process_image_filename(conn_pid) if conn_pid else None
 
-            # Check process blacklist
-            if process_name and process_name in self.blacklist_processes:
-                self.logger.debug('Ignoring %s %s %s request packet from process %s in the process blacklist.', direction_string, interface_string, protocol, process_name)
-                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)                
-
-            # Check host blacklist
-            elif packet.dst_addr in self.blacklist_hosts:
-                self.logger.debug('Ignoring %s %s %s request packet to %s in the host blacklist.', direction_string, interface_string, protocol, packet.dst_addr)
-                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)   
-
-            # Check the port process whitelist
-            elif process_name and port_process_whitelist and \
-                ((packet.dst_port in port_process_whitelist and not process_name in port_process_whitelist[packet.dst_port]) or\
-                  (default_listener_port and default_listener_port in port_process_whitelist and not process_name in port_process_whitelist[default_listener_port]))  :
-                self.logger.debug('Ignoring %s %s %s request packet from process %s not in the listener process whitelist.', direction_string, interface_string, protocol, process_name)
-                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
-
-            # Check the port process blacklist
-            elif process_name and port_process_blacklist and \
-                ((packet.dst_port in port_process_blacklist and process_name in port_process_blacklist[packet.dst_port]) or\
-                  (default_listener_port and default_listener_port in port_process_blacklist and process_name in port_process_blacklist[default_listener_port]))  :
-                self.logger.debug('Ignoring %s %s %s request packet from process %s in the listener process blacklist.', direction_string, interface_string, protocol, process_name)
-                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
-
-            # Check the port host whitelist
-            elif packet.dst_addr and port_host_whitelist and \
-                ((packet.dst_port in port_host_whitelist and not packet.dst_addr in port_host_whitelist[packet.dst_port]) or\
-                  (default_listener_port and default_listener_port in port_host_whitelist and not packet.dst_addr in port_host_whitelist[default_listener_port]))  :
-                self.logger.debug('Ignoring %s %s %s request packet to %s not in the listener host whitelist.', direction_string, interface_string, protocol, packet.dst_addr)
-                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
-
-            # Check the port host blacklist
-            elif packet.dst_addr and port_host_blacklist and \
-                ((packet.dst_port in port_host_blacklist and packet.dst_addr in port_host_blacklist[packet.dst_port]) or\
-                  (default_listener_port and default_listener_port in port_host_blacklist and packet.dst_addr in port_host_blacklist[default_listener_port]))  :
-                self.logger.debug('Ignoring %s %s %s request packet to %s in the listener host blacklist.', direction_string, interface_string, protocol, packet.dst_addr)
-                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+            # If the packet is in a blacklist, or is not in a whitelist, pass it as-is
+            if self.check_black_white_list(packet, protocol, default_listener_port, blacklist_ports, conn_pid, process_name):
+                return packet
 
             # Make sure you are not intercepting packets from one of the FakeNet listeners
-            elif conn_pid and os.getpid() == conn_pid:
+            if conn_pid and os.getpid() == conn_pid:
 
                 # HACK: FTP Passive Mode Handling
                 # Check if a listener is initiating a new connection from a non-diverted port and add it to blacklist. This is done to handle a special use-case
@@ -608,61 +659,65 @@ class Diverter(WinUtilMixin):
                     self.logger.debug('Skipping %s %s %s listener packet:', direction_string, interface_string, protocol)
                     self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
+                return packet
+
             # Modify the packet
-            else:
 
-                # Adjustable log level output. Used to display info level logs for first packets of the session and 
-                # debug level for the rest of the communication in order to reduce log output.
-                logger_level = self.logger.debug
+            # Adjustable log level output. Used to display info level logs for first packets of the session and 
+            # debug level for the rest of the communication in order to reduce log output.
+            logger_level = self.logger.debug
 
-                # First packet in a new session
-                if not (packet.src_port in self.sessions and self.sessions[packet.src_port] == (packet.dst_addr, packet.dst_port)):
+            # First packet in a new session
+            if not (packet.src_port in self.sessions and self.sessions[packet.src_port] == (packet.dst_addr, packet.dst_port)):
 
-                    # Cache original target IP address based on source port
-                    self.sessions[packet.src_port] = (packet.dst_addr, packet.dst_port)
+                # Cache original target IP address based on source port
+                self.sessions[packet.src_port] = (packet.dst_addr, packet.dst_port)
 
-                    # Override log level to display all information on info level
-                    logger_level = self.logger.info
+                # Override log level to display all information on info level
+                logger_level = self.logger.info
 
-                    # Execute command
-                    if conn_pid and port_execute and (packet.dst_port in port_execute or (default_listener_port and default_listener_port in port_execute)):
-
-
-                        execute_cmd = port_execute[packet.dst_port if packet.dst_port in diverted_ports else default_listener_port].format(pid = conn_pid, 
-                                                                               procname = process_name, 
-                                                                               src_addr = packet.src_addr, 
-                                                                               src_port = packet.src_port,
-                                                                               dst_addr = packet.dst_addr,
-                                                                               dst_port = packet.dst_port)
-
-                        logger_level('Executing command: %s', execute_cmd)
-
-                        self.execute_detached(execute_cmd)       
+                # Execute command
+                if conn_pid and port_execute and (packet.dst_port in port_execute or (default_listener_port and default_listener_port in port_execute)):
 
 
-                logger_level('Modifying %s %s %s request packet:', direction_string, interface_string, protocol)
-                logger_level('  from: %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+                    execute_cmd = port_execute[packet.dst_port if packet.dst_port in diverted_ports else default_listener_port].format(pid = conn_pid, 
+                                                                           procname = process_name, 
+                                                                           src_addr = packet.src_addr, 
+                                                                           src_port = packet.src_port,
+                                                                           dst_addr = packet.dst_addr,
+                                                                           dst_port = packet.dst_port)
 
-                # Direct packet to the right interface IP address to avoid routing issues
-                packet.dst_addr = self.loopback_ip if packet.is_loopback else self.external_ip
+                    logger_level('Executing command: %s', execute_cmd)
 
-                # Direct packet to an existing or a default listener
-                # check if 'hidden' config is set. If so, the packet is 
-                # directed to the default listener which is the proxy
-                packet.dst_port = (packet.dst_port if (
-                        packet.dst_port in diverted_ports and 
-                        diverted_ports[packet.dst_port] is False) 
-                        else default_listener_port)
-
-                logger_level('  to:   %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
-
-                if conn_pid:
-                    logger_level('  pid:  %d name: %s', conn_pid, process_name if process_name else 'Unknown')
+                    self.execute_detached(execute_cmd)       
 
 
+            logger_level('Modifying %s %s %s request packet:', direction_string, interface_string, protocol)
+            logger_level('  from: %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+
+            # Direct packet to the right interface IP address to avoid routing issues
+            packet.dst_addr = self.loopback_ip if packet.is_loopback else self.external_ip
+
+            # Direct packet to an existing or a default listener
+            # check if 'hidden' config is set. If so, the packet is 
+            # directed to the default listener which is the proxy
+            packet.dst_port = (packet.dst_port if (
+                    packet.dst_port in diverted_ports and 
+                    diverted_ports[packet.dst_port] is False) 
+                    else default_listener_port)
+
+            logger_level('  to:   %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+
+            if conn_pid:
+                logger_level('  pid:  %d name: %s', conn_pid, process_name if process_name else 'Unknown')
+            return packet
+
+
+        ############################################################
         # Restore diverted response from a local listener
         # NOTE: The response can come from a legitimate request
-        elif diverted_ports and packet.src_port in diverted_ports:
+        ############################################################
+        if bIsListenerReply:
             # The packet is a response from a listener. It needs to be 
             # redirected to the original source
 
@@ -687,19 +742,23 @@ class Diverter(WinUtilMixin):
             if conn_pid:
                 self.logger.debug('  pid:  %d name: %s', conn_pid, process_name if process_name else 'Unknown')
 
-        else:
-            # At this point whe know the packet is either a response packet 
-            # from a listener(sport is bound) or is bound for a port with no 
-            # listener (dport not bound)
+            return packet
 
-            # Cache original target IP address based on source port
-            self.sessions[packet.src_port] = (packet.dst_addr, packet.dst_port)
-          
-            # forward to proxy
-            packet.dst_port = default_listener_port
+        ############################################################
+        # Catch-all / else case
+        # At this point whe know the packet is either a response packet 
+        # from a listener(sport is bound) or is bound for a port with no 
+        # listener (dport not bound)
+        ############################################################
 
-            self.logger.debug('Redirected %s %s %s packet to proxy:', direction_string, interface_string, protocol)
-            self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+        # Cache original target IP address based on source port
+        self.sessions[packet.src_port] = (packet.dst_addr, packet.dst_port)
+      
+        # forward to proxy
+        packet.dst_port = default_listener_port
+
+        self.logger.debug('Redirected %s %s %s packet to proxy:', direction_string, interface_string, protocol)
+        self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
         return packet
 
