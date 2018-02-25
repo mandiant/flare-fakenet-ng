@@ -14,10 +14,11 @@ import threading
 import platform
 
 from winutil import *
+from diverterbase import *
 
 import subprocess
 
-class Diverter(WinUtilMixin):
+class Diverter(DiverterBase, WinUtilMixin):
 
     def __init__(self, diverter_config, listeners_config, logging_level = logging.INFO):
 
