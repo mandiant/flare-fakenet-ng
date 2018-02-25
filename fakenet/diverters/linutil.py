@@ -260,6 +260,18 @@ class LinUtilMixin():
         # TODO: Implement
         return True
 
+    def check_ipaddresses(self):
+        # TODO: Implement
+        return True
+
+    def fix_gateway(self):
+        # TODO: Implement
+        return False
+
+    def fix_dns(self):
+        # TODO: Implement
+        return False
+
     def linux_capture_iptables(self):
         self.iptables_captured = ''
         ret = None

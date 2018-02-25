@@ -77,10 +77,7 @@ class DiverterBase(fnconfig.Config):
         self.parse_listeners_config(listeners_config)
 
         #######################################################################
-        # Diverter settings and filters
-
-        # Intercept filter
-        self.filter = None
+        # Diverter settings
 
         # Default TCP/UDP listeners
         self.default_listener = dict()
@@ -109,18 +106,28 @@ class DiverterBase(fnconfig.Config):
                                 'detected!')
             self.logger.warning('         Please enable a network interface.')
 
+        # Check configured ip addresses
+        if not self.check_ipaddresses():
+            self.logger.warning('ERROR: No interface had IP address configured!')
+            self.logger.warning('         Please configure an IP address on a network interfnace.')
+            sys.exit(1)
+
         # Check configured gateways
         if not self.check_gateways():
             self.logger.warning('WARNING: No gateways configured!')
-            self.logger.warning('         Please configure a default ' +
-                                'gateway or route in order to intercept ' +
-                                'external traffic.')
+            if not self.fix_gateway():
+                self.logger.warning('Cannot fix gateway')
+                self.logger.warning('         Please configure a default ' +
+                                    'gateway or route in order to intercept ' +
+                                    'external traffic.')
 
         # Check configured DNS servers
         if not self.check_dns_servers():
             self.logger.warning('WARNING: No DNS servers configured!')
-            self.logger.warning('         Please configure a DNS server in ' +
-                                'order to allow network resolution.')
+            if not self.fix_dns():
+                self.logger.warning('Cannot fix DNS')
+                self.logger.warning('         Please configure a DNS server ' +
+                                    'in order to allow network resolution.')
 
         # OS-specific Diverters must initialize e.g. WinDivert,
         # libnetfilter_queue, pf/alf, etc.
@@ -159,7 +166,8 @@ class DiverterBase(fnconfig.Config):
 
                 port = int(listener_config['port'])
 
-                hidden = listener_config.get('hidden', 'false') == 'True'
+                hidden = (listener_config.get('hidden', 'false').lower() ==
+                          'true')
 
                 if not 'protocol' in listener_config:
                     self.logger.error('ERROR: Protocol not defined for ' +
@@ -173,13 +181,13 @@ class DiverterBase(fnconfig.Config):
                                       'listener %s', protocol, listener_name)
                     sys.exit(1)
 
+                if not protocol in self.diverted_ports:
+                    self.diverted_ports[protocol] = dict()
+
                 # diverted_ports[protocol][port] is True if the listener is 
                 # configured as 'Hidden', which means it will not receive 
                 # packets unless the ProxyListener determines that the protocol
                 # matches the listener
-                if not protocol in self.diverted_ports:
-                    self.diverted_ports[protocol] = dict()
-
                 self.diverted_ports[protocol][port] = hidden
 
                 ###############################################################
@@ -277,8 +285,7 @@ class DiverterBase(fnconfig.Config):
                     if not protocol in self.port_execute:
                         self.port_execute[protocol] = dict()
 
-                    self.port_execute[protocol][port] = \
-                        listener_config['executecmd'].strip()
+                    self.port_execute[protocol][port] = template
                     self.logger.debug('Port %d (%s) ExecuteCmd: %s', port,
                                       protocol,
                                       self.port_execute[protocol][port])
