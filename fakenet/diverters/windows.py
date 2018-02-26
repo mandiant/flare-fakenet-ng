@@ -35,9 +35,6 @@ class Diverter(DiverterBase, WinUtilMixin):
         self.adapters_dhcp_restore = list()
         self.adapters_dns_restore = list()
 
-        #######################################################################
-        # Network verification
-
         # Configure external and loopback IP addresses
         self.external_ip = self.get_best_ipaddress() or self.get_ip_with_gateway() or socket.gethostbyname(socket.gethostname())
 
