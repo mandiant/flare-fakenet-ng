@@ -57,10 +57,6 @@ class Diverter(DiverterBase, WinUtilMixin):
             else:
                 self.filter = "outbound and ip"
 
-        # Local IP addresses
-        self.external_ip = None
-        self.loopback_ip = None
-
         # Used for caching of DNS server names prior to changing
         self.adapters_dns_server_backup = dict()
 
@@ -68,154 +64,13 @@ class Diverter(DiverterBase, WinUtilMixin):
         self.adapters_dhcp_restore = list()
         self.adapters_dns_restore = list()
 
-        # Restore Npcap loopback adapter
-        self.restore_npcap_loopback = False
-
-        # Sessions cache
-        # NOTE: A dictionary of source ports mapped to destination address, port tuples
-        self.sessions = dict()
-
-        #######################################################################
-        # Listener specific configuration
-        # NOTE: All of these definitions have protocol as the first key
-        #       followed by a list or another nested dict with the actual definitions
-
-        # Diverted ports
-        self.diverted_ports = dict()
-
-        # Listener Port Process filtering
-        # TODO: Allow PIDs
-        self.port_process_whitelist = dict()
-        self.port_process_blacklist = dict()
-
-        # Listener Port Host filtering
-        # TODO: Allow domain name resolution
-        self.port_host_whitelist = dict()
-        self.port_host_blacklist = dict()
-
-        # Execute command list
-        self.port_execute = dict()
-
-        # Parse listener configurations
-        self.parse_listeners_config(listeners_config)
-
-        #######################################################################
-        # Diverter settings and filters
-
-        # Default TCP/UDP listeners
-        self.default_listener_tcp_port = None
-        self.default_listener_udp_port = None
-
-        # Global TCP/UDP port blacklist
-        self.blacklist_ports_tcp = []
-        self.blacklist_ports_udp = []
-
-        # Global process blacklist
-        # TODO: Allow PIDs
-        self.blacklist_processes = []
-
-        # Global host blacklist
-        # TODO: Allow domain resolution
-        self.blacklist_hosts     = []
-
-        # Parse diverter config
-        self.parse_diverter_config()
-
         #######################################################################
         # Network verification
 
-        # Check active interfaces
-        if not self.check_active_ethernet_adapters():
-            self.logger.warning('ERROR: No active ethernet interfaces detected!')
-            self.logger.warning('         Please enable a network interface.')
-            sys.exit(1)
-
-        # Check configured ip addresses
-        if not self.check_ipaddresses():
-            self.logger.warning('ERROR: No interface had IP address configured!')
-            self.logger.warning('         Please configure an IP address on a network interfnace.')
-            sys.exit(1)
-
-        # Check configured gateways
-        if not self.check_gateways():
-            self.logger.warning('WARNING: No gateways configured!')
-
-            # Check if there is a gateway configured on any of the Ethernet interfaces. If that's not the case,
-            # then locate configured IP address and set a gateway automatically. This is necessary for VMWare Host-Only
-            # DHCP server which leaves default gateway empty.
-            if self.diverter_config.get('fixgateway') and self.diverter_config['fixgateway'].lower() == 'yes':
-
-                for adapter in self.get_adapters_info():
-
-                    # Look for a DHCP interface with a set IP address but no gateway (Host-Only)
-                    if self.check_ipaddresses_interface(adapter) and adapter.DhcpEnabled:
-
-                        (ip_address, netmask) = next(self.get_ipaddresses_netmask(adapter))
-                        gw_address =  ip_address[:ip_address.rfind('.')]+'.254'
-
-                        interface_name = self.get_adapter_friendlyname(adapter.Index)
-
-                        # Don't set gateway on loopback interfaces (e.g. Npcap Loopback Adapter)
-                        if not "loopback" in interface_name.lower():
-
-                            self.adapters_dhcp_restore.append(interface_name)
-
-                            cmd_set_gw = "netsh interface ip set address name=\"%s\" static %s %s %s" % (interface_name, ip_address, netmask, gw_address)
-
-                            # Configure gateway
-                            try:
-                                subprocess.check_call(cmd_set_gw, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                            except subprocess.CalledProcessError, e:
-                                self.logger.error("         Failed to set gateway %s on interface %s." % (gw_address, interface_name))
-                            else:
-                                self.logger.info("         Setting gateway %s on interface %s" % (gw_address, interface_name))
-
-
-            else:
-                self.logger.warning('WARNING: Please configure a default gateway or route in order to intercept external traffic.')
-                self.logger.warning('         Current interception abilities are limited to local traffic.')
-
         # Configure external and loopback IP addresses
         self.external_ip = self.get_best_ipaddress() or self.get_ip_with_gateway() or socket.gethostbyname(socket.gethostname())
-        self.loopback_ip = socket.gethostbyname('localhost')
 
         self.logger.info("External IP: %s Loopback IP: %s" % (self.external_ip, self.loopback_ip))
-
-        # Check configured DNS servers
-        if not self.check_dns_servers():
-            self.logger.warning('WARNING: No DNS servers configured!')
-
-            # Check if there is a DNS server on any of the Ethernet interfaces. If that's not the case,
-            # then locate configured IP address and set a DNS server automatically.
-            if self.diverter_config.get('fixdns') and self.diverter_config['fixdns'].lower() == 'yes':
-
-                for adapter in self.get_adapters_info():
-
-                    if self.check_ipaddresses_interface(adapter):
-
-                        ip_address = next(self.get_ipaddresses(adapter))
-                        dns_address = ip_address
-
-                        interface_name = self.get_adapter_friendlyname(adapter.Index)
-
-                        # Don't set DNS on loopback interfaces (e.g. Npcap Loopback Adapter)
-                        if not "loopback" in interface_name.lower():
-
-                            self.adapters_dns_restore.append(interface_name)
-
-                            cmd_set_dns = "netsh interface ip set dns name=\"%s\" static %s" % (interface_name, dns_address)
-
-                            # Configure DNS server
-                            try:
-                                subprocess.check_call(cmd_set_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                            except subprocess.CalledProcessError, e:
-                                self.logger.error("         Failed to set DNS %s on interface %s." % (dns_address, interface_name))
-                            else:
-                                self.logger.info("         Setting DNS %s on interface %s" % (dns_address, interface_name))
-
-            else:
-                self.logger.warning('WARNING: Please configure a DNS server in order to intercept domain name resolutions.')
-                self.logger.warning('         Current interception abilities are limited to IP only traffic.')
 
         #######################################################################
         # Initialize WinDivert
@@ -236,17 +91,75 @@ class Diverter(DiverterBase, WinUtilMixin):
                 self.logger.error('ERROR: Failed to open a handle to the WinDivert driver: %s', e)
                 sys.exit(1)
 
-        # Capture packets configuration
-        self.capture_flag = False
-        self.dump_packets_file_prefix = "packets"
-        self.pcap = None
+    def fix_gateway(self):
+        """Check if there is a gateway configured on any of the Ethernet
+        interfaces. If that's not the case, then locate configured IP address
+        and set a gateway automatically. This is necessary for VMWare Host-Only
+        DHCP server which leaves default gateway empty.
+        """
+        fixed = False
 
-        if self.diverter_config.get('dumppackets') and self.diverter_config['dumppackets'].lower() == 'yes':
-                self.capture_flag = True
-                pcap_filename = "%s_%s.pcap" % (diverter_config.get('dumppacketsfileprefix', 'packets'), time.strftime("%Y%m%d_%H%M%S"))
+        for adapter in self.get_adapters_info():
 
-                self.logger.info('Capturing traffic to %s', pcap_filename)
-                self.pcap = dpkt.pcap.Writer(open(pcap_filename, 'wb'), linktype=dpkt.pcap.DLT_RAW)
+            # Look for a DHCP interface with a set IP address but no gateway (Host-Only)
+            if self.check_ipaddresses_interface(adapter) and adapter.DhcpEnabled:
+
+                (ip_address, netmask) = next(self.get_ipaddresses_netmask(adapter))
+                gw_address =  ip_address[:ip_address.rfind('.')]+'.254'
+
+                interface_name = self.get_adapter_friendlyname(adapter.Index)
+
+                # Don't set gateway on loopback interfaces (e.g. Npcap Loopback Adapter)
+                if not "loopback" in interface_name.lower():
+
+                    self.adapters_dhcp_restore.append(interface_name)
+
+                    cmd_set_gw = "netsh interface ip set address name=\"%s\" static %s %s %s" % (interface_name, ip_address, netmask, gw_address)
+
+                    # Configure gateway
+                    try:
+                        subprocess.check_call(cmd_set_gw, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    except subprocess.CalledProcessError, e:
+                        self.logger.error("         Failed to set gateway %s on interface %s." % (gw_address, interface_name))
+                    else:
+                        self.logger.info("         Setting gateway %s on interface %s" % (gw_address, interface_name))
+                        fixed = True
+
+        return fixed
+
+    def fix_dns(self):
+        """Check if there is a DNS server on any of the Ethernet interfaces. If
+        that's not the case, then locate configured IP address and set a DNS
+        server automatically.
+        """
+        fixed = False
+
+        for adapter in self.get_adapters_info():
+
+            if self.check_ipaddresses_interface(adapter):
+
+                ip_address = next(self.get_ipaddresses(adapter))
+                dns_address = ip_address
+
+                interface_name = self.get_adapter_friendlyname(adapter.Index)
+
+                # Don't set DNS on loopback interfaces (e.g. Npcap Loopback Adapter)
+                if not "loopback" in interface_name.lower():
+
+                    self.adapters_dns_restore.append(interface_name)
+
+                    cmd_set_dns = "netsh interface ip set dns name=\"%s\" static %s" % (interface_name, dns_address)
+
+                    # Configure DNS server
+                    try:
+                        subprocess.check_call(cmd_set_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    except subprocess.CalledProcessError, e:
+                        self.logger.error("         Failed to set DNS %s on interface %s." % (dns_address, interface_name))
+                    else:
+                        self.logger.info("         Setting DNS %s on interface %s" % (dns_address, interface_name))
+                        fixed = True
+
+        return fixed
 
     def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
         """Return original destination port, or None if it was not redirected
@@ -256,104 +169,6 @@ class Diverter(DiverterBase, WinUtilMixin):
             return self.sessions[orig_src_port]
         return None
     
-    ###########################################################################
-    # Parse listener specific settings and filters
-
-    def parse_listeners_config(self, listeners_config):
-
-        #######################################################################
-        # Populate diverter ports and process filters from the configuration
-        for listener_name, listener_config in listeners_config.iteritems():
-
-            if 'port' in listener_config:
-
-                port = int(listener_config['port'])
-                hidden = True if ('hidden' in listener_config and 
-                            listener_config['hidden'] == 'True') else False
-
-                if not 'protocol' in listener_config:
-                    self.logger.error('ERROR: Protocol not defined for listener %s', listener_name)
-                    sys.exit(1)
-
-                protocol = listener_config['protocol'].upper()
-
-                if not protocol in ['TCP', 'UDP']:
-                    self.logger.error('ERROR: Invalid protocol %s for listener %s', protocol, listener_name)
-                    sys.exit(1)
-
-                if not protocol in self.diverted_ports:
-                    self.diverted_ports[protocol] = dict()
-
-                self.diverted_ports[protocol][port] = hidden
-
-                ###############################################################
-                # Process filtering configuration
-                if 'processwhitelist' in listener_config and 'processblacklist' in listener_config:
-                    self.logger.error('ERROR: Listener can\'t have both process whitelist and blacklist.')
-                    sys.exit(1)
-
-                elif 'processwhitelist' in listener_config:
-                    
-                    self.logger.debug('Process whitelist:')
-
-                    if not protocol in self.port_process_whitelist:
-                        self.port_process_whitelist[protocol] = dict()
-
-                    self.port_process_whitelist[protocol][port] = [process.strip() for process in listener_config['processwhitelist'].split(',')]
-
-                    for port in self.port_process_whitelist[protocol]:
-                        self.logger.debug(' Port: %d (%s) Processes: %s', port, protocol, ', '.join(self.port_process_whitelist[protocol][port]))
-
-                elif 'processblacklist' in listener_config:
-                    self.logger.debug('Process blacklist:')
-
-                    if not protocol in self.port_process_blacklist:
-                        self.port_process_blacklist[protocol] = dict()
-
-                    self.port_process_blacklist[protocol][port] = [process.strip() for process in listener_config['processblacklist'].split(',')]
-
-                    for port in self.port_process_blacklist[protocol]:
-                        self.logger.debug(' Port: %d (%s) Processes: %s', port, protocol, ', '.join(self.port_process_blacklist[protocol][port]))
-
-                ###############################################################
-                # Host filtering configuration
-                if 'hostwhitelist' in listener_config and 'hostblacklist' in listener_config:
-                    self.logger.error('ERROR: Listener can\'t have both host whitelist and blacklist.')
-                    sys.exit(1)
-
-                elif 'hostwhitelist' in listener_config:
-                    
-                    self.logger.debug('Host whitelist:')
-
-                    if not protocol in self.port_host_whitelist:
-                        self.port_host_whitelist[protocol] = dict()
-
-                    self.port_host_whitelist[protocol][port] = [host.strip() for host in listener_config['hostwhitelist'].split(',')]
-
-                    for port in self.port_host_whitelist[protocol]:
-                        self.logger.debug(' Port: %d (%s) Hosts: %s', port, protocol, ', '.join(self.port_host_whitelist[protocol][port]))
-
-                elif 'hostblacklist' in listener_config:
-                    self.logger.debug('Host blacklist:')
-
-                    if not protocol in self.port_host_blacklist:
-                        self.port_host_blacklist[protocol] = dict()
-
-                    self.port_host_blacklist[protocol][port] = [host.strip() for host in listener_config['hostblacklist'].split(',')]
-
-                    for port in self.port_host_blacklist[protocol]:
-                        self.logger.debug(' Port: %d (%s) Hosts: %s', port, protocol, ', '.join(self.port_host_blacklist[protocol][port]))
-
-                ###############################################################
-                # Execute command configuration
-                if 'executecmd' in listener_config:
-
-                    if not protocol in self.port_execute:
-                        self.port_execute[protocol] = dict()
-
-                    self.port_execute[protocol][port] = listener_config['executecmd'].strip()
-                    self.logger.debug('Port %d (%s) ExecuteCmd: %s', port, protocol, self.port_execute[protocol][port] )
-
     ###########################################################################
     # Parse diverter settings and filters
 
@@ -725,8 +540,7 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         #######################################################################
         # Capture packet and store raw packet in the PCAP
-        if self.capture_flag:
-            self.pcap.writepkt(packet.raw.tobytes())
+        self.write_pcap(packet.raw.tobytes())
 
         ###########################################################################
         # Verify the IP packet has an additional header
@@ -765,8 +579,8 @@ class Diverter(DiverterBase, WinUtilMixin):
         #       to properly restore TLS/SSL sessions.
         # TODO: Develop logic to record traffic before modification for both requests and
         #       responses to reduce duplicate captures.
-        if self.capture_flag and (dst_addr != packet.dst_addr):
-            self.pcap.writepkt(packet.raw.tobytes())
+        if (dst_addr != packet.dst_addr):
+            self.write_pcap(packet.raw.tobytes())
 
         #######################################################################
         # Attempt to send the processed packet
