@@ -114,13 +114,20 @@ class DiverterBase(fnconfig.Config):
             sys.exit(1)
 
         # Check configured gateways
-        if not self.check_gateways():
+        gw_ok = self.check_gateways()
+        if not gw_ok:
             self.logger.warning('WARNING: No gateways configured!')
-            if not self.fix_gateway():
-                self.logger.warning('Cannot fix gateway')
-                self.logger.warning('         Please configure a default ' +
-                                    'gateway or route in order to intercept ' +
-                                    'external traffic.')
+            if self.configured('fixgateway'):
+                gw_ok = fix_gateway()
+                if not gw_ok:
+                    self.logger.warning('Cannot fix gateway')
+
+        if not gw_ok:
+            self.logger.warning('         Please configure a default ' +
+                                'gateway or route in order to intercept ' +
+                                'external traffic.')
+            self.logger.warning('         Current interception abilities ' +
+                                'are limited to local traffic.')
 
         # Check configured DNS servers
         if not self.check_dns_servers():
