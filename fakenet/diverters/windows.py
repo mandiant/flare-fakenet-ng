@@ -20,13 +20,42 @@ import subprocess
 
 class Diverter(DiverterBase, WinUtilMixin):
 
-    def __init__(self, diverter_config, listeners_config, logging_level = logging.INFO):
+    def __init__(self, diverter_config, listeners_config, ip_addrs, logging_level = logging.INFO):
 
-        self.logger = logging.getLogger('Diverter')
-        self.logger.setLevel(logging_level)
+        self.diverter_config = dict((k.lower(), v)
+                                     for k, v in diverter_config.iteritems())
 
-        self.diverter_config = diverter_config
-        self.listeners_config = listeners_config
+        self.listeners_config = dict((k.lower(), v)
+                                     for k, v in listeners_config.iteritems())
+
+        self.init_base(diverter_config, listeners_config, ip_addrs, logging_level)
+
+        if self.diverter_config.get('networkmode').lower() != 'singlehost':
+            self.logger.error('Windows diverter currently only supports SingleHost mode')
+            sys.exit(1)
+
+        self.filter = None
+        if self.diverter_config.get('redirectalltraffic') and self.diverter_config['redirectalltraffic'].lower() == 'yes':
+            self.filter = "outbound and ip and (icmp or tcp or udp)"
+        # Redirect only specific traffic, build the filter dynamically
+        else:
+
+            filter_diverted_ports = list()
+            
+            if self.diverted_ports.get('TCP') != None:
+                for tcp_port in self.diverted_ports.get('TCP'):
+                    filter_diverted_ports.append("tcp.DstPort == %s" % tcp_port)
+                    filter_diverted_ports.append("tcp.SrcPort == %s" % tcp_port)
+
+            if self.diverted_ports.get('UDP') != None:
+                for udp_port in self.diverted_ports.get('UDP'):
+                    filter_diverted_ports.append("udp.DstPort == %s" % udp_port)
+                    filter_diverted_ports.append("udp.SrcPort == %s" % udp_port)
+
+            if len(filter_diverted_ports) > 0:
+                self.filter = "outbound and ip and (icmp or %s)" % " or ".join(filter_diverted_ports)
+            else:
+                self.filter = "outbound and ip"
 
         # Local IP addresses
         self.external_ip = None
@@ -72,12 +101,6 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         #######################################################################
         # Diverter settings and filters
-
-        # Intercept filter
-        # NOTE: All relevant connections are recorded as outbound by WinDivert
-        #       so additional filtering based on destination port will need to be
-        #       performed in order to determine the correct traffic direction.
-        self.filter = None
 
         # Default TCP/UDP listeners
         self.default_listener_tcp_port = None
@@ -343,78 +366,6 @@ class Diverter(DiverterBase, WinUtilMixin):
                 l,h = map(int, i.split('-'))
                 ports+= range(l,h+1)
         return ports
-
-    def parse_diverter_config(self):
-        if self.diverter_config.get('networkmode').lower() != 'singlehost':
-            self.logger.error('Windows diverter currently only supports SingleHost mode')
-            sys.exit(1)
-
-        # Do not redirect blacklisted processes
-        if self.diverter_config.get('processblacklist') != None:
-            self.blacklist_processes = [process.strip() for process in self.diverter_config.get('processblacklist').split(',')]
-            self.logger.debug('Blacklisted processes: %s', ', '.join([str(p) for p in self.blacklist_processes]))
-
-        # Do not redirect blacklisted hosts
-        if self.diverter_config.get('hostblacklist') != None:
-            self.blacklist_hosts = [host.strip() for host in self.diverter_config.get('hostblacklist').split(',')]
-            self.logger.debug('Blacklisted hosts: %s', ', '.join([str(p) for p in self.blacklist_hosts]))
-
-        # Redirect all traffic
-        if self.diverter_config.get('redirectalltraffic') and self.diverter_config['redirectalltraffic'].lower() == 'yes':
-            self.filter = "outbound and ip and (icmp or tcp or udp)"
-
-            if self.diverter_config.get('defaulttcplistener') == None:
-                self.logger.error('ERROR: No default TCP listener specified in the configuration.')
-                sys.exit(1)
-
-            elif self.diverter_config.get('defaultudplistener') == None:
-                self.logger.error('ERROR: No default UDP listener specified in the configuration.')
-                sys.exit(1)
-
-            elif not self.diverter_config.get('defaulttcplistener') in self.listeners_config:
-                self.logger.error('ERROR: No configuration exists for default TCP listener %s', self.diverter_config.get('defaulttcplistener'))
-                sys.exit(1)
-
-            elif not self.diverter_config.get('defaultudplistener') in self.listeners_config:
-                self.logger.error('ERROR: No configuration exists for default UDP listener %s', self.diverter_config.get('defaultudplistener'))
-                sys.exit(1)
-
-            else:
-                self.default_listener_tcp_port = int( self.listeners_config[ self.diverter_config['defaulttcplistener'] ]['port'] )
-                self.logger.error('Using default listener %s on port %d', self.diverter_config['defaulttcplistener'], self.default_listener_tcp_port)
-
-                self.default_listener_udp_port = int( self.listeners_config[ self.diverter_config['defaultudplistener'] ]['port'] )
-                self.logger.error('Using default listener %s on port %d', self.diverter_config['defaultudplistener'], self.default_listener_udp_port)
-
-            # Do not redirect blacklisted TCP ports
-            if self.diverter_config.get('blacklistportstcp') != None:
-                self.blacklist_ports_tcp = self.expand_ports(self.diverter_config.get('blacklistportstcp'))
-                self.logger.debug('Blacklisted TCP ports: %s', ', '.join([str(p) for p in self.blacklist_ports_tcp]))
-
-            # Do not redirect blacklisted UDP ports
-            if self.diverter_config.get('blacklistportsudp') != None:
-                self.blacklist_ports_udp = self.expand_ports(self.diverter_config.get('blacklistportsudp'))
-                self.logger.debug('Blacklisted UDP ports: %s', ', '.join([str(p) for p in self.blacklist_ports_udp]))
-
-        # Redirect only specific traffic, build the filter dynamically
-        else:
-
-            filter_diverted_ports = list()
-            
-            if self.diverted_ports.get('TCP') != None:
-                for tcp_port in self.diverted_ports.get('TCP'):
-                    filter_diverted_ports.append("tcp.DstPort == %s" % tcp_port)
-                    filter_diverted_ports.append("tcp.SrcPort == %s" % tcp_port)
-
-            if self.diverted_ports.get('UDP') != None:
-                for udp_port in self.diverted_ports.get('UDP'):
-                    filter_diverted_ports.append("udp.DstPort == %s" % udp_port)
-                    filter_diverted_ports.append("udp.SrcPort == %s" % udp_port)
-
-            if len(filter_diverted_ports) > 0:
-                self.filter = "outbound and ip and (icmp or %s)" % " or ".join(filter_diverted_ports)
-            else:
-                self.filter = "outbound and ip"
 
     ###########################################################################
     # Diverter controller functions
@@ -795,15 +746,15 @@ class Diverter(DiverterBase, WinUtilMixin):
                 protocol = 'TCP'
                 packet = self.handle_tcp_udp_packet(packet, 
                                                     protocol, 
-                                                    self.default_listener_tcp_port, 
-                                                    self.blacklist_ports_tcp)
+                                                    self.default_listener[protocol], 
+                                                    self.blacklist_ports[protocol])
 
             elif packet.udp:
                 protocol = 'UDP'
                 packet = self.handle_tcp_udp_packet(packet,
                                                     protocol,
-                                                    self.default_listener_udp_port, 
-                                                    self.blacklist_ports_udp)
+                                                    self.default_listener[protocol], 
+                                                    self.blacklist_ports[protocol])
 
             else:
                 self.logger.error('ERROR: Unknown packet header type.')

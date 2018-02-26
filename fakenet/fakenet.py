@@ -151,7 +151,7 @@ class Fakenet():
                     self.diverter_config['networkmode'] = 'singlehost'
                 
                 from diverters.windows import Diverter
-                self.diverter = Diverter(self.diverter_config, self.listeners_config, self.logging_level)
+                self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
 
             elif platform_name.lower().startswith('linux'):
                 if self.diverter_config['networkmode'].lower() == 'auto':
