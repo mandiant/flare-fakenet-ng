@@ -22,20 +22,33 @@ class Diverter(DiverterBase, WinUtilMixin):
 
     def __init__(self, diverter_config, listeners_config, ip_addrs, logging_level = logging.INFO):
 
-        self.diverter_config = dict((k.lower(), v)
-                                     for k, v in diverter_config.iteritems())
-
-        self.listeners_config = dict((k.lower(), v)
-                                     for k, v in listeners_config.iteritems())
-
         self.init_base(diverter_config, listeners_config, ip_addrs, logging_level)
 
-        if self.diverter_config.get('networkmode').lower() != 'singlehost':
+        if self.getconfigval('networkmode').lower() != 'singlehost':
             self.logger.error('Windows diverter currently only supports SingleHost mode')
             sys.exit(1)
 
+        # Used for caching of DNS server names prior to changing
+        self.adapters_dns_server_backup = dict()
+
+        # Used to restore modified Interfaces back to DHCP
+        self.adapters_dhcp_restore = list()
+        self.adapters_dns_restore = list()
+
+        #######################################################################
+        # Network verification
+
+        # Configure external and loopback IP addresses
+        self.external_ip = self.get_best_ipaddress() or self.get_ip_with_gateway() or socket.gethostbyname(socket.gethostname())
+
+        self.logger.info("External IP: %s Loopback IP: %s" % (self.external_ip, self.loopback_ip))
+
+        #######################################################################
+        # Initialize filter and WinDivert driver
+
+        # Build filter
         self.filter = None
-        if self.diverter_config.get('redirectalltraffic') and self.diverter_config['redirectalltraffic'].lower() == 'yes':
+        if self.is_set('redirectalltraffic'):
             self.filter = "outbound and ip and (icmp or tcp or udp)"
         # Redirect only specific traffic, build the filter dynamically
         else:
@@ -56,25 +69,8 @@ class Diverter(DiverterBase, WinUtilMixin):
                 self.filter = "outbound and ip and (icmp or %s)" % " or ".join(filter_diverted_ports)
             else:
                 self.filter = "outbound and ip"
-
-        # Used for caching of DNS server names prior to changing
-        self.adapters_dns_server_backup = dict()
-
-        # Used to restore modified Interfaces back to DHCP
-        self.adapters_dhcp_restore = list()
-        self.adapters_dns_restore = list()
-
-        #######################################################################
-        # Network verification
-
-        # Configure external and loopback IP addresses
-        self.external_ip = self.get_best_ipaddress() or self.get_ip_with_gateway() or socket.gethostbyname(socket.gethostname())
-
-        self.logger.info("External IP: %s Loopback IP: %s" % (self.external_ip, self.loopback_ip))
-
-        #######################################################################
-        # Initialize WinDivert
         
+        # Initialize WinDivert
         try:
             self.handle = WinDivert(filter=self.filter)
             self.handle.open()
@@ -190,11 +186,11 @@ class Diverter(DiverterBase, WinUtilMixin):
         self.logger.info('Starting...')
 
         # Set local DNS server IP address
-        if self.diverter_config.get('modifylocaldns') and self.diverter_config['modifylocaldns'].lower() == 'yes':
+        if self.is_set('modifylocaldns'):
             self.set_dns_server(self.external_ip)
 
         # Stop DNS service
-        if self.diverter_config.get('stopdnsservice') and self.diverter_config['stopdnsservice'].lower() == 'yes':
+        if self.is_set('stopdnsservice'):
             self.stop_service_helper('Dnscache') 
 
         self.logger.info('Diverting ports: ')
@@ -258,11 +254,11 @@ class Diverter(DiverterBase, WinUtilMixin):
                 self.logger.info("Restored DNS on interface %s" % interface_name)
 
         # Restore DNS server
-        if self.diverter_config.get('modifylocaldns') and self.diverter_config['modifylocaldns'].lower() == 'yes':
+        if self.is_set('modifylocaldns'):
             self.restore_dns_server()
 
         # Restart DNS service
-        if self.diverter_config.get('stopdnsservice') and self.diverter_config['stopdnsservice'].lower() == 'yes':
+        if self.is_set('stopdnsservice'):
             self.start_service_helper('Dnscache')  
 
         self.flush_dns()
