@@ -117,7 +117,7 @@ class DiverterBase(fnconfig.Config):
         gw_ok = self.check_gateways()
         if not gw_ok:
             self.logger.warning('WARNING: No gateways configured!')
-            if self.configured('fixgateway'):
+            if self.is_set('fixgateway'):
                 gw_ok = fix_gateway()
                 if not gw_ok:
                     self.logger.warning('Cannot fix gateway')
@@ -133,7 +133,7 @@ class DiverterBase(fnconfig.Config):
         dns_ok = self.check_dns_servers()
         if not dns_ok:
             self.logger.warning('WARNING: No DNS servers configured!')
-            if self.configured('fixdns'):
+            if self.is_set('fixdns'):
                 dns_ok = self.fix_dns()
                 if not dns_ok:
                     self.logger.warning('Cannot fix DNS')
