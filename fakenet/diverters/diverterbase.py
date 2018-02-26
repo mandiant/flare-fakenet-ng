@@ -110,7 +110,7 @@ class DiverterBase(fnconfig.Config):
         # Check configured ip addresses
         if not self.check_ipaddresses():
             self.logger.warning('ERROR: No interface had IP address configured!')
-            self.logger.warning('         Please configure an IP address on a network interfnace.')
+            self.logger.warning('         Please configure an IP address on a network interface.')
             sys.exit(1)
 
         # Check configured gateways
@@ -130,12 +130,17 @@ class DiverterBase(fnconfig.Config):
                                 'are limited to local traffic.')
 
         # Check configured DNS servers
-        if not self.check_dns_servers():
+        dns_ok = self.check_dns_servers()
+        if not dns_ok:
             self.logger.warning('WARNING: No DNS servers configured!')
-            if not self.fix_dns():
-                self.logger.warning('Cannot fix DNS')
-                self.logger.warning('         Please configure a DNS server ' +
-                                    'in order to allow network resolution.')
+            if self.configured('fixdns'):
+                dns_ok = self.fix_dns()
+                if not dns_ok:
+                    self.logger.warning('Cannot fix DNS')
+
+        if not dns_ok:
+            self.logger.warning('         Please configure a DNS server ' +
+                                'in order to allow network resolution.')
 
         # OS-specific Diverters must initialize e.g. WinDivert,
         # libnetfilter_queue, pf/alf, etc.
