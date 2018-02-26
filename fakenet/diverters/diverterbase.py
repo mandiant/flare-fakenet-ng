@@ -105,6 +105,7 @@ class DiverterBase(fnconfig.Config):
             self.logger.warning('WARNING: No active ethernet interfaces ' +
                                 'detected!')
             self.logger.warning('         Please enable a network interface.')
+            sys.exit(1)
 
         # Check configured ip addresses
         if not self.check_ipaddresses():
