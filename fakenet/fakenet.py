@@ -312,6 +312,7 @@ def main():
     fakenet.parse_config(options.config_file)
 
     if options.stop_flag:
+        options.stop_flag = os.path.expandvars(options.stop_flag)
         fakenet.logger.info('Will seek stop flag at %s' % (options.stop_flag))
 
     fakenet.start()
