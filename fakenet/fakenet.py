@@ -262,6 +262,14 @@ def get_ips(ipvers):
 
     return results
 
+def stop_flag_exists(stop_flag_path):
+    stop = os.path.exists(stop_flag_path)
+
+    if stop:
+        os.remove(stop_flag_path)
+
+    return stop
+
 def main():
 
     print """
@@ -288,6 +296,8 @@ def main():
                       action="store_true", dest="verbose", default=False,
                       help="print more verbose messages.")
     parser.add_option("-l", "--log-file", action="store", dest="log_file")
+    parser.add_option("-f", "--stop-flag", action="store", dest="stop_flag",
+                      help="terminate if stop flag file is created")
 
     (options, args) = parser.parse_args()
 
@@ -300,19 +310,27 @@ def main():
 
     fakenet = Fakenet(logging_level)
     fakenet.parse_config(options.config_file)
+
+    if options.stop_flag:
+        fakenet.logger.info('Will seek stop flag at %s' % (options.stop_flag))
+
     fakenet.start()
 
     try:
         while True:
             time.sleep(1)
+            if options.stop_flag and stop_flag_exists(options.stop_flag):
+                fakenet.logger.info('Stop flag found at %s' % (options.stop_flag))
+                break
 
     except KeyboardInterrupt:
-        fakenet.stop()
+        pass
 
     except:
         e = sys.exc_info()[0]
         fakenet.logger.error("ERROR: %s" % e)
-        fakenet.stop()
+
+    fakenet.stop()
 
 if __name__ == '__main__':
     main()
