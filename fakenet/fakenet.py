@@ -227,8 +227,6 @@ class Fakenet():
         if self.diverter:
             self.diverter.stop()
 
-        sys.exit(0)
-
 def get_ips(ipvers):
     """Return IP addresses bound to local interfaces including loopbacks.
     
@@ -328,6 +326,8 @@ def main():
     # Delete flag only after FakeNet-NG has stopped to indicate completion
     if options.stop_flag and os.path.exists(options.stop_flag):
         os.remove(options.stop_flag)
+
+    sys.exit(0)
 
 if __name__ == '__main__':
     main()
