@@ -146,7 +146,10 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             self.server.logger.error('Error: %s', e)
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
-    pass
+    # Avoid [Errno 98] Address already in use due to TIME_WAIT status on TCP
+    # sockets, for details see:
+    # https://stackoverflow.com/questions/4465959/python-errno-98-address-already-in-use
+    allow_reuse_address = True
 
 class ThreadedUDPServer(SocketServer.ThreadingMixIn, SocketServer.UDPServer):
     pass
