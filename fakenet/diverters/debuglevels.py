@@ -29,6 +29,7 @@ DLABELS = {
     DDPFV: 'DPFV',
     DIPNAT: 'IPNAT',
     DIGN: 'IGN',
+    DFTP: 'FTP',
     DIGN | DFTP: 'IGN-FTP',
     DMISC: 'MISC',
 }
