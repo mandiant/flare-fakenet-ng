@@ -194,7 +194,7 @@ class Fakenet():
                 try:
                     listener_provider_instance.start()
                 except Exception, e:
-                    self.logger.error('Error starting %s listener:', listener_config['listener'])
+                    self.logger.error('Error starting %s listener on port %s:', listener_config['listener'], listener_config['port'])
                     self.logger.error(" %s" % e)
 
         # Start the diverter
