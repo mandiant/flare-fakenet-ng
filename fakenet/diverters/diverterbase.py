@@ -413,7 +413,7 @@ class DiverterBase(fnconfig.Config):
                 [str(p) for p in self.getconfigval('hostblacklist')]))
 
         # Redirect all traffic
-        self.default_listener = dict()
+        self.default_listener = {'TCP': None, 'UDP': None}
         if self.is_set('redirectalltraffic'):
             if self.is_unconfigured('defaulttcplistener'):
                 self.logger.error('ERROR: No default TCP listener specified ' +
