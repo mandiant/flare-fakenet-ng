@@ -95,6 +95,8 @@ def get_external_ip():
             return addr
 
 class FakeNetTester:
+    """Controller for FakeNet-NG that runs test cases"""
+
     def __init__(self, settings):
         self.settings = settings
         self.pid_fakenet = None
@@ -167,9 +169,8 @@ class FakeNetTester:
         if not stopped_responsive:
             self._clearStopFlag()
 
-            if kill:
-                if self._checkPid(self.pid_fakenet):
-                    self._kill(self.pid_fakenet)
+            if kill and self._checkPid(self.pid_fakenet):
+                self._kill(self.pid_fakenet)
 
         self.pid_fakenet = None
 
@@ -339,7 +340,7 @@ class FakeNetTester:
         return (digest == expected)
 
     def testNoRedirect(self):
-        config = self.makeConfig(True, False, False)
+        config = self.makeConfig(singlehostmode=True, proxied=False, redirectall=False)
 
         domain_dne = self.settings.domain_dne
         ext_ip = self.settings.ext_ip
@@ -407,28 +408,6 @@ class FakeNetTester:
 
         return self._testGeneric(config, t)
 
-    def testExecuteWithoutConfig(self):
-        self.delConfig()
-
-        self.executeFakenet()
-        logger.info('FakeNet started with PID %s' % (str(self.pid_fakenet)))
-
-        sec = 3
-        logger.info('Sleeping %d seconds' % (sec))
-        time.sleep(sec)
-
-        logger.info('Stopping FakeNet-NG and waiting for it to complete')
-        responsive = self.stopFakenetAndWait(10, True)
-
-        if responsive:
-            logger.info('FakeNet-NG is stopped')
-        else:
-            logger.info('FakeNet-NG was no longer running or was stopped forcibly')
-
-        time.sleep(1)
-
-        self.delConfig()
-
     def makeConfig(self, singlehostmode=True, proxied=True, redirectall=True):
         template = self.settings.configtemplate
         return FakeNetConfig(template, singlehostmode, proxied, redirectall)
@@ -438,6 +417,8 @@ class FakeNetTester:
         config.write(self.settings.configpath)
 
 class FakeNetConfig:
+    """Convenience class to read/modify/rewrite a configuration template."""
+
     def __init__(self, path, singlehostmode=True, proxied=True, redirectall=True):
         self.rawconfig = ConfigParser.RawConfigParser()
         self.rawconfig.read(path)
@@ -471,6 +452,8 @@ class FakeNetConfig:
             return self.rawconfig.write(f)
 
 class FakeNetTestSettings:
+    """Test constants/literals, some of which may vary per OS, etc."""
+
     def __init__(self, startingpath):
         self.startingpath = startingpath
         self.configtemplate = os.path.join(startingpath, 'template.ini')
@@ -489,7 +472,6 @@ class FakeNetTestSettings:
         self.arbitrary = '8.8.8.8'
         self.localhost = '127.0.0.1'
         self.dns_expected = '192.0.2.123'
-
         self.domain_dne = 'does-not-exist-amirite.fireeye.com'
 
     def genPath(self, winpath, unixypath):
