@@ -409,6 +409,7 @@ class DiverterBase(fnconfig.Config):
 
         # Do not redirect blacklisted hosts
         if self.is_configured('hostblacklist'):
+            self.blacklist_hosts = self.getconfigval('hostblacklist')
             self.logger.debug('Blacklisted hosts: %s', ', '.join(
                 [str(p) for p in self.getconfigval('hostblacklist')]))
 
