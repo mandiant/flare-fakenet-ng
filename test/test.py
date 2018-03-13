@@ -94,6 +94,12 @@ def get_external_ip():
         if not addr.startswith('127.'):
             return addr
 
+class FakeNetTestException(Exception):
+    """A recognizable exception type indicating a known failure state based on
+    test criteria. HTTP test uses this, others may in the future, too.
+    """
+    pass
+
 class FakeNetTester:
     """Controller for FakeNet-NG that runs test cases"""
 
@@ -182,8 +188,23 @@ class FakeNetTester:
                                (self.pid_fakenet))
 
         os.chdir(self.settings.fndir)
+
+        max_del_attempts = 3
         if os.path.exists(self.settings.logpath):
-            os.remove(self.settings.logpath)
+            for i in range(1, max_del_attempts + 1):
+                try:
+                    os.remove(self.settings.logpath)
+                except WindowsError: # i.e. log file locked by another process
+                    logger.warning('Failed to delete %s, attempt %d' %
+                                   (self.settings.configpath, i))
+                    if i == max_del_attempts:
+                        logger.error('Final attempt, re-raising exception')
+                        raise
+                    else:
+                        logger.warning('Retrying in %d seconds...' % (i))
+                        time.sleep(i)
+                else:
+                    break
 
         cmd = self.settings.genFakenetCmd()
         logger.info('About to run %s' % (cmd))
@@ -198,6 +219,8 @@ class FakeNetTester:
             os.remove(self.settings.configpath)
 
     def doTests(self):
+        self.testBlacklistProcess()
+        self.testWhitelistProcess()
         self.testGeneral()
         self.testNoRedirect()
 
@@ -224,7 +247,7 @@ class FakeNetTester:
             self.delConfig()
             return False
 
-        sec = 5
+        sec = self.settings.sleep_after_start
         logger.info('Sleeping %d seconds before commencing' % (sec))
         time.sleep(sec)
 
@@ -247,7 +270,7 @@ class FakeNetTester:
         logger.info('Tests complete')
         logger.info('-' * 79)
 
-        sec = 2
+        sec = self.settings.sleep_before_stop
         logger.info('Sleeping %d seconds before transitioning' % (sec))
         time.sleep(sec)
 
@@ -307,20 +330,41 @@ class FakeNetTester:
     def _test_ns(self, hostname, expected):
        return (expected == socket.gethostbyname(hostname))
 
-    def _test_http(self, hostname):
+    def _test_http(self, hostname, port=None):
         """Test HTTP Listener"""
-        r = requests.get('http://%s/asdf.html' % (hostname))
+        retval = False
 
-        if r.status_code != 200:
-            return False
+        if port:
+            url = 'http://%s:%d/asdf.html' % (hostname, port)
+        else:
+            url = 'http://%s/asdf.html' % (hostname)
 
-        teststring = 'H T T P   L I S T E N E R'
-        if teststring not in r.text:
-            return False
+        try:
+            r = requests.get(url, timeout=3)
 
-        return True
+            if r.status_code != 200:
+                raise FakeNetTestException('Status code %d' % (r.status_code))
 
-    def _test_ftp(self, hostname):
+            teststring = 'H T T P   L I S T E N E R'
+            if teststring not in r.text:
+                raise FakeNetTestException('Test string not in response')
+
+            retval = True
+
+        except requests.exceptions.Timeout as e:
+            pass
+
+        except FakeNetTestException as e:
+            pass
+
+        return retval
+
+    def _test_ftp(self, hostname, port=None):
+        """Note that the FakeNet-NG Proxy listener won't know what to do with this client
+        if you point it at some random port, because the client listens
+        silently for the server 220 welcome message which doesn't give the
+        Proxy listener anything to work with to decide where to forward it.
+        """
         fullbuf = ''
 
         m = hashlib.md5()
@@ -328,7 +372,8 @@ class FakeNetTester:
         def update_hash(buf):
             m.update(buf)
 
-        f = ftplib.FTP(hostname)
+        f = ftplib.FTP()
+        f.connect(hostname, port)
         f.login()
         f.set_pasv(False)
         f.retrbinary('RETR FakeNet.gif', update_hash)
@@ -366,12 +411,45 @@ class FakeNetTester:
 
         return self._testGeneric(config, t)
 
+    def testBlacklistProcess(self):
+        config = self.makeConfig()
+        config.blacklistProcess(self.settings.pythonname)
+
+        arbitrary = self.settings.arbitrary
+
+        tcp = socket.SOCK_STREAM
+        udp = socket.SOCK_DGRAM
+
+        t = OrderedDict() # The tests
+
+        t['Global blacklisted process test'] = (self._test_sk, (tcp, arbitrary, 9999), False)
+
+        return self._testGeneric(config, t)
+
+    def testWhitelistProcess(self):
+        config = self.makeConfig()
+        config.whitelistProcess(self.settings.pythonname)
+
+        arbitrary = self.settings.arbitrary
+
+        tcp = socket.SOCK_STREAM
+        udp = socket.SOCK_DGRAM
+
+        t = OrderedDict() # The tests
+
+        t['Global whitelisted process test'] = (self._test_sk, (tcp, arbitrary, 9999), True)
+
+        return self._testGeneric(config, t)
+
     def testGeneral(self):
         config = self.makeConfig()
 
         domain_dne = self.settings.domain_dne
         ext_ip = self.settings.ext_ip
         arbitrary = self.settings.arbitrary
+        blacklistedhost = self.settings.blacklistedhost
+        blacklistedtcp = self.settings.blacklistedtcp
+        blacklistedudp = self.settings.blacklistedudp
         localhost = self.settings.localhost
         dns_expected = self.settings.dns_expected
 
@@ -406,6 +484,17 @@ class FakeNetTester:
         t['HTTP listener test'] = (self._test_http, (arbitrary,), True)
         t['FTP listener test'] = (self._test_ftp, (arbitrary,), True)
 
+        t['Proxy listener HTTP test'] = (self._test_http, (arbitrary, 10), True)
+
+        t['TCP blacklisted host @ unbound'] = (self._test_sk, (tcp, blacklistedhost, 9999), False)
+        t['TCP arbitrary @ blacklisted unbound'] = (self._test_sk, (tcp, arbitrary, blacklistedtcp), False)
+        t['UDP arbitrary @ blacklisted unbound'] = (self._test_sk, (udp, arbitrary, blacklistedudp), False)
+
+        t['Listener process blacklist'] = (self._test_http, (arbitrary, self.settings.listener_proc_black), False)
+        t['Listener process whitelist'] = (self._test_http, (arbitrary, self.settings.listener_proc_white), True)
+        t['Listener host blacklist'] = (self._test_http, (arbitrary, self.settings.listener_host_black), True)
+        t['Listener host whitelist'] = (self._test_http, (arbitrary, self.settings.listener_host_black), True)
+
         return self._testGeneric(config, t)
 
     def makeConfig(self, singlehostmode=True, proxied=True, redirectall=True):
@@ -431,6 +520,9 @@ class FakeNetConfig:
         if not proxied: self.noProxy()
 
         self.setRedirectAll(redirectall)
+
+    def blacklistProcess(self, process): self.rawconfig.set('Diverter', 'ProcessBlacklist', process)
+    def whitelistProcess(self, process): self.rawconfig.set('Diverter', 'ProcessWhitelist', process)
 
     def setRedirectAll(self, enabled):
         if enabled:
@@ -458,21 +550,38 @@ class FakeNetTestSettings:
         self.startingpath = startingpath
         self.configtemplate = os.path.join(startingpath, 'template.ini')
 
+        # Where am I? Who are you?
         self.platform_name = platform.system()
         self.windows = (self.platform_name == 'Windows')
         self.linux = (self.platform_name.lower().startswith('linux'))
 
+        # Paths
         self.configpath = self.genPath('%TEMP%\\fakenet.ini', '/tmp/fakenet.ini')
         self.stopflag = self.genPath('%TEMP%\\stop_fakenet', '/tmp/stop_fakenet')
         self.logpath = self.genPath('%TEMP%\\fakenet.log', '/tmp/fakenet.log')
         self.fakenet = self.genPath('fakenet', 'python fakenet.py')
         self.fndir = self.genPath('.', '$HOME/files/src/flare-fakenet-ng/fakenet')
 
+        # For process blacklisting
+        self.pythonname = os.path.basename(sys.executable)
+
+        # Various
         self.ext_ip = get_external_ip()
         self.arbitrary = '8.8.8.8'
+        self.blacklistedhost = '6.6.6.6'
+        self.blacklistedtcp = 139
+        self.blacklistedudp = 67
+        self.listener_proc_black = 8080 # HTTP listener with process blacklist
+        self.listener_proc_white = 8081 # HTTP listener with process whitelists
+        self.listener_host_black = 8082 # HTTP listener with host blacklist
+        self.listener_host_white = 8083 # HTTP listener with host whitelists
         self.localhost = '127.0.0.1'
         self.dns_expected = '192.0.2.123'
         self.domain_dne = 'does-not-exist-amirite.fireeye.com'
+
+        # Behaviors
+        self.sleep_after_start = 4
+        self.sleep_before_stop = 1
 
     def genPath(self, winpath, unixypath):
         if self.windows:
