@@ -3,6 +3,7 @@ import dpkt
 import time
 import socket
 import logging
+import fnpacket
 import threading
 import subprocess
 import diverterbase
@@ -12,6 +13,12 @@ from debuglevels import *
 from diverterbase import *
 from collections import namedtuple
 from netfilterqueue import NetfilterQueue
+
+
+class LinuxCallbackContext(fnpacket.PacketCtx):
+    def __init__(self, lbl, raw, pkt):
+        super(LinuxCallbackContext, self).__init__(lbl, raw)
+        self.pkt = pkt
 
 
 class Diverter(DiverterBase, LinUtilMixin):
@@ -64,7 +71,8 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.single_host_mode = False
 
         if self.single_host_mode:
-            while True:
+            interactive = False
+            while interactive:
                 prompt = ('You acknowledge that SingleHost mode on Linux is ' +
                           'experimental and not functionally complete? ' +
                           '[Y/N] ')
@@ -303,7 +311,12 @@ class Diverter(DiverterBase, LinUtilMixin):
         This allows analysts to observe when malware is communicating with
         hard-coded IP addresses in MultiHost mode.
         """
-        self.handle_pkt(pkt, 'handle_nonlocal', self.nonlocal_net_cbs, [])
+        ctx = LinuxCallbackContext('handle_nonlocal', pkt.get_payload(), pkt)
+        newraw = self.handle_pkt(ctx, self.nonlocal_net_cbs, [])
+        if newraw:
+            pkt.set_payload(newraw)
+
+        pkt.accept() # NF_ACCEPT
 
     def handle_incoming(self, pkt):
         """Incoming packet hook.
@@ -317,8 +330,13 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         No return value.
         """
-        self.handle_pkt(pkt, 'handle_incoming', self.incoming_net_cbs,
-                        self.incoming_trans_cbs)
+        ctx = LinuxCallbackContext('handle_incoming', pkt.get_payload(), pkt)
+        newraw = self.handle_pkt(ctx, self.incoming_net_cbs,
+                                 self.incoming_trans_cbs)
+        if newraw:
+            pkt.set_payload(newraw)
+
+        pkt.accept() # NF_ACCEPT
 
     def handle_outgoing(self, pkt):
         """Outgoing packet hook.
@@ -335,8 +353,13 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         No return value.
         """
-        self.handle_pkt(pkt, 'handle_outgoing', self.outgoing_net_cbs,
-                        self.outgoing_trans_cbs)
+        ctx = LinuxCallbackContext('handle_outgoing', pkt.get_payload(), pkt)
+        newraw = self.handle_pkt(ctx, self.outgoing_net_cbs,
+                                 self.outgoing_trans_cbs)
+        if newraw:
+            pkt.set_payload(newraw)
+
+        pkt.accept() # NF_ACCEPT
 
     def gen_endpoint_key(self, proto_name, ip, port):
         """e.g. 192.168.19.132:tcp/3030"""

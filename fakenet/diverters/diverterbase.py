@@ -8,6 +8,7 @@ import logging
 import fnconfig
 import threading
 import subprocess
+import fnpacket
 from debuglevels import *
 from collections import namedtuple
 from collections import OrderedDict
@@ -27,10 +28,6 @@ class DiverterBase(fnconfig.Config):
         self.pid = os.getpid()
 
         self.ip_addrs = ip_addrs
-
-        self.parse_pkt = dict()
-        self.parse_pkt[4] = self.parse_ipv4
-        self.parse_pkt[6] = self.parse_ipv6
 
         self.handled_protocols = {
             dpkt.ip.IP_PROTO_TCP: 'TCP',
@@ -473,16 +470,6 @@ class DiverterBase(fnconfig.Config):
             finally:
                 self.pcap_lock.release()
 
-    def parse_ipv4(self, raw):
-        hdr = dpkt.ip.IP(raw)
-        if hdr.hl < 5:
-            return (None, None)  # An IP header length less than 5 is invalid
-        return hdr, hdr.p
-
-    def parse_ipv6(self, raw):
-        hdr = dpkt.ip6.IP6(raw)
-        return hdr, hdr.nxt
-
     def hdr_to_str(self, proto_name, hdr):
         src_ip = socket.inet_ntoa(hdr.src)
         dst_ip = socket.inet_ntoa(hdr.dst)
@@ -492,46 +479,47 @@ class DiverterBase(fnconfig.Config):
         else:
             return '%s->%s' % (src_ip, dst_ip)
 
-    def handle_pkt(self, pkt, label, callbacks3, callbacks4):
+    def handle_pkt(self, ctx, callbacks3, callbacks4):
         """Generic packet hook.
+
+        Params
+        ------
+        ctx: fnpacket.PacketCtx object
+        callbacks3: Array of L3 callbacks
+        callbacks4: Array of L4 callbacks
+        Returns:
+            Modified raw octets, if applicable
 
         1.) Common prologue:
             A.) Unconditionally Write unmangled packet to pcap
             B.) Parse IP packet
-
         2.) Call layer 3 (network) callbacks...
-
         3.) Parse higher-layer protocol (TCP, UDP) for port numbers
-
         4.) Call layer 4 (transport) callbacks...
-
-        5.) Common epilogue:
-            A.) If the packet headers have been modified:
-                i.) Double-write the mangled packet to the pcap for SSL
-                    decoding purposes
-                ii.) Update the packet payload with NetfilterQueue
-            B.) Accept the packet with NetfilterQueue
+        5.) If the packet headers have been modified, double-write the mangled
+            packet to the pcap for SSL decoding purposes
+        6.) The caller must:
+            A.) Update the packet payload
+            B.) Accept the packet with NetfilterQueue or whatever
         """
 
-        raw = pkt.get_payload()
-        ipver = ((ord(raw[0]) & 0xf0) >> 4)
-        hdr, proto = self.parse_pkt[ipver](raw)
+        modified = False
+        hdr_latest = ctx.hdr
+        newraw = None
 
         # 1A: Unconditionally write unmangled packet to pcap
-        self.write_pcap(hdr.pack())
+        self.write_pcap(ctx.hdr.pack())
 
-        if (hdr, proto) == (None, None):
-            self.logger.warning('%s: Failed to parse IP packet' % (label))
+        if (ctx.hdr, ctx.proto) == (None, None):
+            self.logger.warning('%s: Failed to parse IP packet' % (ctx.label))
         else:
-            proto_name = self.handled_protocols.get(proto)
+            ctx.proto_name = self.handled_protocols.get(ctx.proto)
 
-            self.pdebug(DGENPKT, '%s %s' % (label,
-                                 self.hdr_to_str(proto_name,
-                                 hdr)))
+            self.pdebug(DGENPKT, '%s %s' % (ctx.label, ctx.hdr_to_str()))
 
-            # 1B: Parse IP packet (actually done in ctor)
-            src_ip = socket.inet_ntoa(hdr.src)
-            dst_ip = socket.inet_ntoa(hdr.dst)
+            # 1B: Parse IP packet
+            src_ip = socket.inet_ntoa(ctx.hdr.src)
+            dst_ip = socket.inet_ntoa(ctx.hdr.dst)
 
             # 2: Call layer 3 (network) callbacks
             for cb in callbacks3:
@@ -540,40 +528,40 @@ class DiverterBase(fnconfig.Config):
                 # python-netfilterqueue's global callback.
                 self.pdebug(DCB, 'Calling %s' % (cb))
 
-                cb(label, hdr, ipver, proto, proto_name, src_ip, dst_ip)
+                cb(ctx.label, ctx.hdr, ctx.ipver, ctx.proto, ctx.proto_name, src_ip, dst_ip)
 
                 self.pdebug(DCB, '%s finished' % (cb))
 
-            if proto_name:
+            if ctx.proto_name:
 
                 if len(callbacks4):
                     # 3: Parse higher-layer protocol
-                    sport = hdr.data.sport
-                    dport = hdr.data.dport
-                    skey = self.gen_endpoint_key(proto_name, src_ip, sport)
-                    dkey = self.gen_endpoint_key(proto_name, dst_ip, dport)
+                    sport = ctx.hdr.data.sport
+                    dport = ctx.hdr.data.dport
+                    skey = self.gen_endpoint_key(ctx.proto_name, src_ip, sport)
+                    dkey = self.gen_endpoint_key(ctx.proto_name, dst_ip, dport)
                     pid, comm = self.linux_get_pid_comm_by_endpoint(
-                        ipver, proto_name, src_ip, sport)
+                        ctx.ipver, ctx.proto_name, src_ip, sport)
 
-                    if proto_name == 'UDP':
+                    if ctx.proto_name == 'UDP':
                         fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
                         logline = fmt.format(
-                                label=label,
-                                proto=proto_name,
+                                label=ctx.label,
+                                proto=ctx.proto_name,
                                 pid=pid,
                                 comm=comm,
                                 src=src_ip,
                                 sport=sport,
                                 dst=dst_ip,
                                 dport=dport,
-                                length=len(raw),
+                                length=len(ctx.raw),
                                 flags='',
                                 seqack='',
                             )
                         self.pdebug(DGENPKTV, logline)
 
-                    elif proto_name == 'TCP':
-                        tcp = hdr.data
+                    elif ctx.proto_name == 'TCP':
+                        tcp = ctx.hdr.data
                         # Interested in:
                         # SYN
                         # SYN,ACK
@@ -601,15 +589,15 @@ class DiverterBase(fnconfig.Config):
 
                         fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
                         logline = fmt.format(
-                                label=label,
-                                proto=proto_name,
+                                label=ctx.label,
+                                proto=ctx.proto_name,
                                 pid=pid,
                                 comm=comm,
                                 src=src_ip,
                                 sport=sport,
                                 dst=dst_ip,
                                 dport=dport,
-                                length=len(raw),
+                                length=len(ctx.raw),
                                 flags=','.join(f),
                                 seqack=sa,
                             )
@@ -620,9 +608,6 @@ class DiverterBase(fnconfig.Config):
                         self.logger.info('  pid:  %d name: %s' %
                                          (pid, comm if comm else 'Unknown'))
 
-                    hdr_latest = hdr
-                    modified = False
-
                     # 4: Layer 4 (Transport layer) callbacks
                     for cb in callbacks4:
                         # These debug outputs are useful for figuring out which
@@ -630,8 +615,8 @@ class DiverterBase(fnconfig.Config):
                         # masked by python-netfilterqueue's global callback.
                         self.pdebug(DCB, 'Calling %s' % (cb))
 
-                        hdr_mod = cb(label, pid, comm, ipver,
-                                     hdr_latest, proto_name,
+                        hdr_mod = cb(ctx.label, pid, comm, ctx.ipver,
+                                     hdr_latest, ctx.proto_name,
                                      src_ip, sport, skey,
                                      dst_ip, dport, dkey)
 
@@ -641,21 +626,19 @@ class DiverterBase(fnconfig.Config):
 
                         self.pdebug(DCB, '%s finished' % (cb))
 
-                    if modified:
-                        # 5Ai: Double write mangled packets to represent changes
-                        # made by FakeNet-NG while still allowing SSL decoding
-                        self.write_pcap(hdr_latest.pack())
-
-                        # 5Aii: Finalize changes with nfq
-                        pkt.set_payload(hdr_latest.pack())
             else:
                 self.pdebug(DGENPKT, '%s: Not handling protocol %s' %
-                                     (label, proto))
+                                     (ctx.label, ctx.proto))
 
-        # 5B: NF_ACCEPT
-        pkt.accept()
+        if modified:
+            # 5Ai: Double write mangled packets to represent changes
+            # made by FakeNet-NG while still allowing SSL decoding
+            self.write_pcap(hdr_latest.pack())
 
+            # 5Aii: Finalize changes with caller
+            newraw = hdr_latest.pack()
 
+        return newraw
 
 def test_redir_logic(diverter_factory):
     diverter_config = dict()

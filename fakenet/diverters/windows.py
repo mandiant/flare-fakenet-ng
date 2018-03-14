@@ -8,6 +8,7 @@ import socket
 
 import os
 import dpkt
+import fnpacket
 
 import time
 import threading
@@ -17,6 +18,16 @@ from winutil import *
 from diverterbase import *
 
 import subprocess
+
+
+class WindowsCallbackContext(fnpacket.PacketCtx):
+    def __init__(self, lbl, raw, pkt):
+        super(LinuxCallbackContext, self).__init__(lbl, raw)
+        self.pkt = pkt
+        self.is_loopback = pkt.is_loopback
+        self.src_ip = packet.src_addr
+        self.dst_ip = packet.dst_addr
+
 
 class Diverter(DiverterBase, WinUtilMixin):
 
@@ -179,6 +190,53 @@ class Diverter(DiverterBase, WinUtilMixin):
     # Diverter controller functions
 
     def start(self):
+        self.do_new = True
+
+        if self.do_new:
+            return self.start2()
+        else:
+            return self.old_start()
+
+    def stop(self):
+        if self.do_new:
+            return self.stop2()
+        else:
+            return self.old_stop()
+
+    def start2(self):
+        self.logger.info('Starting...')
+
+        # Set local DNS server IP address
+        if self.is_set('modifylocaldns'):
+            self.set_dns_server(self.external_ip)
+
+        # Stop DNS service
+        if self.is_set('stopdnsservice'):
+            self.stop_service_helper('Dnscache') 
+
+        self.logger.info('Diverting ports: ')
+        if self.diverted_ports.get('TCP'): self.logger.info('TCP: %s', ', '.join("%d" % port for port in self.diverted_ports['TCP']))
+        if self.diverted_ports.get('UDP'): self.logger.info('UDP: %s', ', '.join("%d" % port for port in self.diverted_ports['UDP']))
+
+        self.flush_dns()
+
+        self.diverter_thread = threading.Thread(target=self.divert_thread2)
+        self.diverter_thread.daemon = True
+
+        self.diverter_thread.start()
+
+    def divert_thread2(self):
+        try:
+            while True:
+                packet = self.handle.recv()
+                self.handle_packet(packet)
+        except WindowsError as e:
+            if e.winerror in [4, 6, 995]:
+                return
+            else:
+                raise
+
+    def old_start(self):
 
         self.logger.info('Starting...')
 
@@ -215,7 +273,52 @@ class Diverter(DiverterBase, WinUtilMixin):
             else:
                 raise
 
-    def stop(self):
+    def stop2(self):
+        self.logger.info('Stopping...')
+        if self.pcap:
+            self.pcap.close()
+
+        self.handle.close()
+
+        # Restore DHCP adapter settings
+        for interface_name in self.adapters_dhcp_restore:
+
+            cmd_set_dhcp = "netsh interface ip set address name=\"%s\" dhcp" % interface_name
+
+            # Restore DHCP on interface
+            try:
+                subprocess.check_call(cmd_set_dhcp, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError, e:
+                self.logger.error("Failed to restore DHCP on interface %s." % interface_name)
+            else:
+                self.logger.info("Restored DHCP on interface %s" % interface_name)
+
+        # Restore DHCP adapter settings
+        for interface_name in self.adapters_dns_restore:
+
+            cmd_del_dns = "netsh interface ip delete dns name=\"%s\" all" % interface_name
+            cmd_set_dns_dhcp = "netsh interface ip set dns \"%s\" dhcp" % interface_name
+
+            # Restore DNS on interface
+            try:
+                subprocess.check_call(cmd_del_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.check_call(cmd_set_dns_dhcp, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError, e:
+                self.logger.error("Failed to restore DNS on interface %s." % interface_name)
+            else:
+                self.logger.info("Restored DNS on interface %s" % interface_name)
+
+        # Restore DNS server
+        if self.is_set('modifylocaldns'):
+            self.restore_dns_server()
+
+        # Restart DNS service
+        if self.is_set('stopdnsservice'):
+            self.start_service_helper('Dnscache')  
+
+        self.flush_dns()
+
+    def old_stop(self):
         self.logger.info('Stopping...')
         if self.pcap:
             self.pcap.close()
