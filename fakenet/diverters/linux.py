@@ -365,44 +365,36 @@ class Diverter(DiverterBase, LinUtilMixin):
         """e.g. 192.168.19.132:tcp/3030"""
         return str(ip) + ':' + str(proto_name) + '/' + str(port)
 
-    def check_log_icmp(self, label, hdr, ipver, proto, proto_name, src_ip,
+    def check_log_icmp(self, pkt, hdr, ipver, proto, proto_name, src_ip,
                        dst_ip):
-        if proto == dpkt.ip.IP_PROTO_ICMP:
+        if pkt.isIcmp():
             self.logger.info('ICMP type %d code %d %s' % (
-                hdr.data.type, hdr.data.code, self.hdr_to_str(None, hdr)))
+                pkt.icmpType(), pkt.icmpCode(), pkt.hdrToStr()))
 
         return None
 
-    def check_log_nonlocal(self, label, hdr, ipver, proto, proto_name, src_ip,
+    def check_log_nonlocal(self, pkt, hdr, ipver, proto, proto_name, src_ip,
                            dst_ip):
-        if dst_ip not in self.ip_addrs[ipver]:
-            self._maybe_log_nonlocal(hdr, ipver, proto, dst_ip)
-
-        return None
-
-    def _maybe_log_nonlocal(self, hdr, ipver, proto, dst_ip):
         """Conditionally log packets having a foreign destination.
 
         Each foreign destination will be logged only once if the Linux
         Diverter's internal log_nonlocal_only_once flag is set. Otherwise, any
         foreign destination IP address will be logged each time it is observed.
         """
-        proto_name = self.handled_protocols.get(proto)
 
-        self.pdebug(DNONLOC, 'Nonlocal %s' %
-                    (self.hdr_to_str(proto_name, hdr)))
+        if pkt.dst_ip not in self.ip_addrs[pkt.ipver]:
+            self.pdebug(DNONLOC, 'Nonlocal %s' % pkt.hdrToStr())
+            first_sighting = (pkt.dst_ip not in self.nonlocal_ips_already_seen)
+            if first_sighting:
+                self.nonlocal_ips_already_seen.append(pkt.dst_ip)
+            # Log when a new IP is observed OR if we are not restricted to
+            # logging only the first occurrence of a given nonlocal IP.
+            if first_sighting or (not self.log_nonlocal_only_once):
+                self.logger.info(
+                    'Received nonlocal IPv%d datagram destined for %s' %
+                    (pkt.ipver, pkt.dst_ip))
 
-        first_sighting = (dst_ip not in self.nonlocal_ips_already_seen)
-
-        if first_sighting:
-            self.nonlocal_ips_already_seen.append(dst_ip)
-
-        # Log when a new IP is observed OR if we are not restricted to
-        # logging only the first occurrence of a given nonlocal IP.
-        if first_sighting or (not self.log_nonlocal_only_once):
-            self.logger.info(
-                'Received nonlocal IPv%d datagram destined for %s' %
-                (ipver, dst_ip))
+        return None
 
     def check_should_ignore(self, pid, comm, ipver, hdr, proto_name, src_ip,
                             sport, dst_ip, dport):
@@ -516,7 +508,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return False
 
-    def maybe_redir_ip(self, label, pid, comm, ipver, hdr, proto_name, src_ip,
+    def maybe_redir_ip(self, ctx, pid, comm, ipver, hdr, proto_name, src_ip,
                        sport, skey, dst_ip, dport, dkey):
         """Conditionally redirect foreign destination IPs to localhost.
 
@@ -567,7 +559,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def maybe_fixup_srcip(self, label, pid, comm, ipver, hdr, proto_name,
+    def maybe_fixup_srcip(self, ctx, pid, comm, ipver, hdr, proto_name,
                           src_ip, sport, skey, dst_ip, dport, dkey):
         """Conditionally fix up the source IP address if the remote endpoint
         had their connection IP-forwarded.
@@ -602,7 +594,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def maybe_redir_port(self, label, pid, comm, ipver, hdr, proto_name,
+    def maybe_redir_port(self, ctx, pid, comm, ipver, hdr, proto_name,
                          src_ip, sport, skey, dst_ip, dport, dkey):
         hdr_modified = None
 
@@ -751,7 +743,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         finally:
             self.port_fwd_table_lock.release()
 
-    def maybe_fixup_sport(self, label, pid, comm, ipver, hdr, proto_name,
+    def maybe_fixup_sport(self, ctx, pid, comm, ipver, hdr, proto_name,
                           src_ip, sport, skey, dst_ip, dport, dkey):
         """Conditionally fix up source port if the remote endpoint had their
         connection port-forwarded.

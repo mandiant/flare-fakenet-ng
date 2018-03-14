@@ -21,8 +21,8 @@ class PacketCtx(object):
         self.hdr = None
         self.proto = None
         self.proto_name = None
-        self.src_ip = None
-        self.dst_ip = None
+        self._src_ip = None
+        self._dst_ip = None
 
         # L4 parameters
         self.sport = None
@@ -33,11 +33,32 @@ class PacketCtx(object):
         # Parse as much as possible
         self.ipver = ((ord(self.raw[0]) & 0xf0) >> 4)
         if self.ipver == 4:
-            self.parse_ipv4()
+            self._parseIpv4()
         elif self.ipver == 6:
-            self.parse_ipv6()
+            self._parseIpv6()
 
-    def parse_ipv4(self):
+        self._parseIp()
+        self._parseIcmp()
+
+    @property
+    def src_ip(self):
+        """No setter until mangling support is added."""
+        return self._src_ip
+
+    @property
+    def dst_ip(self):
+        """No setter until mangling support is added."""
+        return self._dst_ip
+
+    def _parseIp(self):
+        if self.hdr:
+            self._src_ip = socket.inet_ntoa(self.hdr.src)
+            self._dst_ip = socket.inet_ntoa(self.hdr.dst)
+
+    def _parseIcmp(self):
+        self.is_icmp = (self.proto == dpkt.ip.IP_PROTO_ICMP)
+
+    def _parseIpv4(self):
         hdr = dpkt.ip.IP(self.raw)
         # An IPv6 header length less than 5 is invalid
         if hdr.hl >= 5:
@@ -45,23 +66,32 @@ class PacketCtx(object):
             self.proto = hdr.p
         return bool(self.hdr)
 
-    def parse_ipv6(self):
+    def _parseIpv6(self):
         hdr = dpkt.ip6.IP6(self.raw)
         self.hdr = hdr
         self.proto = hdr.nxt
         return True
 
-    def hdr_to_str(self):
-        s = 'No valid headers parsed'
+    # ICMP accessors
+    def isIcmp(self): return self.is_icmp
+
+    def icmpType(self):
+        if self.is_icmp:
+            return self.hdr.data.type
+
+    def icmpCode(self):
+        if self.is_icmp:
+            return self.hdr.data.code
+
+    def hdrToStr(self):
+        s = 'No valid IP headers parsed'
         if self.hdr:
-            src_ip = socket.inet_ntoa(self.hdr.src)
-            dst_ip = socket.inet_ntoa(self.hdr.dst)
             if self.proto_name:
-                s = '%s %s:%d->%s:%d' % (self.proto_name, src_ip,
-                                         self.hdr.data.sport, dst_ip,
+                s = '%s %s:%d->%s:%d' % (self.proto_name, self._src_ip,
+                                         self.hdr.data.sport, self._dst_ip,
                                          self.hdr.data.dport)
             else:
-                s = '%s->%s' % (src_ip, dst_ip)
+                s = '%s->%s' % (self._src_ip, self._dst_ip)
 
         return s
 

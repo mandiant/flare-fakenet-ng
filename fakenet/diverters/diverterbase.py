@@ -515,7 +515,7 @@ class DiverterBase(fnconfig.Config):
         else:
             ctx.proto_name = self.handled_protocols.get(ctx.proto)
 
-            self.pdebug(DGENPKT, '%s %s' % (ctx.label, ctx.hdr_to_str()))
+            self.pdebug(DGENPKT, '%s %s' % (ctx.label, ctx.hdrToStr()))
 
             # 1B: Parse IP packet
             src_ip = socket.inet_ntoa(ctx.hdr.src)
@@ -528,7 +528,7 @@ class DiverterBase(fnconfig.Config):
                 # python-netfilterqueue's global callback.
                 self.pdebug(DCB, 'Calling %s' % (cb))
 
-                cb(ctx.label, ctx.hdr, ctx.ipver, ctx.proto, ctx.proto_name, src_ip, dst_ip)
+                cb(ctx, ctx.hdr, ctx.ipver, ctx.proto, ctx.proto_name, src_ip, dst_ip)
 
                 self.pdebug(DCB, '%s finished' % (cb))
 
@@ -615,7 +615,7 @@ class DiverterBase(fnconfig.Config):
                         # masked by python-netfilterqueue's global callback.
                         self.pdebug(DCB, 'Calling %s' % (cb))
 
-                        hdr_mod = cb(ctx.label, pid, comm, ctx.ipver,
+                        hdr_mod = cb(ctx, pid, comm, ctx.ipver,
                                      hdr_latest, ctx.proto_name,
                                      src_ip, sport, skey,
                                      dst_ip, dport, dkey)
