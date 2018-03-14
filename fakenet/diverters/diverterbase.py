@@ -605,8 +605,8 @@ class DiverterBase(fnconfig.Config):
                         self.pdebug(DCB, 'Calling %s' % (cb))
 
                         hdr_mod = cb(ctx, pid, comm, hdr_latest, 
-                                     ctx.src_ip, ctx.sport, ctx.skey,
-                                     ctx.dst_ip, ctx.dport, ctx.dkey)
+                                     ctx.src_ip, ctx.sport,
+                                     ctx.dst_ip, ctx.dport)
 
                         if hdr_mod:
                             hdr_latest = hdr_mod
