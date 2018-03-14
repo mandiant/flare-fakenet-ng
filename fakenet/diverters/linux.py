@@ -365,16 +365,14 @@ class Diverter(DiverterBase, LinUtilMixin):
         """e.g. 192.168.19.132:tcp/3030"""
         return str(ip) + ':' + str(proto_name) + '/' + str(port)
 
-    def check_log_icmp(self, pkt, hdr, ipver, proto, proto_name, src_ip,
-                       dst_ip):
+    def check_log_icmp(self, pkt):
         if pkt.isIcmp():
             self.logger.info('ICMP type %d code %d %s' % (
                 pkt.icmpType(), pkt.icmpCode(), pkt.hdrToStr()))
 
         return None
 
-    def check_log_nonlocal(self, pkt, hdr, ipver, proto, proto_name, src_ip,
-                           dst_ip):
+    def check_log_nonlocal(self, pkt):
         """Conditionally log packets having a foreign destination.
 
         Each foreign destination will be logged only once if the Linux

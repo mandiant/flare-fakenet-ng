@@ -528,7 +528,7 @@ class DiverterBase(fnconfig.Config):
                 # python-netfilterqueue's global callback.
                 self.pdebug(DCB, 'Calling %s' % (cb))
 
-                cb(ctx, ctx.hdr, ctx.ipver, ctx.proto, ctx.proto_name, src_ip, dst_ip)
+                cb(ctx)
 
                 self.pdebug(DCB, '%s finished' % (cb))
 
