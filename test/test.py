@@ -219,10 +219,10 @@ class FakeNetTester:
             os.remove(self.settings.configpath)
 
     def doTests(self):
-        self.testBlacklistProcess()
-        self.testWhitelistProcess()
         self.testGeneral()
         self.testNoRedirect()
+        self.testBlacklistProcess()
+        self.testWhitelistProcess()
 
     def _printStatus(self, desc, passed):
         status = 'Passed' if passed else 'FAILED'
