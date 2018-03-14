@@ -29,11 +29,6 @@ class DiverterBase(fnconfig.Config):
 
         self.ip_addrs = ip_addrs
 
-        self.handled_protocols = {
-            dpkt.ip.IP_PROTO_TCP: 'TCP',
-            dpkt.ip.IP_PROTO_UDP: 'UDP',
-        }
-
         self.pcap = None
         self.pcap_filename = ''
         self.pcap_lock = None
@@ -513,8 +508,6 @@ class DiverterBase(fnconfig.Config):
         if (ctx.hdr, ctx.proto) == (None, None):
             self.logger.warning('%s: Failed to parse IP packet' % (ctx.label))
         else:
-            ctx.proto_name = self.handled_protocols.get(ctx.proto)
-
             self.pdebug(DGENPKT, '%s %s' % (ctx.label, ctx.hdrToStr()))
 
             # 1B: Parse IP packet
@@ -536,12 +529,8 @@ class DiverterBase(fnconfig.Config):
 
                 if len(callbacks4):
                     # 3: Parse higher-layer protocol
-                    sport = ctx.hdr.data.sport
-                    dport = ctx.hdr.data.dport
-                    skey = self.gen_endpoint_key(ctx.proto_name, src_ip, sport)
-                    dkey = self.gen_endpoint_key(ctx.proto_name, dst_ip, dport)
                     pid, comm = self.linux_get_pid_comm_by_endpoint(
-                        ctx.ipver, ctx.proto_name, src_ip, sport)
+                        ctx.ipver, ctx.proto_name, src_ip, ctx.sport)
 
                     if ctx.proto_name == 'UDP':
                         fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
@@ -551,9 +540,9 @@ class DiverterBase(fnconfig.Config):
                                 pid=pid,
                                 comm=comm,
                                 src=src_ip,
-                                sport=sport,
+                                sport=ctx.sport,
                                 dst=dst_ip,
-                                dport=dport,
+                                dport=ctx.dport,
                                 length=len(ctx.raw),
                                 flags='',
                                 seqack='',
@@ -594,9 +583,9 @@ class DiverterBase(fnconfig.Config):
                                 pid=pid,
                                 comm=comm,
                                 src=src_ip,
-                                sport=sport,
+                                sport=ctx.sport,
                                 dst=dst_ip,
-                                dport=dport,
+                                dport=ctx.dport,
                                 length=len(ctx.raw),
                                 flags=','.join(f),
                                 seqack=sa,
@@ -617,8 +606,8 @@ class DiverterBase(fnconfig.Config):
 
                         hdr_mod = cb(ctx, pid, comm, ctx.ipver,
                                      hdr_latest, ctx.proto_name,
-                                     src_ip, sport, skey,
-                                     dst_ip, dport, dkey)
+                                     ctx.src_ip, ctx.sport, ctx.skey,
+                                     ctx.dst_ip, ctx.dport, ctx.dkey)
 
                         if hdr_mod:
                             hdr_latest = hdr_mod

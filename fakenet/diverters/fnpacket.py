@@ -11,10 +11,22 @@ class PacketCtx(object):
     * Packet mangling
     * Use of underlying packet libraries e.g. dpkt
     """
+
+    @staticmethod
+    def gen_endpoint_key(proto_name, ip, port):
+        """e.g. 192.168.19.132:tcp/3030"""
+        return str(ip) + ':' + str(proto_name) + '/' + str(port)
+
+
     def __init__(self, label, raw):
         # Universal parameters
         self.label = label
         self.raw = raw
+
+        self.handled_protocols = {
+            dpkt.ip.IP_PROTO_TCP: 'TCP',
+            dpkt.ip.IP_PROTO_UDP: 'UDP',
+        }
 
         # L3 parameters
         self.ipver = None
@@ -52,8 +64,17 @@ class PacketCtx(object):
 
     def _parseIp(self):
         if self.hdr:
+            self.proto_name = self.handled_protocols.get(self.proto)
+            if self.proto_name: # If this is a transport protocol we handle...
+                self.sport = self.hdr.data.sport
+                self.dport = self.hdr.data.dport
+                self.skey = self._genEndpointKey(self._src_ip, self.sport)
+                self.dkey = self._genEndpointKey(self._dst_ip, self.dport)
             self._src_ip = socket.inet_ntoa(self.hdr.src)
             self._dst_ip = socket.inet_ntoa(self.hdr.dst)
+
+    def _genEndpointKey(self, ip, port):
+        return PacketCtx.gen_endpoint_key(self.proto_name, ip, port)
 
     def _parseIcmp(self):
         self.is_icmp = (self.proto == dpkt.ip.IP_PROTO_ICMP)

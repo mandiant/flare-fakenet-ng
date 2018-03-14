@@ -291,10 +291,13 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.linux_restore_iptables()
 
     def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
-        """Return original destination port, or None if it was not redirected
+        """Return original destination port, or None if it was not redirected.
+
+        Called by proxy listener.
         """ 
         
-        orig_src_key = self.gen_endpoint_key(proto, orig_src_ip, orig_src_port)
+        orig_src_key = fnpacket.PacketCtx.gen_endpoint_key(proto, orig_src_ip,
+                                                  orig_src_port)
         self.port_fwd_table_lock.acquire()
         
         try:
@@ -305,20 +308,20 @@ class Diverter(DiverterBase, LinUtilMixin):
         finally:
             self.port_fwd_table_lock.release()
 
-    def handle_nonlocal(self, pkt):
+    def handle_nonlocal(self, nfqpkt):
         """Handle comms sent to IP addresses that are not bound to any adapter.
 
         This allows analysts to observe when malware is communicating with
         hard-coded IP addresses in MultiHost mode.
         """
-        ctx = LinuxCallbackContext('handle_nonlocal', pkt.get_payload(), pkt)
+        ctx = LinuxCallbackContext('handle_nonlocal', nfqpkt.get_payload(), nfqpkt)
         newraw = self.handle_pkt(ctx, self.nonlocal_net_cbs, [])
         if newraw:
-            pkt.set_payload(newraw)
+            nfqpkt.set_payload(newraw)
 
-        pkt.accept() # NF_ACCEPT
+        nfqpkt.accept() # NF_ACCEPT
 
-    def handle_incoming(self, pkt):
+    def handle_incoming(self, nfqpkt):
         """Incoming packet hook.
 
         Specific to incoming packets:
@@ -330,15 +333,15 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         No return value.
         """
-        ctx = LinuxCallbackContext('handle_incoming', pkt.get_payload(), pkt)
+        ctx = LinuxCallbackContext('handle_incoming', nfqpkt.get_payload(), nfqpkt)
         newraw = self.handle_pkt(ctx, self.incoming_net_cbs,
                                  self.incoming_trans_cbs)
         if newraw:
-            pkt.set_payload(newraw)
+            nfqpkt.set_payload(newraw)
 
-        pkt.accept() # NF_ACCEPT
+        nfqpkt.accept() # NF_ACCEPT
 
-    def handle_outgoing(self, pkt):
+    def handle_outgoing(self, nfqpkt):
         """Outgoing packet hook.
 
         Specific to outgoing packets:
@@ -353,17 +356,13 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         No return value.
         """
-        ctx = LinuxCallbackContext('handle_outgoing', pkt.get_payload(), pkt)
+        ctx = LinuxCallbackContext('handle_outgoing', nfqpkt.get_payload(), nfqpkt)
         newraw = self.handle_pkt(ctx, self.outgoing_net_cbs,
                                  self.outgoing_trans_cbs)
         if newraw:
-            pkt.set_payload(newraw)
+            nfqpkt.set_payload(newraw)
 
-        pkt.accept() # NF_ACCEPT
-
-    def gen_endpoint_key(self, proto_name, ip, port):
-        """e.g. 192.168.19.132:tcp/3030"""
-        return str(ip) + ':' + str(proto_name) + '/' + str(port)
+        nfqpkt.accept() # NF_ACCEPT
 
     def check_log_icmp(self, pkt):
         if pkt.isIcmp():
@@ -506,7 +505,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return False
 
-    def maybe_redir_ip(self, ctx, pid, comm, ipver, hdr, proto_name, src_ip,
+    def maybe_redir_ip(self, pkt, pid, comm, ipver, hdr, proto_name, src_ip,
                        sport, skey, dst_ip, dport, dkey):
         """Conditionally redirect foreign destination IPs to localhost.
 
@@ -518,14 +517,14 @@ class Diverter(DiverterBase, LinUtilMixin):
         """
         hdr_modified = None
 
-        if self.check_should_ignore(pid, comm, ipver, hdr, proto_name, src_ip,
+        if self.check_should_ignore(pid, comm, pkt.ipver, hdr, pkt.proto_name, src_ip,
                                     sport, dst_ip, dport):
             return hdr_modified  # None
 
         self.pdebug(DIPNAT, 'Condition 1 test')
         # Condition 1: If the remote IP address is foreign to this system,
         # then redirect it to a local IP address.
-        if self.single_host_mode and (dst_ip not in self.ip_addrs[ipver]):
+        if self.single_host_mode and (dst_ip not in self.ip_addrs[pkt.ipver]):
             self.pdebug(DIPNAT, 'Condition 1 satisfied')
             self.ip_fwd_table_lock.acquire()
             try:
@@ -535,7 +534,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.ip_fwd_table_lock.release()
 
             newdst = '127.0.0.1'
-            hdr_modified = self.mangle_dstip(hdr, proto_name, dst_ip, newdst)
+            hdr_modified = self.mangle_dstip(hdr, pkt.proto_name, dst_ip, newdst)
 
         else:
             # Delete any stale entries in the IP forwarding table: If the
@@ -557,7 +556,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def maybe_fixup_srcip(self, ctx, pid, comm, ipver, hdr, proto_name,
+    def maybe_fixup_srcip(self, pkt, pid, comm, ipver, hdr, proto_name,
                           src_ip, sport, skey, dst_ip, dport, dkey):
         """Conditionally fix up the source IP address if the remote endpoint
         had their connection IP-forwarded.
@@ -584,7 +583,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.pdebug(DIPNAT, ' = FOUND ipfwd key entry: ' + dkey)
                 new_srcip = self.ip_fwd_table[dkey]
                 hdr_modified = self.mangle_srcip(
-                    hdr, proto_name, hdr.src, new_srcip)
+                    hdr, pkt.proto_name, hdr.src, new_srcip)
             else:
                 self.pdebug(DIPNAT, ' ! NO SUCH ipfwd key entry: ' + dkey)
         finally:
@@ -592,15 +591,15 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def maybe_redir_port(self, ctx, pid, comm, ipver, hdr, proto_name,
+    def maybe_redir_port(self, pkt, pid, comm, ipver, hdr, proto_name,
                          src_ip, sport, skey, dst_ip, dport, dkey):
         hdr_modified = None
 
         # Get default listener port for this proto, or bail if none
         default = None
-        if not proto_name in self.default_listener:
+        if not pkt.proto_name in self.default_listener:
             return hdr_modified  # None
-        default = self.default_listener[proto_name]
+        default = self.default_listener[pkt.proto_name]
 
         # Pre-condition 1: RedirectAllTraffic: Yes
         # NOTE: This only applies to port redirection in the Windows Diverter;
@@ -609,7 +608,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # will follow suit.
         if not self.is_set('redirectalltraffic'):
             self.pdebug(DIGN, 'Ignoring %s packet %s' %
-                        (proto_name, self.hdr_to_str(proto_name, hdr)))
+                        (pkt.proto_name, self.hdr_to_str(pkt.proto_name, hdr)))
             return hdr_modified  # None
 
         # Pre-condition 1: destination must not be present in port forwarding
@@ -626,7 +625,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         if found:
             return hdr_modified  # None
 
-        bound_ports = self.diverted_ports.get(proto_name, [])
+        bound_ports = self.diverted_ports.get(pkt.proto_name, [])
         
         # First, check if this packet is sent from a listener/diverter
         # If so, don't redir for 'Hidden' status because it is already 
@@ -637,7 +636,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                 bound_ports[dport] is True):
      
             #divert to proxy
-            hdr_modified = self.mangle_dstport(hdr, proto_name, dport, default)
+            hdr_modified = self.mangle_dstport(hdr, pkt.proto_name, dport, default)
         
             # Record the foreign endpoint and old destination port in the port
             # forwarding table
@@ -655,7 +654,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # redirect it to a bound port and save the old destination IP in
         # the port forwarding table keyed by the source endpoint identity.
 
-        elif self.decide_redir_port(ipver, proto_name, default, bound_ports,
+        elif self.decide_redir_port(pkt.ipver, pkt.proto_name, default, bound_ports,
                                   src_ip, sport, dst_ip, dport):
             self.pdebug(DDPFV, 'Condition 2 satisfied')
 
@@ -684,7 +683,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             finally:
                 self.ignore_table_lock.release()
 
-            if self.check_should_ignore(pid, comm, ipver, hdr, proto_name,
+            if self.check_should_ignore(pid, comm, pkt.ipver, hdr, pkt.proto_name,
                                         src_ip, sport, dst_ip, dport):
                 self.ignore_table_lock.acquire()
                 try:
@@ -702,7 +701,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             finally:
                 self.port_fwd_table_lock.release()
 
-            hdr_modified = self.mangle_dstport(hdr, proto_name, dport, default)
+            hdr_modified = self.mangle_dstport(hdr, pkt.proto_name, dport, default)
 
             # Record the altered port for making the ExecuteCmd decision
             dport = default
@@ -723,8 +722,8 @@ class Diverter(DiverterBase, LinUtilMixin):
                 dport)):
             self.sessions[sport] = (dst_ip, dport)
 
-            if pid and (dst_ip in self.ip_addrs[ipver]):
-                cmd = self.build_cmd(proto_name, pid, comm, src_ip,
+            if pid and (dst_ip in self.ip_addrs[pkt.ipver]):
+                cmd = self.build_cmd(pkt.proto_name, pid, comm, src_ip,
                                      sport, dst_ip, dport)
                 if cmd:
                     self.logger.info('Executing command: %s', cmd)
@@ -741,7 +740,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         finally:
             self.port_fwd_table_lock.release()
 
-    def maybe_fixup_sport(self, ctx, pid, comm, ipver, hdr, proto_name,
+    def maybe_fixup_sport(self, pkt, pid, comm, ipver, hdr, proto_name,
                           src_ip, sport, skey, dst_ip, dport, dkey):
         """Conditionally fix up source port if the remote endpoint had their
         connection port-forwarded.
