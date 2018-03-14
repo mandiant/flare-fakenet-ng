@@ -510,8 +510,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return False
 
-    def maybe_redir_ip(self, pkt, pid, comm, ipver, hdr, proto_name, src_ip,
-                       sport, skey, dst_ip, dport, dkey):
+    def maybe_redir_ip(self, pkt, pid, comm, hdr, src_ip, sport, skey, dst_ip,
+                       dport, dkey):
         """Conditionally redirect foreign destination IPs to localhost.
 
         Used only under SingleHost mode.
@@ -560,8 +560,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def maybe_fixup_srcip(self, pkt, pid, comm, ipver, hdr, proto_name,
-                          src_ip, sport, skey, dst_ip, dport, dkey):
+    def maybe_fixup_srcip(self, pkt, pid, comm, hdr, src_ip, sport, skey,
+                          dst_ip, dport, dkey):
         """Conditionally fix up the source IP address if the remote endpoint
         had their connection IP-forwarded.
 
@@ -595,8 +595,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def maybe_redir_port(self, pkt, pid, comm, ipver, hdr, proto_name,
-                         src_ip, sport, skey, dst_ip, dport, dkey):
+    def maybe_redir_port(self, pkt, pid, comm, hdr, src_ip, sport, skey,
+                         dst_ip, dport, dkey):
         hdr_modified = None
 
         # Get default listener port for this proto, or bail if none
@@ -658,8 +658,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # redirect it to a bound port and save the old destination IP in
         # the port forwarding table keyed by the source endpoint identity.
 
-        elif self.decide_redir_port(pkt.ipver, pkt.proto_name, default, bound_ports,
-                                  src_ip, sport, dst_ip, dport):
+        elif self.decide_redir_port(pkt, bound_ports):
             self.pdebug(DDPFV, 'Condition 2 satisfied')
 
             # Post-condition 1: General ignore conditions are not met, or this
@@ -734,8 +733,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def maybe_fixup_sport(self, pkt, pid, comm, ipver, hdr, proto_name,
-                          src_ip, sport, skey, dst_ip, dport, dkey):
+    def maybe_fixup_sport(self, pkt, pid, comm, hdr, src_ip, sport, skey,
+                          dst_ip, dport, dkey):
         """Conditionally fix up source port if the remote endpoint had their
         connection port-forwarded.
 
@@ -764,7 +763,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.pdebug(DDPFV, ' = FOUND portfwd key entry: ' + pkt.dkey)
                 new_sport = self.port_fwd_table[pkt.dkey]
                 hdr_modified = self.mangle_srcport(
-                    hdr, proto_name, hdr.data.sport, new_sport)
+                    hdr, pkt.proto_name, hdr.data.sport, new_sport)
             else:
                 self.pdebug(DDPFV, ' ! NO SUCH portfwd key entry: ' + pkt.dkey)
         finally:
@@ -781,30 +780,29 @@ class Diverter(DiverterBase, LinUtilMixin):
         finally:
             self.port_fwd_table_lock.release()
 
-    def decide_redir_port(self, ipver, proto_name, default_port, bound_ports,
-                          src_ip, sport, dst_ip, dport):
+    def decide_redir_port(self, pkt, bound_ports):
         """Decide whether to redirect a port.
 
         Optimized logic derived by truth table + k-map. See docs/internals.md
         for details.
         """
         # A, B, C, D for easy manipulation; full names for readability only.
-        a = src_local = (src_ip in self.ip_addrs[ipver])
-        c = sport_bound = sport in (bound_ports)
-        d = dport_bound = dport in (bound_ports)
+        a = src_local = (pkt.src_ip in self.ip_addrs[pkt.ipver])
+        c = sport_bound = pkt.sport in (bound_ports)
+        d = dport_bound = pkt.dport in (bound_ports)
 
         if self.pdebug_level & DDPFV:
             # Unused logic term not calculated except for debug output
-            b = dst_local = (dst_ip in self.ip_addrs[ipver])
+            b = dst_local = (pkt.dst_ip in self.ip_addrs[pkt.ipver])
 
             self.pdebug(DDPFV, 'src %s (%s)' %
-                        (str(src_ip), ['foreign', 'local'][a]))
+                        (str(pkt.src_ip), ['foreign', 'local'][a]))
             self.pdebug(DDPFV, 'dst %s (%s)' %
-                        (str(dst_ip), ['foreign', 'local'][b]))
+                        (str(pkt.dst_ip), ['foreign', 'local'][b]))
             self.pdebug(DDPFV, 'sport %s (%sbound)' %
                         (str(sport), ['un', ''][c]))
             self.pdebug(DDPFV, 'dport %s (%sbound)' %
-                        (str(dport), ['un', ''][d]))
+                        (str(pkt.dport), ['un', ''][d]))
 
             def bn(x): return '1' if x else '0'  # Bool -> binary
             self.pdebug(DDPFV, 'abcd = ' + bn(a) + bn(b) + bn(c) + bn(d))

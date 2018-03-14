@@ -604,8 +604,7 @@ class DiverterBase(fnconfig.Config):
                         # masked by python-netfilterqueue's global callback.
                         self.pdebug(DCB, 'Calling %s' % (cb))
 
-                        hdr_mod = cb(ctx, pid, comm, ctx.ipver,
-                                     hdr_latest, ctx.proto_name,
+                        hdr_mod = cb(ctx, pid, comm, hdr_latest, 
                                      ctx.src_ip, ctx.sport, ctx.skey,
                                      ctx.dst_ip, ctx.dport, ctx.dkey)
 
