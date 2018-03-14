@@ -360,10 +360,10 @@ class FakeNetTester:
         return retval
 
     def _test_ftp(self, hostname, port=None):
-        """Note that the FakeNet-NG Proxy listener won't know what to do with this client
-        if you point it at some random port, because the client listens
-        silently for the server 220 welcome message which doesn't give the
-        Proxy listener anything to work with to decide where to forward it.
+        """Note that the FakeNet-NG Proxy listener won't know what to do with
+        this client if you point it at some random port, because the client
+        listens silently for the server 220 welcome message which doesn't give
+        the Proxy listener anything to work with to decide where to forward it.
         """
         fullbuf = ''
 
