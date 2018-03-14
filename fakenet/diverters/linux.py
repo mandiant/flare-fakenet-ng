@@ -532,7 +532,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.pdebug(DIPNAT, 'Condition 1 satisfied')
             self.ip_fwd_table_lock.acquire()
             try:
-                self.ip_fwd_table[skey] = dst_ip
+                self.ip_fwd_table[pkt.skey] = dst_ip
 
             finally:
                 self.ip_fwd_table_lock.release()
@@ -552,9 +552,9 @@ class Diverter(DiverterBase, LinUtilMixin):
 
             self.ip_fwd_table_lock.acquire()
             try:
-                if skey in self.ip_fwd_table:
-                    self.pdebug(DIPNAT, ' - DELETING ipfwd key entry: ' + skey)
-                    del self.ip_fwd_table[skey]
+                if pkt.skey in self.ip_fwd_table:
+                    self.pdebug(DIPNAT, ' - DELETING ipfwd key entry: ' + pkt.skey)
+                    del self.ip_fwd_table[pkt.skey]
             finally:
                 self.ip_fwd_table_lock.release()
 
@@ -582,14 +582,14 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.pdebug(DIPNAT, "Condition 4 test: was remote endpoint IP fwd'd?")
         self.ip_fwd_table_lock.acquire()
         try:
-            if self.single_host_mode and (dkey in self.ip_fwd_table):
+            if self.single_host_mode and (pkt.dkey in self.ip_fwd_table):
                 self.pdebug(DIPNAT, 'Condition 4 satisfied')
-                self.pdebug(DIPNAT, ' = FOUND ipfwd key entry: ' + dkey)
-                new_srcip = self.ip_fwd_table[dkey]
+                self.pdebug(DIPNAT, ' = FOUND ipfwd key entry: ' + pkt.dkey)
+                new_srcip = self.ip_fwd_table[pkt.dkey]
                 hdr_modified = self.mangle_srcip(
                     hdr, pkt.proto_name, hdr.src, new_srcip)
             else:
-                self.pdebug(DIPNAT, ' ! NO SUCH ipfwd key entry: ' + dkey)
+                self.pdebug(DIPNAT, ' ! NO SUCH ipfwd key entry: ' + pkt.dkey)
         finally:
             self.ip_fwd_table_lock.release()
 
@@ -622,7 +622,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.port_fwd_table_lock.acquire()
         try:
             # Uses dkey to cross-reference
-            found = dkey in self.port_fwd_table
+            found = pkt.dkey in self.port_fwd_table
         finally:
             self.port_fwd_table_lock.release()
 
@@ -644,10 +644,10 @@ class Diverter(DiverterBase, LinUtilMixin):
         
             # Record the foreign endpoint and old destination port in the port
             # forwarding table
-            self.pdebug(DDPFV, ' + ADDING portfwd key entry: ' + skey)
+            self.pdebug(DDPFV, ' + ADDING portfwd key entry: ' + pkt.skey)
             self.port_fwd_table_lock.acquire()
             try:
-                self.port_fwd_table[skey] = dport
+                self.port_fwd_table[pkt.skey] = dport
             finally:
                 self.port_fwd_table_lock.release()
 
@@ -679,7 +679,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             # Is this conversation already being ignored for DPF purposes?
             self.ignore_table_lock.acquire()
             try:
-                if dkey in self.ignore_table and self.ignore_table[dkey] == sport:
+                if pkt.dkey in self.ignore_table and self.ignore_table[pkt.dkey] == sport:
                     # This is a reply (e.g. a TCP RST) from the
                     # non-port-forwarded server that the non-port-forwarded
                     # client was trying to talk to. Leave it alone.
@@ -690,17 +690,17 @@ class Diverter(DiverterBase, LinUtilMixin):
             if self.check_should_ignore(pid, comm, pkt):
                 self.ignore_table_lock.acquire()
                 try:
-                    self.ignore_table[skey] = dport
+                    self.ignore_table[pkt.skey] = dport
                 finally:
                     self.ignore_table_lock.release()
                 return hdr_modified  # None
 
             # Record the foreign endpoint and old destination port in the port
             # forwarding table
-            self.pdebug(DDPFV, ' + ADDING portfwd key entry: ' + skey)
+            self.pdebug(DDPFV, ' + ADDING portfwd key entry: ' + pkt.skey)
             self.port_fwd_table_lock.acquire()
             try:
-                self.port_fwd_table[skey] = dport
+                self.port_fwd_table[pkt.skey] = dport
             finally:
                 self.port_fwd_table_lock.release()
 
@@ -719,7 +719,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             # foreign host is reusing the port number to connect to an
             # already-bound port on the FakeNet system.
 
-            self.delete_stale_port_fwd_key(skey)
+            self.delete_stale_port_fwd_key(pkt.skey)
 
         if not (sport in self.sessions and self.sessions[sport] == (dst_ip,
                 dport)):
@@ -733,15 +733,6 @@ class Diverter(DiverterBase, LinUtilMixin):
                     self.execute_detached(cmd)
 
         return hdr_modified
-
-    def delete_stale_port_fwd_key(self, skey):
-        self.port_fwd_table_lock.acquire()
-        try:
-            if skey in self.port_fwd_table:
-                self.pdebug(DDPFV, ' - DELETING portfwd key entry: ' + skey)
-                del self.port_fwd_table[skey]
-        finally:
-            self.port_fwd_table_lock.release()
 
     def maybe_fixup_sport(self, pkt, pid, comm, ipver, hdr, proto_name,
                           src_ip, sport, skey, dst_ip, dport, dkey):
@@ -767,19 +758,28 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.pdebug(DDPFV, "Condition 3 test: was remote endpoint port fwd'd?")
         self.port_fwd_table_lock.acquire()
         try:
-            if dkey in self.port_fwd_table:
+            if pkt.dkey in self.port_fwd_table:
                 self.pdebug(DDPFV, 'Condition 3 satisfied: must fix up ' +
                             'source port')
-                self.pdebug(DDPFV, ' = FOUND portfwd key entry: ' + dkey)
-                new_sport = self.port_fwd_table[dkey]
+                self.pdebug(DDPFV, ' = FOUND portfwd key entry: ' + pkt.dkey)
+                new_sport = self.port_fwd_table[pkt.dkey]
                 hdr_modified = self.mangle_srcport(
                     hdr, proto_name, hdr.data.sport, new_sport)
             else:
-                self.pdebug(DDPFV, ' ! NO SUCH portfwd key entry: ' + dkey)
+                self.pdebug(DDPFV, ' ! NO SUCH portfwd key entry: ' + pkt.dkey)
         finally:
             self.port_fwd_table_lock.release()
 
         return hdr_modified
+
+    def delete_stale_port_fwd_key(self, skey):
+        self.port_fwd_table_lock.acquire()
+        try:
+            if skey in self.port_fwd_table:
+                self.pdebug(DDPFV, ' - DELETING portfwd key entry: ' + skey)
+                del self.port_fwd_table[skey]
+        finally:
+            self.port_fwd_table_lock.release()
 
     def decide_redir_port(self, ipver, proto_name, default_port, bound_ports,
                           src_ip, sport, dst_ip, dport):
