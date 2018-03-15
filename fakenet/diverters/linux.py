@@ -536,6 +536,8 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.ip_fwd_table_lock.release()
 
             newdst = '127.0.0.1'
+            self.pdebug(DIPNAT, 'REDIRECTING %s to IP %s' %
+                        (pkt.hdrToStr(), newdst))
             hdr_modified = self.mangle_dstip(hdr, pkt.proto_name, pkt.dst_ip, newdst)
 
         else:
@@ -583,6 +585,8 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.pdebug(DIPNAT, 'Condition 4 satisfied')
                 self.pdebug(DIPNAT, ' = FOUND ipfwd key entry: ' + pkt.dkey)
                 new_srcip = self.ip_fwd_table[pkt.dkey]
+                self.pdebug(DIPNAT, 'MASQUERADING %s from IP %s' %
+                            (pkt.hdrToStr(), new_srcip))
                 hdr_modified = self.mangle_srcip(
                     hdr, pkt.proto_name, hdr.src, new_srcip)
             else:
@@ -608,7 +612,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # will follow suit.
         if not self.is_set('redirectalltraffic'):
             self.pdebug(DIGN, 'Ignoring %s packet %s' %
-                        (pkt.proto_name, self.hdr_to_str(pkt.proto_name, hdr)))
+                        (pkt.proto_name, pkt.hdrToStr()))
             return hdr_modified  # None
 
         # Pre-condition 1: destination must not be present in port forwarding
@@ -636,6 +640,8 @@ class Diverter(DiverterBase, LinUtilMixin):
                 bound_ports[dport] is True):
      
             #divert to proxy
+            self.pdebug(DDPF, 'REDIRECTING %s to port %d' %
+                              (pkt.hdrToStr(), default))
             hdr_modified = self.mangle_dstport(hdr, pkt.proto_name, dport, default)
         
             # Record the foreign endpoint and old destination port in the port
@@ -757,6 +763,9 @@ class Diverter(DiverterBase, LinUtilMixin):
                             'source port')
                 self.pdebug(DDPFV, ' = FOUND portfwd key entry: ' + pkt.dkey)
                 new_sport = self.port_fwd_table[pkt.dkey]
+
+                self.pdebug(DDPF, 'MASQUERADING %s from port %d' %
+                                  (pkt.hdrToStr(), new_sport))
                 hdr_modified = self.mangle_srcport(
                     hdr, pkt.proto_name, hdr.data.sport, new_sport)
             else:
@@ -806,32 +815,24 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def mangle_dstip(self, hdr, proto_name, dstip, newdstip):
         """Mangle destination IP for selected outgoing packets."""
-        self.pdebug(DIPNAT, 'REDIRECTING %s to IP %s' %
-                    (self.hdr_to_str(proto_name, hdr), newdstip))
         hdr.dst = socket.inet_aton(newdstip)
         self._calc_csums(hdr)
         return hdr
 
     def mangle_srcip(self, hdr, proto_name, src_ip, new_srcip):
         """Mangle source IP for selected incoming packets."""
-        self.pdebug(DIPNAT, 'MASQUERADING %s from IP %s' %
-                    (self.hdr_to_str(proto_name, hdr), new_srcip))
         hdr.src = socket.inet_aton(new_srcip)
         self._calc_csums(hdr)
         return hdr
 
     def mangle_dstport(self, hdr, proto_name, dstport, newdstport):
         """Mangle destination port for selected incoming packets."""
-        self.pdebug(DDPF, 'REDIRECTING %s to port %d' %
-                          (self.hdr_to_str(proto_name, hdr), newdstport))
         hdr.data.dport = newdstport
         self._calc_csums(hdr)
         return hdr
 
     def mangle_srcport(self, hdr, proto_name, srcport, newsrcport):
         """Mangle source port for selected outgoing packets."""
-        self.pdebug(DDPF, 'MASQUERADING %s from port %d' %
-                          (self.hdr_to_str(proto_name, hdr), newsrcport))
         hdr.data.sport = newsrcport
         self._calc_csums(hdr)
         return hdr

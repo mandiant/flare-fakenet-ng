@@ -22,6 +22,7 @@ class PacketCtx(object):
         # Universal parameters
         self.label = label
         self.raw = raw
+        self._mangled = False # Used to determine whether to recalculate csums
 
         self.handled_protocols = {
             dpkt.ip.IP_PROTO_TCP: 'TCP',
@@ -30,16 +31,20 @@ class PacketCtx(object):
 
         # L3 parameters
         self.ipver = None
-        self.hdr = None
+        self._hdr = None
         self.proto = None
         self.proto_name = None
+        self._src_ip0 = None # Initial source IP address
         self._src_ip = None
+        self._dst_ip0 = None # Initial destination IP address
         self._dst_ip = None
 
         # L4 parameters
-        self.sport = None
+        self.sport0 = None # Initial source port
+        self._sport = None
         self.skey = None
-        self.dport = None
+        self.dport0 = None # Initial destination port
+        self._dport = None
         self.dkey = None
 
         # Parse as much as possible
@@ -54,24 +59,58 @@ class PacketCtx(object):
 
     @property
     def src_ip(self):
-        """No setter until mangling support is added."""
         return self._src_ip
+
+    @src_ip.setter
+    def src_ip(self, new_srcip):
+        if self._hdr:
+            self._src_ip = new_srcip
+            self._hdr.data.src = socket.inet_aton(new_srcip)
+            self._mangled = True
 
     @property
     def dst_ip(self):
-        """No setter until mangling support is added."""
         return self._dst_ip
 
+    @dst_ip.setter
+    def dst_ip(self, new_dstip):
+        if self._hdr:
+            self._dst_ip = new_dstip
+            self._hdr.data.dst = socket.inet_aton(new_dstip)
+            self._mangled = True
+
+    @property
+    def sport(self):
+        return self._sport
+
+    @sport.setter
+    def sport(self, new_sport):
+        if self._hdr:
+            self._sport = new_sport
+            self._hdr.sport = new_sport
+            self._mangled = True
+
+    @property
+    def dport(self):
+        return self._dport
+
+    @dport.setter
+    def dport(self, new_dport):
+        if self._hdr:
+            self._dport = new_dport
+            self._hdr.dport = new_dport
+            self._mangled = True
+
     def _parseIp(self):
-        if self.hdr:
+        if self._hdr:
+            self._src_ip0 = self._src_ip = socket.inet_ntoa(self._hdr.src)
+            self._dst_ip0 = self._dst_ip = socket.inet_ntoa(self._hdr.dst)
             self.proto_name = self.handled_protocols.get(self.proto)
             if self.proto_name: # If this is a transport protocol we handle...
-                self.sport = self.hdr.data.sport
-                self.dport = self.hdr.data.dport
-                self.skey = self._genEndpointKey(self._src_ip, self.sport)
-                self.dkey = self._genEndpointKey(self._dst_ip, self.dport)
-            self._src_ip = socket.inet_ntoa(self.hdr.src)
-            self._dst_ip = socket.inet_ntoa(self.hdr.dst)
+                self.sport0 = self._sport = self._hdr.data.sport
+                self.dport0 = self._dport = self._hdr.data.dport
+                self.skey = self._genEndpointKey(self._src_ip, self._sport)
+                self.dkey = self._genEndpointKey(self._dst_ip, self._dport)
 
     def _genEndpointKey(self, ip, port):
         return PacketCtx.gen_endpoint_key(self.proto_name, ip, port)
@@ -83,13 +122,13 @@ class PacketCtx(object):
         hdr = dpkt.ip.IP(self.raw)
         # An IPv6 header length less than 5 is invalid
         if hdr.hl >= 5:
-            self.hdr = hdr
+            self._hdr = hdr
             self.proto = hdr.p
-        return bool(self.hdr)
+        return bool(self._hdr)
 
     def _parseIpv6(self):
         hdr = dpkt.ip6.IP6(self.raw)
-        self.hdr = hdr
+        self._hdr = hdr
         self.proto = hdr.nxt
         return True
 
@@ -98,19 +137,19 @@ class PacketCtx(object):
 
     def icmpType(self):
         if self.is_icmp:
-            return self.hdr.data.type
+            return self._hdr.data.type
 
     def icmpCode(self):
         if self.is_icmp:
-            return self.hdr.data.code
+            return self._hdr.data.code
 
     def hdrToStr(self):
         s = 'No valid IP headers parsed'
-        if self.hdr:
+        if self._hdr:
             if self.proto_name:
                 s = '%s %s:%d->%s:%d' % (self.proto_name, self._src_ip,
-                                         self.hdr.data.sport, self._dst_ip,
-                                         self.hdr.data.dport)
+                                         self._hdr.data.sport, self._dst_ip,
+                                         self._hdr.data.dport)
             else:
                 s = '%s->%s' % (self._src_ip, self._dst_ip)
 
