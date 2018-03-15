@@ -726,7 +726,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                     self.logger.info('Executing command: %s', cmd)
                     self.execute_detached(cmd)
 
-        return pkt.octets if pkt.mangled else None
+        return pkt.hdr if pkt.mangled else None
 
     def maybe_fixup_sport(self, pkt, pid, comm, hdr, unused4):
         """Conditionally fix up source port if the remote endpoint had their
