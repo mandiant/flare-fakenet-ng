@@ -20,7 +20,7 @@ from diverterbase import *
 import subprocess
 
 
-class WindowsCallbackContext(fnpacket.PacketCtx):
+class WindowsPacketCtx(fnpacket.PacketCtx):
     def __init__(self, lbl, raw, pkt):
         super(LinuxCallbackContext, self).__init__(lbl, raw)
         self.pkt = pkt

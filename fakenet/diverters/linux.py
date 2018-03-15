@@ -15,14 +15,13 @@ from collections import namedtuple
 from netfilterqueue import NetfilterQueue
 
 
-class LinuxCallbackContext(fnpacket.PacketCtx):
+class LinuxPacketCtx(fnpacket.PacketCtx):
     def __init__(self, lbl, raw, pkt):
-        super(LinuxCallbackContext, self).__init__(lbl, raw)
+        super(LinuxPacketCtx, self).__init__(lbl, raw)
         self.pkt = pkt
 
 
 class Diverter(DiverterBase, LinUtilMixin):
-
 
     def __init__(self, diverter_config, listeners_config, ip_addrs,
                  logging_level=logging.INFO):
@@ -314,7 +313,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         This allows analysts to observe when malware is communicating with
         hard-coded IP addresses in MultiHost mode.
         """
-        ctx = LinuxCallbackContext('handle_nonlocal', nfqpkt.get_payload(), nfqpkt)
+        ctx = LinuxPacketCtx('handle_nonlocal', nfqpkt.get_payload(), nfqpkt)
         newraw = self.handle_pkt(ctx, self.nonlocal_net_cbs, [])
         if newraw:
             nfqpkt.set_payload(newraw)
@@ -333,7 +332,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         No return value.
         """
-        ctx = LinuxCallbackContext('handle_incoming', nfqpkt.get_payload(), nfqpkt)
+        ctx = LinuxPacketCtx('handle_incoming', nfqpkt.get_payload(), nfqpkt)
         newraw = self.handle_pkt(ctx, self.incoming_net_cbs,
                                  self.incoming_trans_cbs)
         if newraw:
@@ -356,7 +355,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         No return value.
         """
-        ctx = LinuxCallbackContext('handle_outgoing', nfqpkt.get_payload(), nfqpkt)
+        ctx = LinuxPacketCtx('handle_outgoing', nfqpkt.get_payload(), nfqpkt)
         newraw = self.handle_pkt(ctx, self.outgoing_net_cbs,
                                  self.outgoing_trans_cbs)
         if newraw:
