@@ -509,8 +509,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return False
 
-    def maybe_redir_ip(self, pkt, pid, comm, hdr, src_ip, sport, dst_ip,
-                       dport):
+    def maybe_redir_ip(self, pkt, pid, comm, hdr, unused4):
         """Conditionally redirect foreign destination IPs to localhost.
 
         Used only under SingleHost mode.
@@ -527,17 +526,17 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.pdebug(DIPNAT, 'Condition 1 test')
         # Condition 1: If the remote IP address is foreign to this system,
         # then redirect it to a local IP address.
-        if self.single_host_mode and (dst_ip not in self.ip_addrs[pkt.ipver]):
+        if self.single_host_mode and (pkt.dst_ip not in self.ip_addrs[pkt.ipver]):
             self.pdebug(DIPNAT, 'Condition 1 satisfied')
             self.ip_fwd_table_lock.acquire()
             try:
-                self.ip_fwd_table[pkt.skey] = dst_ip
+                self.ip_fwd_table[pkt.skey] = pkt.dst_ip
 
             finally:
                 self.ip_fwd_table_lock.release()
 
             newdst = '127.0.0.1'
-            hdr_modified = self.mangle_dstip(hdr, pkt.proto_name, dst_ip, newdst)
+            hdr_modified = self.mangle_dstip(hdr, pkt.proto_name, pkt.dst_ip, newdst)
 
         else:
             # Delete any stale entries in the IP forwarding table: If the
@@ -559,8 +558,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def maybe_fixup_srcip(self, pkt, pid, comm, hdr, src_ip, sport,
-                          dst_ip, dport):
+    def maybe_fixup_srcip(self, pkt, pid, comm, hdr, unused4):
         """Conditionally fix up the source IP address if the remote endpoint
         had their connection IP-forwarded.
 
@@ -594,8 +592,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return hdr_modified
 
-    def maybe_redir_port(self, pkt, pid, comm, hdr, src_ip, sport,
-                         dst_ip, dport):
+    def maybe_redir_port(self, pkt, pid, comm, hdr, dport):
         hdr_modified = None
 
         # Get default listener port for this proto, or bail if none
@@ -677,7 +674,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             # Is this conversation already being ignored for DPF purposes?
             self.ignore_table_lock.acquire()
             try:
-                if pkt.dkey in self.ignore_table and self.ignore_table[pkt.dkey] == sport:
+                if pkt.dkey in self.ignore_table and self.ignore_table[pkt.dkey] == pkt.sport:
                     # This is a reply (e.g. a TCP RST) from the
                     # non-port-forwarded server that the non-port-forwarded
                     # client was trying to talk to. Leave it alone.
@@ -719,21 +716,20 @@ class Diverter(DiverterBase, LinUtilMixin):
 
             self.delete_stale_port_fwd_key(pkt.skey)
 
-        if not (sport in self.sessions and self.sessions[sport] == (dst_ip,
+        if not (pkt.sport in self.sessions and self.sessions[pkt.sport] == (pkt.dst_ip,
                 dport)):
-            self.sessions[sport] = (dst_ip, dport)
+            self.sessions[pkt.sport] = (pkt.dst_ip, dport)
 
-            if pid and (dst_ip in self.ip_addrs[pkt.ipver]):
-                cmd = self.build_cmd(pkt.proto_name, pid, comm, src_ip,
-                                     sport, dst_ip, dport)
+            if pid and (pkt.dst_ip in self.ip_addrs[pkt.ipver]):
+                cmd = self.build_cmd(pkt.proto_name, pid, comm, pkt.src_ip,
+                                     pkt.sport, pkt.dst_ip, dport)
                 if cmd:
                     self.logger.info('Executing command: %s', cmd)
                     self.execute_detached(cmd)
 
         return hdr_modified
 
-    def maybe_fixup_sport(self, pkt, pid, comm, hdr, src_ip, sport,
-                          dst_ip, dport):
+    def maybe_fixup_sport(self, pkt, pid, comm, hdr, unused4):
         """Conditionally fix up source port if the remote endpoint had their
         connection port-forwarded.
 
