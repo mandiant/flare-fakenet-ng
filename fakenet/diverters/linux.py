@@ -364,9 +364,9 @@ class Diverter(DiverterBase, LinUtilMixin):
         nfqpkt.accept() # NF_ACCEPT
 
     def check_log_icmp(self, pkt):
-        if pkt.isIcmp():
+        if pkt.is_icmp:
             self.logger.info('ICMP type %d code %d %s' % (
-                pkt.icmpType(), pkt.icmpCode(), pkt.hdrToStr()))
+                pkt.icmp_type, pkt.icmp_code, pkt.hdrToStr()))
 
         return None
 

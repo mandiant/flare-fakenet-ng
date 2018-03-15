@@ -494,7 +494,7 @@ class DiverterBase(fnconfig.Config):
         newraw = None
 
         # 1A: Unconditionally write unmangled packet to pcap
-        self.write_pcap(pkt._hdr.pack())
+        self.write_pcap(pkt.octets)
 
         if (pkt._hdr, pkt.proto) == (None, None):
             self.logger.warning('%s: Failed to parse IP packet' % (pkt.label))
@@ -532,7 +532,7 @@ class DiverterBase(fnconfig.Config):
                                 sport=pkt.sport,
                                 dst=pkt.dst_ip,
                                 dport=pkt.dport,
-                                length=len(pkt.raw),
+                                length=len(pkt),
                                 flags='',
                                 seqack='',
                             )
@@ -575,7 +575,7 @@ class DiverterBase(fnconfig.Config):
                                 sport=pkt.sport,
                                 dst=pkt.dst_ip,
                                 dport=pkt.dport,
-                                length=len(pkt.raw),
+                                length=len(pkt),
                                 flags=','.join(f),
                                 seqack=sa,
                             )
