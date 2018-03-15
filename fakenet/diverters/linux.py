@@ -313,8 +313,8 @@ class Diverter(DiverterBase, LinUtilMixin):
         This allows analysts to observe when malware is communicating with
         hard-coded IP addresses in MultiHost mode.
         """
-        ctx = LinuxPacketCtx('handle_nonlocal', nfqpkt.get_payload(), nfqpkt)
-        newraw = self.handle_pkt(ctx, self.nonlocal_net_cbs, [])
+        pkt = LinuxPacketCtx('handle_nonlocal', nfqpkt.get_payload(), nfqpkt)
+        newraw = self.handle_pkt(pkt, self.nonlocal_net_cbs, [])
         if newraw:
             nfqpkt.set_payload(newraw)
 
@@ -332,8 +332,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         No return value.
         """
-        ctx = LinuxPacketCtx('handle_incoming', nfqpkt.get_payload(), nfqpkt)
-        newraw = self.handle_pkt(ctx, self.incoming_net_cbs,
+        pkt = LinuxPacketCtx('handle_incoming', nfqpkt.get_payload(), nfqpkt)
+        newraw = self.handle_pkt(pkt, self.incoming_net_cbs,
                                  self.incoming_trans_cbs)
         if newraw:
             nfqpkt.set_payload(newraw)
@@ -355,8 +355,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         No return value.
         """
-        ctx = LinuxPacketCtx('handle_outgoing', nfqpkt.get_payload(), nfqpkt)
-        newraw = self.handle_pkt(ctx, self.outgoing_net_cbs,
+        pkt = LinuxPacketCtx('handle_outgoing', nfqpkt.get_payload(), nfqpkt)
+        newraw = self.handle_pkt(pkt, self.outgoing_net_cbs,
                                  self.outgoing_trans_cbs)
         if newraw:
             nfqpkt.set_payload(newraw)
@@ -518,10 +518,8 @@ class Diverter(DiverterBase, LinUtilMixin):
             None - if unmodified
             dpkt.ip.hdr - if modified
         """
-        hdr_modified = None
-
         if self.check_should_ignore(pid, comm, pkt):
-            return hdr_modified  # None
+            return None
 
         self.pdebug(DIPNAT, 'Condition 1 test')
         # Condition 1: If the remote IP address is foreign to this system,
@@ -538,7 +536,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             newdst = '127.0.0.1'
             self.pdebug(DIPNAT, 'REDIRECTING %s to IP %s' %
                         (pkt.hdrToStr(), newdst))
-            hdr_modified = self.mangle_dstip(hdr, pkt.proto_name, pkt.dst_ip, newdst)
+            pkt.dst_ip = newdst
 
         else:
             # Delete any stale entries in the IP forwarding table: If the
@@ -558,7 +556,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             finally:
                 self.ip_fwd_table_lock.release()
 
-        return hdr_modified
+        return pkt.hdr if pkt.mangled else None
 
     def maybe_fixup_srcip(self, pkt, pid, comm, hdr, unused4):
         """Conditionally fix up the source IP address if the remote endpoint
@@ -571,8 +569,6 @@ class Diverter(DiverterBase, LinUtilMixin):
             None - if unmodified
             dpkt.ip.hdr - if modified
         """
-        hdr_modified = None
-
         # Condition 4: If the local endpoint (IP/port/proto) combo
         # corresponds to an endpoint that initiated a conversation with a
         # foreign endpoint in the past, then fix up the source IP for this
@@ -587,14 +583,13 @@ class Diverter(DiverterBase, LinUtilMixin):
                 new_srcip = self.ip_fwd_table[pkt.dkey]
                 self.pdebug(DIPNAT, 'MASQUERADING %s from IP %s' %
                             (pkt.hdrToStr(), new_srcip))
-                hdr_modified = self.mangle_srcip(
-                    hdr, pkt.proto_name, hdr.src, new_srcip)
+                pkt.src_ip = new_srcip
             else:
                 self.pdebug(DIPNAT, ' ! NO SUCH ipfwd key entry: ' + pkt.dkey)
         finally:
             self.ip_fwd_table_lock.release()
 
-        return hdr_modified
+        return pkt.hdr if pkt.mangled else None
 
     def maybe_redir_port(self, pkt, pid, comm, hdr, dport):
         hdr_modified = None

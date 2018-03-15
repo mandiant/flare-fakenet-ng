@@ -71,6 +71,13 @@ class PacketCtx(object):
         return self._mangled
 
     @property
+    def hdr(self):
+        if self._mangled:
+            self._calcCsums()
+
+        return self._hdr
+
+    @property
     def octets(self):
         if self._mangled:
             self._updateRaw()
@@ -85,7 +92,7 @@ class PacketCtx(object):
     def src_ip(self, new_srcip):
         if self._is_ip:
             self._src_ip = new_srcip
-            self._hdr.data.src = socket.inet_aton(new_srcip)
+            self._hdr.src = socket.inet_aton(new_srcip)
             self._mangled = True
 
     @property
@@ -96,7 +103,7 @@ class PacketCtx(object):
     def dst_ip(self, new_dstip):
         if self._is_ip:
             self._dst_ip = new_dstip
-            self._hdr.data.dst = socket.inet_aton(new_dstip)
+            self._hdr.dst = socket.inet_aton(new_dstip)
             self._mangled = True
 
     @property
