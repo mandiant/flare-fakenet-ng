@@ -592,12 +592,10 @@ class Diverter(DiverterBase, LinUtilMixin):
         return pkt.hdr if pkt.mangled else None
 
     def maybe_redir_port(self, pkt, pid, comm, hdr, dport):
-        hdr_modified = None
-
         # Get default listener port for this proto, or bail if none
         default = None
         if not pkt.proto_name in self.default_listener:
-            return hdr_modified  # None
+            return None
         default = self.default_listener[pkt.proto_name]
 
         # Pre-condition 1: RedirectAllTraffic: Yes
@@ -608,7 +606,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         if not self.is_set('redirectalltraffic'):
             self.pdebug(DIGN, 'Ignoring %s packet %s' %
                         (pkt.proto_name, pkt.hdrToStr()))
-            return hdr_modified  # None
+            return None
 
         # Pre-condition 1: destination must not be present in port forwarding
         # table (prevents masqueraded ports responding to unbound ports from
@@ -622,7 +620,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.port_fwd_table_lock.release()
 
         if found:
-            return hdr_modified  # None
+            return None
 
         bound_ports = self.diverted_ports.get(pkt.proto_name, [])
         
@@ -637,7 +635,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             #divert to proxy
             self.pdebug(DDPF, 'REDIRECTING %s to port %d' %
                               (pkt.hdrToStr(), default))
-            hdr_modified = self.mangle_dstport(hdr, pkt.proto_name, dport, default)
+            pkt.dport = default
         
             # Record the foreign endpoint and old destination port in the port
             # forwarding table
@@ -679,7 +677,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                     # This is a reply (e.g. a TCP RST) from the
                     # non-port-forwarded server that the non-port-forwarded
                     # client was trying to talk to. Leave it alone.
-                    return hdr_modified  # None
+                    return None
             finally:
                 self.ignore_table_lock.release()
 
@@ -689,7 +687,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                     self.ignore_table[pkt.skey] = dport
                 finally:
                     self.ignore_table_lock.release()
-                return hdr_modified  # None
+                return None
 
             # Record the foreign endpoint and old destination port in the port
             # forwarding table
@@ -700,7 +698,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             finally:
                 self.port_fwd_table_lock.release()
 
-            hdr_modified = self.mangle_dstport(hdr, pkt.proto_name, dport, default)
+            pkt.dport = default
 
             # Record the altered port for making the ExecuteCmd decision
             dport = default
@@ -728,7 +726,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                     self.logger.info('Executing command: %s', cmd)
                     self.execute_detached(cmd)
 
-        return hdr_modified
+        return pkt.octets if pkt.mangled else None
 
     def maybe_fixup_sport(self, pkt, pid, comm, hdr, unused4):
         """Conditionally fix up source port if the remote endpoint had their

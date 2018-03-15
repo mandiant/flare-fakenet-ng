@@ -114,7 +114,7 @@ class PacketCtx(object):
     def sport(self, new_sport):
         if self._is_ip:
             self._sport = new_sport
-            self._hdr.sport = new_sport
+            self._hdr.data.sport = new_sport
             self._mangled = True
 
     @property
@@ -125,7 +125,7 @@ class PacketCtx(object):
     def dport(self, new_dport):
         if self._is_ip:
             self._dport = new_dport
-            self._hdr.dport = new_dport
+            self._hdr.data.dport = new_dport
             self._mangled = True
 
     @property
