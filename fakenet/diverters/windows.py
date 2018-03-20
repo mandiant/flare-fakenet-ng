@@ -21,12 +21,11 @@ import subprocess
 
 
 class WindowsPacketCtx(fnpacket.PacketCtx):
-    def __init__(self, lbl, raw, winpkt):
+    def __init__(self, lbl, windivertpkt):
+        self.windivertpkt = windivertpkt
+        raw = windivertpkt.raw.tobytes()
         super(WindowsPacketCtx, self).__init__(lbl, raw)
-        self.winpkt = winpkt
-        self.is_loopback = winpkt.is_loopback
-        self.src_ip = packet.src_addr
-        self.dst_ip = packet.dst_addr
+        self.is_loopback = windivertpkt.is_loopback
 
 
 class Diverter(DiverterBase, WinUtilMixin):
@@ -228,8 +227,15 @@ class Diverter(DiverterBase, WinUtilMixin):
     def divert_thread2(self):
         try:
             while True:
-                packet = self.handle.recv()
-                self.handle_packet(packet)
+                windivertpkt = self.handle.recv()
+
+                if windivertpkt == None:
+                    self.logger.error('ERROR: Can\'t handle packet.')
+                    continue
+
+                pkt = WindowsPacketCtx('divert_thread2/handle_packet', windivertpkt)
+
+                self.handle_packet2(windivertpkt, pkt)
         except WindowsError as e:
             if e.winerror in [4, 6, 995]:
                 return
@@ -624,6 +630,71 @@ class Diverter(DiverterBase, WinUtilMixin):
         self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
 
         return packet
+
+    def handle_packet2(self, windivertpkt, pkt):
+        # Preserve destination address to detect packet being diverted
+        dst_addr = windivertpkt.dst_addr
+
+        #######################################################################
+        # Capture packet and store raw packet in the PCAP
+        self.write_pcap(pkt.octets)
+
+        ###########################################################################
+        # Verify the IP packet has an additional header
+
+        if pkt.ipver:
+
+            #######################################################################
+            # Handle ICMP Packets
+  
+            if pkt.is_icmp:
+                windivertpkt = self.handle_icmp_packet(windivertpkt)
+
+            #######################################################################
+            # Handle TCP/UDP Packets
+
+            elif pkt.proto_name: # If it is a recognized protocol...
+                proto = pkt.proto_name
+                windivertpkt = self.handle_tcp_udp_packet(windivertpkt, 
+                                                    proto, 
+                                                    self.default_listener[proto], 
+                                                    self.blacklist_ports[proto])
+            else:
+                self.logger.error('ERROR: Unknown packet header type.')
+
+        #######################################################################
+        # Capture modified packet and store raw packet in the PCAP
+        # NOTE: While this results in potentially duplicate traffic capture, this is necessary 
+        #       to properly restore TLS/SSL sessions.
+        # TODO: Develop logic to record traffic before modification for both requests and
+        #       responses to reduce duplicate captures.
+        if (dst_addr != windivertpkt.dst_addr):
+            self.write_pcap(windivertpkt.raw.tobytes())
+
+        #######################################################################
+        # Attempt to send the processed packet
+        try:
+            self.handle.send(windivertpkt)
+        except Exception, e:
+
+            protocol = 'Unknown'
+
+            if pkt.proto_name:
+                protocol = pkt.proto_name
+            elif pkt.is_icmp:
+                protocol = 'ICMP'
+
+            interface_string = 'loopback' if pkt.is_loopback else 'external'
+            direction_string = 'inbound' if pkt.is_inbound else 'outbound'
+
+            self.logger.error('ERROR: Failed to send %s %s %s packet', direction_string, interface_string, protocol)
+
+            if windivertpkt.src_port and windivertpkt.dst_port:
+                self.logger.error('  %s:%d -> %s:%d', windivertpkt.src_addr, windivertpkt.src_port, windivertpkt.dst_addr, windivertpkt.dst_port)
+            else:
+                self.logger.error('  %s -> %s', windivertpkt.src_addr, windivertpkt.dst_addr)
+
+            self.logger.error('  %s', e)
 
     def handle_packet(self, packet):
 
