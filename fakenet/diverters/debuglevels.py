@@ -7,10 +7,12 @@ DPROCFS = (1 << 4)      # procfs
 DIPTBLS = (1 << 5)      # iptables
 DNONLOC = (1 << 6)      # Nonlocal-destined datagrams
 DDPF = (1 << 7)         # DPF (Dynamic Port Forwarding)
-DDPFV = (1 << 8)         # DPF (Dynamic Port Forwarding) Verbose
+DDPFV = (1 << 8)        # DPF (Dynamic Port Forwarding) Verbose
 DIPNAT = (1 << 9)       # IP redirection for nonlocal-destined datagrams
-DIGN = (1 << 10)         # Packet redirect ignore conditions
-DFTP = (1 << 11)         # FTP checks
+DMANGLE = (1 << 10)     # Packet mangling
+DPCAP = (1 << 11)       # Pcap write logic
+DIGN = (1 << 12)        # Packet redirect ignore conditions
+DFTP = (1 << 13)        # FTP checks
 DMISC = (1 << 27)       # Miscellaneous
 
 DCOMP = 0x0fffffff      # Component mask
@@ -29,6 +31,8 @@ DLABELS = {
     DDPF: 'DPF',
     DDPFV: 'DPFV',
     DIPNAT: 'IPNAT',
+    DMANGLE: 'MANGLE',
+    DPCAP: 'PCAP',
     DIGN: 'IGN',
     DFTP: 'FTP',
     DIGN | DFTP: 'IGN-FTP',
