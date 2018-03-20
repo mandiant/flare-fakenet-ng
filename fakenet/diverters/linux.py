@@ -528,7 +528,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return False
 
-    def maybe_redir_ip(self, pkt, pid, comm, hdr):
+    def maybe_redir_ip(self, pkt, pid, comm):
         """Conditionally redirect foreign destination IPs to localhost.
 
         Used only under SingleHost mode.
@@ -577,7 +577,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return pkt.hdr if pkt.mangled else None
 
-    def maybe_fixup_srcip(self, pkt, pid, comm, hdr):
+    def maybe_fixup_srcip(self, pkt, pid, comm):
         """Conditionally fix up the source IP address if the remote endpoint
         had their connection IP-forwarded.
 
@@ -610,7 +610,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return pkt.hdr if pkt.mangled else None
 
-    def maybe_redir_port(self, pkt, pid, comm, hdr):
+    def maybe_redir_port(self, pkt, pid, comm):
         dport = pkt.dport
 
         # Get default listener port for this proto, or bail if none
@@ -749,7 +749,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return pkt.hdr if pkt.mangled else None
 
-    def maybe_fixup_sport(self, pkt, pid, comm, hdr):
+    def maybe_fixup_sport(self, pkt, pid, comm):
         """Conditionally fix up source port if the remote endpoint had their
         connection port-forwarded.
 

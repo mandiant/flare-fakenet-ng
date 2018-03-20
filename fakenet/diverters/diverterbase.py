@@ -457,11 +457,12 @@ class DiverterBase(fnconfig.Config):
                 self.logger.debug('Blacklisted UDP ports: %s', ', '.join(
                     [str(p) for p in self.getconfigval('BlackListPortsUDP')]))
 
-    def write_pcap(self, data):
+    def write_pcap(self, pkt):
         if self.pcap and self.pcap_lock:
             self.pcap_lock.acquire()
             try:
-                self.pcap.writepkt(data)
+                self.pdebug(DPCAP, 'Writing %s' % (pkt.hdrToStr2()))
+                self.pcap.writepkt(pkt.octets)
             finally:
                 self.pcap_lock.release()
 
@@ -489,12 +490,8 @@ class DiverterBase(fnconfig.Config):
             B.) Accept the packet with NetfilterQueue or whatever
         """
 
-        modified = False
-        hdr_latest = pkt._hdr
-        newraw = None
-
         # 1A: Unconditionally write unmangled packet to pcap
-        self.write_pcap(pkt.octets)
+        self.write_pcap(pkt)
 
         if (pkt._hdr, pkt.proto) == (None, None):
             self.logger.warning('%s: Failed to parse IP packet' % (pkt.label))
@@ -593,11 +590,7 @@ class DiverterBase(fnconfig.Config):
                         # masked by python-netfilterqueue's global callback.
                         self.pdebug(DCB, 'Calling %s' % (cb))
 
-                        hdr_mod = cb(pkt, pid, comm, hdr_latest)
-
-                        if hdr_mod:
-                            hdr_latest = hdr_mod
-                            modified = True
+                        cb(pkt, pid, comm)
 
                         self.pdebug(DCB, '%s finished' % (cb))
 
@@ -605,15 +598,15 @@ class DiverterBase(fnconfig.Config):
                 self.pdebug(DGENPKT, '%s: Not handling protocol %s' %
                                      (pkt.label, pkt.proto))
 
-        if modified:
+        if pkt.mangled:
             # 5Ai: Double write mangled packets to represent changes
             # made by FakeNet-NG while still allowing SSL decoding
-            self.write_pcap(hdr_latest.pack())
+            self.write_pcap(pkt)
 
             # 5Aii: Finalize changes with caller
-            newraw = hdr_latest.pack()
+            return pkt.octets
 
-        return newraw
+        return None
 
 def test_redir_logic(diverter_factory):
     diverter_config = dict()
