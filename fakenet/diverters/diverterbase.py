@@ -461,8 +461,11 @@ class DiverterBase(fnconfig.Config):
         if self.pcap and self.pcap_lock:
             self.pcap_lock.acquire()
             try:
-                self.pdebug(DPCAP, 'Writing %s' % (pkt.hdrToStr2()))
-                self.pcap.writepkt(pkt.octets)
+                if isinstance(pkt, fnpacket.PacketCtx):
+                    self.pdebug(DPCAP, 'Writing %s' % (pkt.hdrToStr2()))
+                    self.pcap.writepkt(pkt.octets)
+                else:
+                    self.pcap.writepkt(pkt)
             finally:
                 self.pcap_lock.release()
 

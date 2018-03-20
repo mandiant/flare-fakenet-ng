@@ -21,10 +21,10 @@ import subprocess
 
 
 class WindowsPacketCtx(fnpacket.PacketCtx):
-    def __init__(self, lbl, raw, pkt):
+    def __init__(self, lbl, raw, winpkt):
         super(LinuxCallbackContext, self).__init__(lbl, raw)
-        self.pkt = pkt
-        self.is_loopback = pkt.is_loopback
+        self.winpkt = winpkt
+        self.is_loopback = winpkt.is_loopback
         self.src_ip = packet.src_addr
         self.dst_ip = packet.dst_addr
 

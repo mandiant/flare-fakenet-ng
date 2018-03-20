@@ -17,9 +17,9 @@ from netfilterqueue import NetfilterQueue
 
 
 class LinuxPacketCtx(fnpacket.PacketCtx):
-    def __init__(self, lbl, raw, pkt):
+    def __init__(self, lbl, raw, nfqpkt):
         super(LinuxPacketCtx, self).__init__(lbl, raw)
-        self.pkt = pkt
+        self.nfqpkt = nfqpkt
 
 
 class Diverter(DiverterBase, LinUtilMixin):
