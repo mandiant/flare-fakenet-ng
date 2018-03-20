@@ -43,10 +43,10 @@ class PacketCtx(object):
         self._dst_ip = None
 
         # L4 parameters
-        self.sport0 = None # Initial source port
+        self._sport0 = None # Initial source port
         self._sport = None
         self.skey = None
-        self.dport0 = None # Initial destination port
+        self._dport0 = None # Initial destination port
         self._dport = None
         self.dkey = None
 
@@ -66,9 +66,10 @@ class PacketCtx(object):
 
         return len(self._raw)
 
+    # Data
+
     @property
-    def mangled(self):
-        return self._mangled
+    def mangled(self): return self._mangled
 
     @property
     def hdr(self):
@@ -84,9 +85,13 @@ class PacketCtx(object):
 
         return self._raw
 
+    # src_ip
+
     @property
-    def src_ip(self):
-        return self._src_ip
+    def src_ip0(self): return self._src_ip0
+
+    @property
+    def src_ip(self): return self._src_ip
 
     @src_ip.setter
     def src_ip(self, new_srcip):
@@ -95,9 +100,13 @@ class PacketCtx(object):
             self._hdr.src = socket.inet_aton(new_srcip)
             self._mangled = True
 
+    # dst_ip
+
     @property
-    def dst_ip(self):
-        return self._dst_ip
+    def dst_ip0(self): return self._dst_ip0
+
+    @property
+    def dst_ip(self): return self._dst_ip
 
     @dst_ip.setter
     def dst_ip(self, new_dstip):
@@ -106,9 +115,13 @@ class PacketCtx(object):
             self._hdr.dst = socket.inet_aton(new_dstip)
             self._mangled = True
 
+    # sport
+
     @property
-    def sport(self):
-        return self._sport
+    def sport0(self): return self._sport0
+
+    @property
+    def sport(self): return self._sport
 
     @sport.setter
     def sport(self, new_sport):
@@ -117,9 +130,13 @@ class PacketCtx(object):
             self._hdr.data.sport = new_sport
             self._mangled = True
 
+    # dport
+
     @property
-    def dport(self):
-        return self._dport
+    def dport0(self): return self._dport0
+
+    @property
+    def dport(self): return self._dport
 
     @dport.setter
     def dport(self, new_dport):
@@ -127,6 +144,8 @@ class PacketCtx(object):
             self._dport = new_dport
             self._hdr.data.dport = new_dport
             self._mangled = True
+
+    # ICMP
 
     @property
     def is_icmp(self): return self._is_icmp
@@ -157,8 +176,8 @@ class PacketCtx(object):
             self._dst_ip0 = self._dst_ip = socket.inet_ntoa(self._hdr.dst)
             self.proto_name = self.handled_protocols.get(self.proto)
             if self.proto_name: # If this is a transport protocol we handle...
-                self.sport0 = self._sport = self._hdr.data.sport
-                self.dport0 = self._dport = self._hdr.data.dport
+                self._sport0 = self._sport = self._hdr.data.sport
+                self._dport0 = self._dport = self._hdr.data.dport
                 self.skey = self._genEndpointKey(self._src_ip, self._sport)
                 self.dkey = self._genEndpointKey(self._dst_ip, self._dport)
 

@@ -4,6 +4,7 @@ import time
 import socket
 import logging
 import fnpacket
+import traceback
 import threading
 import subprocess
 import diverterbase
@@ -313,10 +314,20 @@ class Diverter(DiverterBase, LinUtilMixin):
         This allows analysts to observe when malware is communicating with
         hard-coded IP addresses in MultiHost mode.
         """
-        pkt = LinuxPacketCtx('handle_nonlocal', nfqpkt.get_payload(), nfqpkt)
-        newraw = self.handle_pkt(pkt, self.nonlocal_net_cbs, [])
-        if newraw:
-            nfqpkt.set_payload(newraw)
+        try:
+            pkt = LinuxPacketCtx('handle_nonlocal', nfqpkt.get_payload(), nfqpkt)
+            newraw = self.handle_pkt(pkt, self.nonlocal_net_cbs, [])
+            if newraw:
+                nfqpkt.set_payload(newraw)
+        # Catch-all exceptions are usually bad practice, sure, but
+        # python-netfilterqueue has a catch-all that will not print enough
+        # information to troubleshoot with, so if there is going to be a
+        # catch-all exception handler anyway, it might as well be mine so that
+        # I can print out the stack trace before I lose access to this valuable
+        # debugging information.
+        except Exception:
+            self.logger.error('Exception: %s' % (traceback.format_exc()))
+            raise
 
         nfqpkt.accept() # NF_ACCEPT
 
@@ -332,11 +343,15 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         No return value.
         """
-        pkt = LinuxPacketCtx('handle_incoming', nfqpkt.get_payload(), nfqpkt)
-        newraw = self.handle_pkt(pkt, self.incoming_net_cbs,
-                                 self.incoming_trans_cbs)
-        if newraw:
-            nfqpkt.set_payload(newraw)
+        try:
+            pkt = LinuxPacketCtx('handle_incoming', nfqpkt.get_payload(), nfqpkt)
+            newraw = self.handle_pkt(pkt, self.incoming_net_cbs,
+                                     self.incoming_trans_cbs)
+            if newraw:
+                nfqpkt.set_payload(newraw)
+        except Exception:
+            self.logger.error('Exception: %s' % (traceback.format_exc()))
+            raise
 
         nfqpkt.accept() # NF_ACCEPT
 
@@ -355,11 +370,15 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         No return value.
         """
-        pkt = LinuxPacketCtx('handle_outgoing', nfqpkt.get_payload(), nfqpkt)
-        newraw = self.handle_pkt(pkt, self.outgoing_net_cbs,
-                                 self.outgoing_trans_cbs)
-        if newraw:
-            nfqpkt.set_payload(newraw)
+        try:
+            pkt = LinuxPacketCtx('handle_outgoing', nfqpkt.get_payload(), nfqpkt)
+            newraw = self.handle_pkt(pkt, self.outgoing_net_cbs,
+                                     self.outgoing_trans_cbs)
+            if newraw:
+                nfqpkt.set_payload(newraw)
+        except Exception:
+            self.logger.error('Exception: %s' % (traceback.format_exc()))
+            raise
 
         nfqpkt.accept() # NF_ACCEPT
 
@@ -394,10 +413,10 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def check_should_ignore(self, pid, comm, pkt):
 
-        src_ip = pkt.src_ip
-        sport = pkt.sport
-        dst_ip = pkt.dst_ip
-        dport = pkt.dport
+        src_ip = pkt.src_ip0
+        sport = pkt.sport0
+        dst_ip = pkt.dst_ip0
+        dport = pkt.dport0
 
         # SingleHost mode checks
         if self.single_host_mode:
@@ -761,14 +780,13 @@ class Diverter(DiverterBase, LinUtilMixin):
 
                 self.pdebug(DDPF, 'MASQUERADING %s from port %d' %
                                   (pkt.hdrToStr(), new_sport))
-                hdr_modified = self.mangle_srcport(
-                    hdr, pkt.proto_name, hdr.data.sport, new_sport)
+                pkt.sport = new_sport
             else:
                 self.pdebug(DDPFV, ' ! NO SUCH portfwd key entry: ' + pkt.dkey)
         finally:
             self.port_fwd_table_lock.release()
 
-        return hdr_modified
+        return pkt.hdr if pkt.mangled else None
 
     def delete_stale_port_fwd_key(self, skey):
         self.port_fwd_table_lock.acquire()
