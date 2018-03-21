@@ -27,6 +27,22 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
         super(WindowsPacketCtx, self).__init__(lbl, raw)
         self.is_loopback = windivertpkt.is_loopback
 
+    @property
+    def src_ip(self): return super(self.__class__, self.__class__).src_ip
+
+    @src_ip.setter
+    def src_ip(self, new_srcip):
+        super(self.__class__, self.__class__).src_ip.fset(self, new_srcip)
+        self.windivertpkt.src_addr = new_srcip
+
+    @property
+    def dst_ip(self): return super(self.__class__, self.__class__).dst_ip
+
+    @dst_ip.setter
+    def dst_ip(self, new_dstip):
+        super(self.__class__, self.__class__).dst_ip.fset(self, new_dstip)
+        self.windivertpkt.dst_addr = new_dstip
+
 
 class Diverter(DiverterBase, WinUtilMixin):
 
@@ -369,6 +385,22 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         self.flush_dns()
         
+    def handle_icmp_packet2(self, pkt):
+        # Modify outgoing ICMP packet to target local Windows host which will reply to the ICMP messages.
+        # HACK: Can't intercept inbound ICMP server, but still works for now.
+
+        if not ((pkt.is_loopback and pkt.src_ip == self.loopback_ip and pkt.dst_ip == self.loopback_ip) or \
+           (pkt.src_ip == self.external_ip and pkt.dst_ip == self.external_ip)):
+
+            self.logger.info('Modifying %s ICMP packet:', 'loopback' if pkt.is_loopback else 'external')
+            self.logger.info('  from: %s -> %s', pkt.src_ip, pkt.dst_ip)
+
+            # Direct packet to the right interface IP address to avoid routing issues
+            pkt.dst_ip = self.loopback_ip if pkt.is_loopback else self.external_ip
+
+            self.logger.info('  to:   %s -> %s', pkt.src_ip, pkt.dst_ip)
+
+        return pkt
 
     def handle_icmp_packet(self, packet):
         # Modify outgoing ICMP packet to target local Windows host which will reply to the ICMP messages.
@@ -648,7 +680,8 @@ class Diverter(DiverterBase, WinUtilMixin):
             # Handle ICMP Packets
   
             if pkt.is_icmp:
-                windivertpkt = self.handle_icmp_packet(windivertpkt)
+                pkt = self.handle_icmp_packet2(pkt)
+                windivertpkt = pkt.windivertpkt
 
             #######################################################################
             # Handle TCP/UDP Packets
