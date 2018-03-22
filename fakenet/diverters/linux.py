@@ -856,6 +856,10 @@ class Diverter(DiverterBase, LinUtilMixin):
         hdr.data.sum = 0
         str(hdr)  # This has the side-effect of invoking dpkt.in_cksum() et al
 
+    def get_pid_comm(pkt):
+        return self.linux_get_pid_comm_by_endpoint(pkt.ipver, pkt.proto_name,
+                                                   pkt.src_ip, pkt.sport)
+
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(message)s')

@@ -518,8 +518,7 @@ class DiverterBase(fnconfig.Config):
 
                 if len(callbacks4):
                     # 3: Parse higher-layer protocol
-                    pid, comm = self.linux_get_pid_comm_by_endpoint(
-                        pkt.ipver, pkt.proto_name, pkt.src_ip, pkt.sport)
+                    pid, comm = self.get_pid_comm(pkt)
 
                     if pkt.proto_name == 'UDP':
                         fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
