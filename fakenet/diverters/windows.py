@@ -21,12 +21,16 @@ import subprocess
 
 
 class WindowsPacketCtx(fnpacket.PacketCtx):
-    def __init__(self, lbl, windivertpkt):
-        self.windivertpkt = windivertpkt
-        raw = windivertpkt.raw.tobytes()
+    def __init__(self, lbl, wdpkt, local_ips):
+        self.wdpkt = wdpkt
+        raw = wdpkt.raw.tobytes()
+
         super(WindowsPacketCtx, self).__init__(lbl, raw)
-        self.is_loopback = windivertpkt.is_loopback
-        self.is_inbound = windivertpkt.is_inbound
+
+        self.is_loopback0 = wdpkt.is_loopback
+        self.is_inbound0 = wdpkt.is_inbound
+        self.interface_string = 'loopback' if self.is_loopback0 else 'external'
+        self.direction_string = 'inbound' if self.is_inbound0 else 'outbound'
 
     # Packet mangling properties are extended here to also write the data to
     # the pydivert.Packet object. This is because there appears to be no way to
@@ -43,7 +47,7 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
     @src_ip.setter
     def src_ip(self, new_srcip):
         super(self.__class__, self.__class__).src_ip.fset(self, new_srcip)
-        self.windivertpkt.src_addr = new_srcip
+        self.wdpkt.src_addr = new_srcip
 
     # dst_ip overrides
 
@@ -53,7 +57,7 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
     @dst_ip.setter
     def dst_ip(self, new_dstip):
         super(self.__class__, self.__class__).dst_ip.fset(self, new_dstip)
-        self.windivertpkt.dst_addr = new_dstip
+        self.wdpkt.dst_addr = new_dstip
 
     # sport overrides
 
@@ -64,7 +68,7 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
     def sport(self, new_sport):
         super(self.__class__, self.__class__).sport.fset(self, new_sport)
         if self.proto_name:
-            self.windivertpkt.src_port = new_sport
+            self.wdpkt.src_port = new_sport
 
     # dport overrides
 
@@ -75,7 +79,7 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
     def dport(self, new_dport):
         super(self.__class__, self.__class__).dport.fset(self, new_dport)
         if self.proto_name:
-            self.windivertpkt.dst_port = new_dport
+            self.wdpkt.dst_port = new_dport
 
 
 class Diverter(DiverterBase, WinUtilMixin):
@@ -223,19 +227,6 @@ class Diverter(DiverterBase, WinUtilMixin):
         return None
     
     ###########################################################################
-    # Parse diverter settings and filters
-
-    def expand_ports(self, ports_list):
-        ports = []
-        for i in ports_list.split(','):
-            if '-' not in i:
-                ports.append(int(i))
-            else:
-                l,h = map(int, i.split('-'))
-                ports+= range(l,h+1)
-        return ports
-
-    ###########################################################################
     # Diverter controller functions
 
     def start(self):
@@ -255,34 +246,35 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         self.flush_dns()
 
-        self.diverter_thread = threading.Thread(target=self.divert_thread2)
+        self.diverter_thread = threading.Thread(target=self.divert_thread)
         self.diverter_thread.daemon = True
 
         self.diverter_thread.start()
 
     def get_pid_comm(self, pkt):
-        return None, None
+        conn_pid = self.get_pid_port_tcp(pkt.sport) if (pkt.proto_name == 'TCP') else self.get_pid_port_udp(pkt.sport)
+        process_name = self.get_process_image_filename(conn_pid) if conn_pid else None
+        return conn_pid, process_name
 
-    def divert_thread2(self):
+    def divert_thread(self):
         try:
             while True:
-                windivertpkt = self.handle.recv()
+                wdpkt = self.handle.recv()
 
-                if windivertpkt == None:
+                if wdpkt == None:
                     self.logger.error('ERROR: Can\'t handle packet.')
                     continue
 
-                pkt = WindowsPacketCtx('divert_thread2/handle_packet', windivertpkt)
+                pkt = WindowsPacketCtx('divert_thread', wdpkt, self.ip_addrs)
 
-                cb3 = [self.handle_icmp_packet2,]
-                cb4 = [self.handle_tcp_udp_packet2,]
-
+                cb3 = [self.handle_icmp_packet,]
+                cb4 = [self.handle_tcp_udp_packet,]
                 self.handle_pkt(pkt, cb3, cb4)
 
                 #######################################################################
                 # Attempt to send the processed packet
                 try:
-                    self.handle.send(pkt.windivertpkt)
+                    self.handle.send(pkt.wdpkt)
                 except Exception, e:
 
                     protocol = 'Unknown'
@@ -292,34 +284,12 @@ class Diverter(DiverterBase, WinUtilMixin):
                     elif pkt.is_icmp:
                         protocol = 'ICMP'
 
-                    interface_string = 'loopback' if pkt.is_loopback else 'external'
-                    direction_string = 'inbound' if pkt.is_inbound else 'outbound'
-
-                    self.logger.error('ERROR: Failed to send %s %s %s packet', direction_string, interface_string, protocol)
-
-                    if pkt.sport and pkt.dport:
-                        self.logger.error('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
-                    else:
-                        self.logger.error('  %s -> %s', pkt.src_ip, pkt.dst_ip)
-
+                    self.logger.error('ERROR: Failed to send %s %s %s packet', pkt.direction_string, pkt.interface_string, protocol)
+                    self.logger.error('  %s' % (pkt.hdrToStr()))
                     self.logger.error('  %s', e)
 
         except WindowsError as e:
             if e.winerror in [4, 6, 995]:
-                return
-            else:
-                raise
-
-    def divert_thread(self):
-
-        try:
-            while True:
-                packet = self.handle.recv()
-                self.handle_packet(packet)
-
-        # Handle errors related to shutdown process.      
-        except WindowsError as e:
-            if e.winerror in [4,6,995]:
                 return
             else:
                 raise
@@ -369,32 +339,28 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         self.flush_dns()
 
-    def handle_icmp_packet2(self, pkt):
+    def handle_icmp_packet(self, pkt):
         if pkt.is_icmp:
             # Modify outgoing ICMP packet to target local Windows host which will reply to the ICMP messages.
             # HACK: Can't intercept inbound ICMP server, but still works for now.
 
-            if not ((pkt.is_loopback and pkt.src_ip == self.loopback_ip and pkt.dst_ip == self.loopback_ip) or \
+            if not ((pkt.is_loopback0 and pkt.src_ip == self.loopback_ip and pkt.dst_ip == self.loopback_ip) or \
                (pkt.src_ip == self.external_ip and pkt.dst_ip == self.external_ip)):
 
-                self.logger.info('Modifying %s ICMP packet:', 'loopback' if pkt.is_loopback else 'external')
+                self.logger.info('Modifying %s ICMP packet:', 'loopback' if pkt.is_loopback0 else 'external')
                 self.logger.info('  from: %s -> %s', pkt.src_ip, pkt.dst_ip)
 
                 # Direct packet to the right interface IP address to avoid routing issues
-                pkt.dst_ip = self.loopback_ip if pkt.is_loopback else self.external_ip
+                pkt.dst_ip = self.loopback_ip if pkt.is_loopback0 else self.external_ip
 
                 self.logger.info('  to:   %s -> %s', pkt.src_ip, pkt.dst_ip)
 
         return pkt
 
-    def check_black_white_list(self, packet, protocol, default_listener_port, blacklist_ports, conn_pid, process_name):
+    def check_black_white_list(self, pkt, protocol, default_listener_port, blacklist_ports, conn_pid, process_name):
         """Return True if the packet matches a blacklist or does not match a
         whitelist
         """
-
-        # Meta strings
-        interface_string = 'loopback' if packet.is_loopback else 'external'
-        direction_string = 'inbound' if packet.is_inbound else 'outbound'
 
         # Protocol specific filters
         diverted_ports         = self.diverted_ports.get(protocol)
@@ -405,57 +371,53 @@ class Diverter(DiverterBase, WinUtilMixin):
         port_execute           = self.port_execute.get(protocol)
 
         # Check host blacklist
-        if packet.dst_addr in self.blacklist_hosts:
-            self.logger.debug('Ignoring %s %s %s request packet to %s in the host blacklist.', direction_string, interface_string, protocol, packet.dst_addr)
-            self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)   
+        if pkt.dst_ip in self.blacklist_hosts:
+            self.logger.debug('Ignoring %s %s %s request packet to %s in the host blacklist.', pkt.direction_string, pkt.interface_string, protocol, pkt.dst_ip)
+            self.logger.debug('  %s' % (pkt.hdrToStr()))
             return True
 
         # Check the port host whitelist
-        if packet.dst_addr and port_host_whitelist and \
-            ((packet.dst_port in port_host_whitelist and not packet.dst_addr in port_host_whitelist[packet.dst_port]) or\
-              (default_listener_port and default_listener_port in port_host_whitelist and not packet.dst_addr in port_host_whitelist[default_listener_port]))  :
-            self.logger.debug('Ignoring %s %s %s request packet to %s not in the listener host whitelist.', direction_string, interface_string, protocol, packet.dst_addr)
-            self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+        if pkt.dst_ip and port_host_whitelist and \
+            ((pkt.dport in port_host_whitelist and not pkt.dst_ip in port_host_whitelist[pkt.dport]) or\
+              (default_listener_port and default_listener_port in port_host_whitelist and not pkt.dst_ip in port_host_whitelist[default_listener_port]))  :
+            self.logger.debug('Ignoring %s %s %s request packet to %s not in the listener host whitelist.', pkt.direction_string, pkt.interface_string, protocol, pkt.dst_ip)
+            self.logger.debug('  %s' % (pkt.hdrToStr()))
             return True
 
         # Check the port host blacklist
-        if packet.dst_addr and port_host_blacklist and \
-            ((packet.dst_port in port_host_blacklist and packet.dst_addr in port_host_blacklist[packet.dst_port]) or\
-              (default_listener_port and default_listener_port in port_host_blacklist and packet.dst_addr in port_host_blacklist[default_listener_port]))  :
-            self.logger.debug('Ignoring %s %s %s request packet to %s in the listener host blacklist.', direction_string, interface_string, protocol, packet.dst_addr)
-            self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+        if pkt.dst_ip and port_host_blacklist and \
+            ((pkt.dport in port_host_blacklist and pkt.dst_ip in port_host_blacklist[pkt.dport]) or\
+              (default_listener_port and default_listener_port in port_host_blacklist and pkt.dst_ip in port_host_blacklist[default_listener_port]))  :
+            self.logger.debug('Ignoring %s %s %s request packet to %s in the listener host blacklist.', pkt.direction_string, pkt.interface_string, protocol, pkt.dst_ip)
+            self.logger.debug('  %s' % (pkt.hdrToStr()))
             return True
 
         if process_name:
             # Check process blacklist
             if process_name in self.blacklist_processes:
-                self.logger.debug('Ignoring %s %s %s request packet from process %s in the process blacklist.', direction_string, interface_string, protocol, process_name)
-                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)                
+                self.logger.debug('Ignoring %s %s %s request packet from process %s in the process blacklist.', pkt.direction_string, pkt.interface_string, protocol, process_name)
+                self.logger.debug('  %s' % (pkt.hdrToStr()))
                 return True
 
             # Check the port process whitelist
             if port_process_whitelist and \
-                ((packet.dst_port in port_process_whitelist and not process_name in port_process_whitelist[packet.dst_port]) or\
+                ((pkt.dport in port_process_whitelist and not process_name in port_process_whitelist[pkt.dport]) or\
                   (default_listener_port and default_listener_port in port_process_whitelist and not process_name in port_process_whitelist[default_listener_port]))  :
-                self.logger.debug('Ignoring %s %s %s request packet from process %s not in the listener process whitelist.', direction_string, interface_string, protocol, process_name)
-                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+                self.logger.debug('Ignoring %s %s %s request packet from process %s not in the listener process whitelist.', pkt.direction_string, pkt.interface_string, protocol, process_name)
+                self.logger.debug('  %s' % (pkt.hdrToStr()))
                 return True
 
             # Check the port process blacklist
             if port_process_blacklist and \
-                ((packet.dst_port in port_process_blacklist and process_name in port_process_blacklist[packet.dst_port]) or\
+                ((pkt.dport in port_process_blacklist and process_name in port_process_blacklist[pkt.dport]) or\
                   (default_listener_port and default_listener_port in port_process_blacklist and process_name in port_process_blacklist[default_listener_port]))  :
-                self.logger.debug('Ignoring %s %s %s request packet from process %s in the listener process blacklist.', direction_string, interface_string, protocol, process_name)
-                self.logger.debug('  %s:%d -> %s:%d', packet.src_addr, packet.src_port, packet.dst_addr, packet.dst_port)
+                self.logger.debug('Ignoring %s %s %s request packet from process %s in the listener process blacklist.', pkt.direction_string, pkt.interface_string, protocol, process_name)
+                self.logger.debug('  %s' % (pkt.hdrToStr()))
                 return True
 
         return False
 
-    def handle_tcp_udp_packet2(self, pkt, unused1, unused2):
-
-        # Meta strings
-        interface_string = 'loopback' if pkt.is_loopback else 'external'
-        direction_string = 'inbound' if pkt.is_inbound else 'outbound'
+    def handle_tcp_udp_packet(self, pkt, pid, comm):
 
         # Protocol specific filters
         protocol = pkt.proto_name
@@ -468,7 +430,7 @@ class Diverter(DiverterBase, WinUtilMixin):
         port_host_blacklist    = self.port_host_blacklist.get(protocol)
         port_execute           = self.port_execute.get(protocol)
 
-        bIsLoopback = (pkt.is_loopback and
+        bIsLoopback = (pkt.is_loopback0 and
                        pkt.src_ip == self.loopback_ip and
                        pkt.dst_ip == self.loopback_ip)
 
@@ -483,7 +445,7 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         # Pass as-is if the source or destination port is in the blacklist
         if bIsBlacklistedPort:
-            self.logger.debug('Forwarding blacklisted port %s %s %s packet:', direction_string, interface_string, protocol)
+            self.logger.debug('Forwarding blacklisted port %s %s %s packet:', pkt.direction_string, pkt.interface_string, protocol)
             self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
             return pkt
 
@@ -505,15 +467,15 @@ class Diverter(DiverterBase, WinUtilMixin):
         ############################################################
         if bDivertLocally:
             # Find which process ID is sending the request
-            conn_pid = self.get_pid_port_tcp(pkt.sport) if (pkt.proto_name == 'TCP') else self.get_pid_port_udp(pkt.sport)
-            process_name = self.get_process_image_filename(conn_pid) if conn_pid else None
+            conn_pid = pid
+            process_name = comm
 
             # If the packet is in a blacklist, or is not in a whitelist, pass it as-is
-            if self.check_black_white_list(pkt.windivertpkt, protocol, default_listener_port, blacklist_ports, conn_pid, process_name):
+            if self.check_black_white_list(pkt, protocol, default_listener_port, blacklist_ports, pid, process_name):
                 return pkt
 
             # Make sure you are not intercepting packets from one of the FakeNet listeners
-            if conn_pid and os.getpid() == conn_pid:
+            if pid and (pid == self.pid):
 
                 # HACK: FTP Passive Mode Handling
                 # Check if a listener is initiating a new connection from a non-diverted port and add it to blacklist. This is done to handle a special use-case
@@ -521,14 +483,14 @@ class Diverter(DiverterBase, WinUtilMixin):
                 # NOTE: Additional testing can be performed to check if this is actually a SYN packet
                 if pkt.dst_ip == self.external_ip and pkt.src_ip == self.external_ip and not pkt.sport in diverted_ports and not pkt.dport in diverted_ports:
 
-                    self.logger.debug('Listener initiated connection %s %s %s:', direction_string, interface_string, protocol)
+                    self.logger.debug('Listener initiated connection %s %s %s:', pkt.direction_string, pkt.interface_string, protocol)
                     self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
                     self.logger.debug('  Blacklisted port %d', pkt.sport)
 
                     blacklist_ports.append(pkt.sport)
 
                 else:
-                    self.logger.debug('Skipping %s %s %s listener packet:', direction_string, interface_string, protocol)
+                    self.logger.debug('Skipping %s %s %s listener packet:', pkt.direction_string, pkt.interface_string, protocol)
                     self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
 
                 return pkt
@@ -549,10 +511,10 @@ class Diverter(DiverterBase, WinUtilMixin):
                 logger_level = self.logger.info
 
                 # Execute command
-                if conn_pid and port_execute and (pkt.dport in port_execute or (default_listener_port and default_listener_port in port_execute)):
+                if pid and port_execute and (pkt.dport in port_execute or (default_listener_port and default_listener_port in port_execute)):
 
 
-                    execute_cmd = port_execute[pkt.dport if pkt.dport in diverted_ports else default_listener_port].format(pid = conn_pid, 
+                    execute_cmd = port_execute[pkt.dport if pkt.dport in diverted_ports else default_listener_port].format(pid = pid, 
                                                                            procname = process_name, 
                                                                            src_addr = pkt.src_ip, 
                                                                            src_port = pkt.sport,
@@ -564,11 +526,11 @@ class Diverter(DiverterBase, WinUtilMixin):
                     self.execute_detached(execute_cmd)       
 
 
-            logger_level('Modifying %s %s %s request packet:', direction_string, interface_string, protocol)
+            logger_level('Modifying %s %s %s request packet:', pkt.direction_string, pkt.interface_string, protocol)
             logger_level('  from: %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
 
             # Direct packet to the right interface IP address to avoid routing issues
-            pkt.dst_ip = self.loopback_ip if pkt.is_loopback else self.external_ip
+            pkt.dst_ip = self.loopback_ip if pkt.is_loopback0 else self.external_ip
 
             # Direct packet to an existing or a default listener
             # check if 'hidden' config is set. If so, the packet is 
@@ -580,8 +542,8 @@ class Diverter(DiverterBase, WinUtilMixin):
 
             logger_level('  to:   %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
 
-            if conn_pid:
-                logger_level('  pid:  %d name: %s', conn_pid, process_name if process_name else 'Unknown')
+            if pid:
+                logger_level('  pid:  %d name: %s', pid, process_name if process_name else 'Unknown')
             return pkt
 
 
@@ -594,16 +556,16 @@ class Diverter(DiverterBase, WinUtilMixin):
             # redirected to the original source
 
             # Find which process ID is sending the request
-            conn_pid = self.get_pid_port_tcp(pkt.dport) if (pkt.proto_name == 'TCP') else self.get_pid_port_udp(pkt.dport)
-            process_name = self.get_process_image_filename(conn_pid)
+            pid = self.get_pid_port_tcp(pkt.dport) if (pkt.proto_name == 'TCP') else self.get_pid_port_udp(pkt.dport)
+            process_name = self.get_process_image_filename(pid)
 
             if not pkt.dport in self.sessions:
-                self.logger.debug('Unknown %s %s %s response packet:', direction_string, interface_string, protocol)
+                self.logger.debug('Unknown %s %s %s response packet:', pkt.direction_string, pkt.interface_string, protocol)
                 self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
 
             # Restore original target IP address from the cache
             else:
-                self.logger.debug('Modifying %s %s %s response packet:', direction_string, interface_string, protocol)
+                self.logger.debug('Modifying %s %s %s response packet:', pkt.direction_string, pkt.interface_string, protocol)
                 self.logger.debug('  from: %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
 
                 # Restore original target IP address based on destination port
@@ -611,8 +573,8 @@ class Diverter(DiverterBase, WinUtilMixin):
 
                 self.logger.debug('  to:   %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
 
-            if conn_pid:
-                self.logger.debug('  pid:  %d name: %s', conn_pid, process_name if process_name else 'Unknown')
+            if pid:
+                self.logger.debug('  pid:  %d name: %s', pid, process_name if process_name else 'Unknown')
 
             return pkt
 
@@ -629,7 +591,7 @@ class Diverter(DiverterBase, WinUtilMixin):
         # forward to proxy
         pkt.dport = default_listener_port
 
-        self.logger.debug('Redirected %s %s %s packet to proxy:', direction_string, interface_string, protocol)
+        self.logger.debug('Redirected %s %s %s packet to proxy:', pkt.direction_string, pkt.interface_string, protocol)
         self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
 
         return pkt

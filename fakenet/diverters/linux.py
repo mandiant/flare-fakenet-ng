@@ -17,9 +17,24 @@ from netfilterqueue import NetfilterQueue
 
 
 class LinuxPacketCtx(fnpacket.PacketCtx):
-    def __init__(self, lbl, raw, nfqpkt):
-        super(LinuxPacketCtx, self).__init__(lbl, raw)
+    def __init__(self, lbl, nfqpkt, local_ips):
         self.nfqpkt = nfqpkt
+        raw = nfqpkt.get_payload()
+
+        super(LinuxPacketCtx, self).__init__(lbl, raw)
+
+        self.is_inbound0 = None
+        self.is_loopback0 = None
+        self.interface_string = 'unknown'
+        self.direction_string = 'unknown'
+
+        if self.ipver and self.ipver in local_ips:
+            self.is_loopback0 = (self._src_ip0.startswith('127.') and
+                                self._dst_ip0.startswith('127.'))
+            self.is_inbound0 = ((self._src_ip0 not in local_ips[self.ipver]) and
+                               (self._dst_ip0 in local_ips[self.ipver]))
+            self.interface_string = 'loopback' if self.is_loopback0 else 'external'
+            self.direction_string = 'inbound' if self.is_inbound0 else 'outbound'
 
 
 class Diverter(DiverterBase, LinUtilMixin):
@@ -315,7 +330,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         hard-coded IP addresses in MultiHost mode.
         """
         try:
-            pkt = LinuxPacketCtx('handle_nonlocal', nfqpkt.get_payload(), nfqpkt)
+            pkt = LinuxPacketCtx('handle_nonlocal', nfqpkt, self.ip_addrs)
             newraw = self.handle_pkt(pkt, self.nonlocal_net_cbs, [])
             if newraw:
                 nfqpkt.set_payload(newraw)
@@ -344,7 +359,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         No return value.
         """
         try:
-            pkt = LinuxPacketCtx('handle_incoming', nfqpkt.get_payload(), nfqpkt)
+            pkt = LinuxPacketCtx('handle_incoming', nfqpkt, self.ip_addrs)
             newraw = self.handle_pkt(pkt, self.incoming_net_cbs,
                                      self.incoming_trans_cbs)
             if newraw:
@@ -371,7 +386,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         No return value.
         """
         try:
-            pkt = LinuxPacketCtx('handle_outgoing', nfqpkt.get_payload(), nfqpkt)
+            pkt = LinuxPacketCtx('handle_outgoing', nfqpkt, self.ip_addrs)
             newraw = self.handle_pkt(pkt, self.outgoing_net_cbs,
                                      self.outgoing_trans_cbs)
             if newraw:
@@ -856,7 +871,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         hdr.data.sum = 0
         str(hdr)  # This has the side-effect of invoking dpkt.in_cksum() et al
 
-    def get_pid_comm(pkt):
+    def get_pid_comm(self, pkt):
         return self.linux_get_pid_comm_by_endpoint(pkt.ipver, pkt.proto_name,
                                                    pkt.src_ip, pkt.sport)
 
