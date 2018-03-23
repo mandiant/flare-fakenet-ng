@@ -371,6 +371,23 @@ class DiverterBase(fnconfig.Config):
         return cmd
 
     def parse_diverter_config(self):
+        # SingleHost vs MultiHost mode
+        self.network_mode = 'SingleHost'  # Default
+        self.single_host_mode = True
+        if self.is_configured('networkmode'):
+            self.network_mode = self.getconfigval('networkmode')
+            available_modes = ['singlehost', 'multihost']
+
+            # Constrain argument values
+            if self.network_mode.lower() not in available_modes:
+                self.logger.error('NetworkMode must be one of %s' %
+                                  (available_modes))
+                sys.exit(1)
+
+            # Adjust previously assumed mode if user specifies MultiHost
+            if self.network_mode.lower() == 'multihost':
+                self.single_host_mode = False
+
         if self.getconfigval('processwhitelist') and self.getconfigval('processblacklist'):
             self.logger.error('ERROR: Diverter can\'t have both process ' +
                               'whitelist and blacklist.')

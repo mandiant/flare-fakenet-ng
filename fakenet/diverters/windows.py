@@ -88,7 +88,7 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         self.init_base(diverter_config, listeners_config, ip_addrs, logging_level)
 
-        if self.getconfigval('networkmode').lower() != 'singlehost':
+        if not self.single_host_mode:
             self.logger.error('Windows diverter currently only supports SingleHost mode')
             sys.exit(1)
 

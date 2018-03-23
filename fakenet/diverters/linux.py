@@ -68,41 +68,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                     dbg_lvl |= DLABELS_INV[label]
         self.set_debug_level(dbg_lvl, DLABELS)
 
-        # SingleHost vs MultiHost mode
-        mode = 'SingleHost'  # Default
-        self.single_host_mode = True
-        if self.is_configured('networkmode'):
-            mode = self.getconfigval('networkmode')
-            available_modes = ['singlehost', 'multihost']
-
-            # Constrain argument values
-            if mode.lower() not in available_modes:
-                self.logger.error('NetworkMode must be one of %s' %
-                                  (available_modes))
-                sys.exit(1)
-
-            # Adjust previously assumed mode if user specifies MultiHost
-            if mode.lower() == 'multihost':
-                self.single_host_mode = False
-
-        if self.single_host_mode:
-            interactive = False
-            while interactive:
-                prompt = ('You acknowledge that SingleHost mode on Linux is ' +
-                          'experimental and not functionally complete? ' +
-                          '[Y/N] ')
-                acknowledgement = raw_input(prompt)
-                okay = ['y', 'yes', 'yeah', 'sure', 'okay', 'whatever']
-                nope = ['n', 'no', 'nah', 'nope']
-                if acknowledgement.lower() in okay:
-                    self.logger.info('Okay, we\'ll take it for a spin!')
-                    break
-                elif acknowledgement.lower() in nope:
-                    self.logger.error('User opted out of crowd-sourced ' +
-                                      'alpha testing program ;-)')
-                    sys.exit(1)
-
-        self.logger.info('Running in %s mode' % (mode))
+        self.logger.info('Running in %s mode' % (self.network_mode))
 
         self.nfqueues = list()
 
