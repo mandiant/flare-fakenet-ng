@@ -627,6 +627,129 @@ class DiverterBase(fnconfig.Config):
 
         return None
 
+    def check_should_ignore(self, pkt, pid, comm):
+
+        src_ip = pkt.src_ip0
+        sport = pkt.sport0
+        dst_ip = pkt.dst_ip0
+        dport = pkt.dport0
+
+        # SingleHost mode checks
+        if self.single_host_mode:
+            if comm:
+                # D: Check process blacklist
+                if comm in self.blacklist_processes:
+                    self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
+                                'in the process blacklist.') % (pkt.proto_name,
+                                comm))
+                    self.pdebug(DIGN, '  %s' %
+                                (pkt.hdrToStr()))
+                    return True
+
+                # G: Check process whitelist
+                elif (len(self.whitelist_processes) and (comm not in
+                      self.whitelist_processes)):
+                    self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
+                                'not in the process whitelist.') % (pkt.proto_name,
+                                comm))
+                    self.pdebug(DIGN, '  %s' %
+                                (pkt.hdrToStr()))
+                    return True
+
+                # F: Check per-listener blacklisted process list
+                elif ((pkt.proto_name in self.port_process_blacklist) and
+                        (dport in self.port_process_blacklist[pkt.proto_name])):
+                    # If program DOES match blacklist
+                    if comm in self.port_process_blacklist[pkt.proto_name][dport]:
+                        self.pdebug(DIGN, ('Ignoring %s request packet from ' +
+                                    'process %s in the listener process ' +
+                                    'blacklist.') % (pkt.proto_name, comm))
+                        self.pdebug(DIGN, '  %s' %
+                                    (pkt.hdrToStr()))
+
+                    return True
+
+                # E: Check per-listener whitelisted process list
+                elif ((pkt.proto_name in self.port_process_whitelist) and
+                        (dport in self.port_process_whitelist[pkt.proto_name])):
+                    # If program does NOT match whitelist
+                    if not comm in self.port_process_whitelist[pkt.proto_name][dport]:
+                        self.pdebug(DIGN, ('Ignoring %s request packet from ' +
+                                    'process %s not in the listener process ' +
+                                    'whitelist.') % (pkt.proto_name, comm))
+                        self.pdebug(DIGN, '  %s' %
+                                    (pkt.hdrToStr()))
+                        return True
+
+        # MultiHost mode checks
+        else:
+            pass  # None as of yet
+
+        # Checks independent of mode
+
+        # G: Forwarding blacklisted port
+        if set(self.blacklist_ports[pkt.proto_name]).intersection([sport, dport]):
+            self.pdebug(DIGN, 'Forwarding blacklisted port %s packet:' %
+                        (pkt.proto_name))
+            self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
+            return True
+
+        # A: Check host blacklist
+        global_host_blacklist = self.getconfigval('hostblacklist')
+        if global_host_blacklist and dst_ip in global_host_blacklist:
+            self.pdebug(DIGN, ('Ignoring %s packet to %s in the host ' +
+                        'blacklist.') % (pkt.proto_name, dst_ip))
+            self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
+            return True
+
+        # B: Check the port host whitelist
+        if ((pkt.proto_name in self.port_host_whitelist) and
+                (dport in self.port_host_whitelist[pkt.proto_name])):
+            # If host does NOT match whitelist
+            if not dst_ip in self.port_host_whitelist[pkt.proto_name][dport]:
+                self.pdebug(DIGN, ('Ignoring %s request packet to %s not in ' +
+                            'the listener host whitelist.') % (pkt.proto_name,
+                            dst_ip))
+                self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
+                return True
+
+        # C: Check the port host blacklist
+        if ((pkt.proto_name in self.port_host_blacklist) and
+                (dport in self.port_host_blacklist[pkt.proto_name])):
+            # If host DOES match blacklist
+            if dst_ip in self.port_host_blacklist[pkt.proto_name][dport]:
+                self.pdebug(DIGN, ('Ignoring %s request packet to %s in the ' +
+                            'listener host blacklist.') % (pkt.proto_name, dst_ip))
+                self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
+                return True
+
+        # D: Duplicated from diverters/windows.py:
+        # HACK: FTP Passive Mode Handling
+        # Check if a listener is initiating a new connection from a
+        # non-diverted port and add it to blacklist. This is done to handle a
+        # special use-case of FTP ACTIVE mode where FTP server is initiating a
+        # new connection for which the response may be redirected to a default
+        # listener.  NOTE: Additional testing can be performed to check if this
+        # is actually a SYN packet
+        if pid == self.pid:
+            if (
+                ((dst_ip in self.ip_addrs[pkt.ipver]) and
+                (not dst_ip.startswith('127.'))) and
+                ((src_ip in self.ip_addrs[pkt.ipver]) and
+                (not dst_ip.startswith('127.'))) and
+                (not set([sport, dport]).intersection(self.diverted_ports[pkt.proto_name]))
+                ):
+
+                self.pdebug(DIGN | DFTP, 'Listener initiated %s connection' %
+                            (pkt.proto_name))
+                self.pdebug(DIGN | DFTP, '  %s' % (pkt.hdrToStr()))
+                self.pdebug(DIGN | DFTP, '  Blacklisting port %d' % (sport))
+                self.blacklist_ports[pkt.proto_name].append(sport)
+
+            return True
+
+        return False
+
 def test_redir_logic(diverter_factory):
     diverter_config = dict()
     diverter_config['dumppackets'] = 'Yes'

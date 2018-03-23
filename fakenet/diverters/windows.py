@@ -357,66 +357,6 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         return pkt
 
-    def check_black_white_list(self, pkt, protocol, default_listener_port, blacklist_ports, conn_pid, process_name):
-        """Return True if the packet matches a blacklist or does not match a
-        whitelist
-        """
-
-        # Protocol specific filters
-        diverted_ports         = self.diverted_ports.get(protocol)
-        port_process_whitelist = self.port_process_whitelist.get(protocol)
-        port_process_blacklist = self.port_process_blacklist.get(protocol)
-        port_host_whitelist    = self.port_host_whitelist.get(protocol)
-        port_host_blacklist    = self.port_host_blacklist.get(protocol)
-        port_execute           = self.port_execute.get(protocol)
-
-        # Check host blacklist
-        if pkt.dst_ip in self.blacklist_hosts:
-            self.logger.debug('Ignoring %s %s %s request packet to %s in the host blacklist.', pkt.direction_string, pkt.interface_string, protocol, pkt.dst_ip)
-            self.logger.debug('  %s' % (pkt.hdrToStr()))
-            return True
-
-        # Check the port host whitelist
-        if pkt.dst_ip and port_host_whitelist and \
-            ((pkt.dport in port_host_whitelist and not pkt.dst_ip in port_host_whitelist[pkt.dport]) or\
-              (default_listener_port and default_listener_port in port_host_whitelist and not pkt.dst_ip in port_host_whitelist[default_listener_port]))  :
-            self.logger.debug('Ignoring %s %s %s request packet to %s not in the listener host whitelist.', pkt.direction_string, pkt.interface_string, protocol, pkt.dst_ip)
-            self.logger.debug('  %s' % (pkt.hdrToStr()))
-            return True
-
-        # Check the port host blacklist
-        if pkt.dst_ip and port_host_blacklist and \
-            ((pkt.dport in port_host_blacklist and pkt.dst_ip in port_host_blacklist[pkt.dport]) or\
-              (default_listener_port and default_listener_port in port_host_blacklist and pkt.dst_ip in port_host_blacklist[default_listener_port]))  :
-            self.logger.debug('Ignoring %s %s %s request packet to %s in the listener host blacklist.', pkt.direction_string, pkt.interface_string, protocol, pkt.dst_ip)
-            self.logger.debug('  %s' % (pkt.hdrToStr()))
-            return True
-
-        if process_name:
-            # Check process blacklist
-            if process_name in self.blacklist_processes:
-                self.logger.debug('Ignoring %s %s %s request packet from process %s in the process blacklist.', pkt.direction_string, pkt.interface_string, protocol, process_name)
-                self.logger.debug('  %s' % (pkt.hdrToStr()))
-                return True
-
-            # Check the port process whitelist
-            if port_process_whitelist and \
-                ((pkt.dport in port_process_whitelist and not process_name in port_process_whitelist[pkt.dport]) or\
-                  (default_listener_port and default_listener_port in port_process_whitelist and not process_name in port_process_whitelist[default_listener_port]))  :
-                self.logger.debug('Ignoring %s %s %s request packet from process %s not in the listener process whitelist.', pkt.direction_string, pkt.interface_string, protocol, process_name)
-                self.logger.debug('  %s' % (pkt.hdrToStr()))
-                return True
-
-            # Check the port process blacklist
-            if port_process_blacklist and \
-                ((pkt.dport in port_process_blacklist and process_name in port_process_blacklist[pkt.dport]) or\
-                  (default_listener_port and default_listener_port in port_process_blacklist and process_name in port_process_blacklist[default_listener_port]))  :
-                self.logger.debug('Ignoring %s %s %s request packet from process %s in the listener process blacklist.', pkt.direction_string, pkt.interface_string, protocol, process_name)
-                self.logger.debug('  %s' % (pkt.hdrToStr()))
-                return True
-
-        return False
-
     def handle_tcp_udp_packet(self, pkt, pid, comm):
 
         # Protocol specific filters
@@ -443,7 +383,7 @@ class Diverter(DiverterBase, WinUtilMixin):
             self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
             return pkt
 
-        # Pass as-is if the source or destination port is in the blacklist
+        # H: Pass as-is if the source or destination port is in the blacklist
         if bIsBlacklistedPort:
             self.logger.debug('Forwarding blacklisted port %s %s %s packet:', pkt.direction_string, pkt.interface_string, protocol)
             self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
@@ -471,7 +411,7 @@ class Diverter(DiverterBase, WinUtilMixin):
             process_name = comm
 
             # If the packet is in a blacklist, or is not in a whitelist, pass it as-is
-            if self.check_black_white_list(pkt, protocol, default_listener_port, blacklist_ports, pid, process_name):
+            if self.check_should_ignore(pkt, pid, process_name):
                 return pkt
 
             # Make sure you are not intercepting packets from one of the FakeNet listeners
