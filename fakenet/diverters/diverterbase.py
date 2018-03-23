@@ -637,7 +637,7 @@ class DiverterBase(fnconfig.Config):
         # SingleHost mode checks
         if self.single_host_mode:
             if comm:
-                # D: Check process blacklist
+                # Check process blacklist
                 if comm in self.blacklist_processes:
                     self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
                                 'in the process blacklist.') % (pkt.proto_name,
@@ -646,7 +646,7 @@ class DiverterBase(fnconfig.Config):
                                 (pkt.hdrToStr()))
                     return True
 
-                # G: Check process whitelist
+                # Check process whitelist
                 elif (len(self.whitelist_processes) and (comm not in
                       self.whitelist_processes)):
                     self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
@@ -656,7 +656,7 @@ class DiverterBase(fnconfig.Config):
                                 (pkt.hdrToStr()))
                     return True
 
-                # F: Check per-listener blacklisted process list
+                # Check per-listener blacklisted process list
                 elif ((pkt.proto_name in self.port_process_blacklist) and
                         (dport in self.port_process_blacklist[pkt.proto_name])):
                     # If program DOES match blacklist
@@ -669,7 +669,7 @@ class DiverterBase(fnconfig.Config):
 
                     return True
 
-                # E: Check per-listener whitelisted process list
+                # Check per-listener whitelisted process list
                 elif ((pkt.proto_name in self.port_process_whitelist) and
                         (dport in self.port_process_whitelist[pkt.proto_name])):
                     # If program does NOT match whitelist
@@ -687,14 +687,14 @@ class DiverterBase(fnconfig.Config):
 
         # Checks independent of mode
 
-        # G: Forwarding blacklisted port
+        # Forwarding blacklisted port
         if set(self.blacklist_ports[pkt.proto_name]).intersection([sport, dport]):
             self.pdebug(DIGN, 'Forwarding blacklisted port %s packet:' %
                         (pkt.proto_name))
             self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
             return True
 
-        # A: Check host blacklist
+        # Check host blacklist
         global_host_blacklist = self.getconfigval('hostblacklist')
         if global_host_blacklist and dst_ip in global_host_blacklist:
             self.pdebug(DIGN, ('Ignoring %s packet to %s in the host ' +
@@ -702,7 +702,7 @@ class DiverterBase(fnconfig.Config):
             self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
             return True
 
-        # B: Check the port host whitelist
+        # Check the port host whitelist
         if ((pkt.proto_name in self.port_host_whitelist) and
                 (dport in self.port_host_whitelist[pkt.proto_name])):
             # If host does NOT match whitelist
@@ -713,7 +713,7 @@ class DiverterBase(fnconfig.Config):
                 self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
                 return True
 
-        # C: Check the port host blacklist
+        # Check the port host blacklist
         if ((pkt.proto_name in self.port_host_blacklist) and
                 (dport in self.port_host_blacklist[pkt.proto_name])):
             # If host DOES match blacklist
@@ -723,7 +723,7 @@ class DiverterBase(fnconfig.Config):
                 self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
                 return True
 
-        # D: Duplicated from diverters/windows.py:
+        # Duplicated from diverters/windows.py:
         # HACK: FTP Passive Mode Handling
         # Check if a listener is initiating a new connection from a
         # non-diverted port and add it to blacklist. This is done to handle a
