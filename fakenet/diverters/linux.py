@@ -690,36 +690,6 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return (not a and not d) or (not c and not d)
 
-    def mangle_dstip(self, hdr, proto_name, dstip, newdstip):
-        """Mangle destination IP for selected outgoing packets."""
-        hdr.dst = socket.inet_aton(newdstip)
-        self._calc_csums(hdr)
-        return hdr
-
-    def mangle_srcip(self, hdr, proto_name, src_ip, new_srcip):
-        """Mangle source IP for selected incoming packets."""
-        hdr.src = socket.inet_aton(new_srcip)
-        self._calc_csums(hdr)
-        return hdr
-
-    def mangle_dstport(self, hdr, proto_name, dstport, newdstport):
-        """Mangle destination port for selected incoming packets."""
-        hdr.data.dport = newdstport
-        self._calc_csums(hdr)
-        return hdr
-
-    def mangle_srcport(self, hdr, proto_name, srcport, newsrcport):
-        """Mangle source port for selected outgoing packets."""
-        hdr.data.sport = newsrcport
-        self._calc_csums(hdr)
-        return hdr
-
-    def _calc_csums(self, hdr):
-        """The roundabout dance of inducing dpkt to recalculate checksums."""
-        hdr.sum = 0
-        hdr.data.sum = 0
-        str(hdr)  # This has the side-effect of invoking dpkt.in_cksum() et al
-
     def get_pid_comm(self, pkt):
         return self.linux_get_pid_comm_by_endpoint(pkt.ipver, pkt.proto_name,
                                                    pkt.src_ip, pkt.sport)
