@@ -587,9 +587,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
             self.delete_stale_port_fwd_key(pkt.skey)
 
-        if not (pkt.sport in self.sessions and self.sessions[pkt.sport] == (pkt.dst_ip,
-                dport)):
-            self.sessions[pkt.sport] = (pkt.dst_ip, dport)
+        if crit.first_packet_new_session:
+            self.addSession(pkt)
 
             if pid and (pkt.dst_ip in self.ip_addrs[pkt.ipver]):
                 cmd = self.build_cmd(pkt.proto_name, pid, comm, pkt.src_ip,

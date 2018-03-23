@@ -367,28 +367,10 @@ class Diverter(DiverterBase, WinUtilMixin):
         port_host_blacklist    = self.port_host_blacklist.get(protocol)
         port_execute           = self.port_execute.get(protocol)
 
-        # On Windows, which only operates in SingleHost mode, let the loopback
-        # packets fall where they may...
-        bIsLoopback = (pkt.is_loopback0 and
-                       pkt.src_ip == self.loopback_ip and
-                       pkt.dst_ip == self.loopback_ip)
-        # Pass as-is if the packet is a loopback packet
-        if bIsLoopback:
-            self.logger.debug('Ignoring loopback packet')
-            self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
-            return pkt
-
         # Criteria to divert a packet to a local listener:
         # 1) Divert outbound packets only
         # 2) Make sure we are not diverting response packet based on the source port
         # 3) Make sure the destination port is a known diverted port or we have a default listener port defined
-
-        # A: There is a default listener for this protocol (default != None)
-        bDivertLocally = (bound_ports and
-                          not pkt.sport in bound_ports and
-                          (pkt.dport in bound_ports or
-                           default != None))
-
 
         # Check to see if it is a listener reply needing fixups
         bIsListenerReply = bound_ports and pkt.sport in bound_ports
@@ -396,7 +378,8 @@ class Diverter(DiverterBase, WinUtilMixin):
         ############################################################
         # If a packet must be diverted to a local listener
         ############################################################
-        if bDivertLocally:
+        # A: There is a default listener for this protocol (default != None)
+        if crit.win_divert_locally:
             # If the packet is in a blacklist, or is not in a whitelist, pass it as-is
             if self.check_should_ignore(pkt, pid, process_name):
                 return pkt
@@ -408,10 +391,9 @@ class Diverter(DiverterBase, WinUtilMixin):
             logger_level = self.logger.debug
 
             # First packet in a new session
-            if not (pkt.sport in self.sessions and self.sessions[pkt.sport] == (pkt.dst_ip, pkt.dport)):
-
+            if crit.first_packet_new_session:
                 # Cache original target IP address based on source port
-                self.sessions[pkt.sport] = (pkt.dst_ip, pkt.dport)
+                self.addSession(pkt)
 
                 # Override log level to display all information on info level
                 logger_level = self.logger.info

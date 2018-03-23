@@ -13,7 +13,7 @@ from debuglevels import *
 from collections import namedtuple
 from collections import OrderedDict
 
-class DivertCriteria(object):
+class DivertParms(object):
     """Class to abstract all criteria possible out of the respective diverters.
 
     Many of these critera are only applicable if the transport layer has
@@ -29,8 +29,12 @@ class DivertCriteria(object):
         self.pkt = pkt
 
     @property
+    def is_loopback(self):
+        return self.pkt.src_ip == self.pkt.dst_ip == self.diverter.loopback_ip
+
+    @property
     def dport_hidden_listener(self):
-        return self.diverter.bound_ports.get(self.pkt.dport) is True
+        return self.diverter.diverted_ports.get(self.pkt.dport) is True
 
     @property
     def src_local(self):
@@ -38,11 +42,23 @@ class DivertCriteria(object):
 
     @property
     def sport_bound(self):
-        return self.pkt.sport in self.diverter.bound_ports
+        return self.pkt.sport in self.diverter.diverted_ports.get(self.pkt.proto_name)
 
     @property
     def dport_bound(self):
-        return self.pkt.dport in self.diverter.bound_ports
+        return self.pkt.dport in self.diverter.diverted_ports.get(self.pkt.proto_name)
+
+    @property
+    def first_packet_new_session(self):
+        return not (self.diverter.sessions.get(self.pkt.sport) ==
+                    (self.pkt.dst_ip, self.pkt.dport))
+
+    @property
+    def win_divert_locally(self):
+        return (self.diverter.diverted_ports.get(self.pkt.proto_name) and
+                (not self.sport_bound) and
+                (self.dport_bound or
+                 self.diverter.default_listener.get(self.pkt.proto_name)))
 
 class DiverterBase(fnconfig.Config):
 
@@ -543,12 +559,14 @@ class DiverterBase(fnconfig.Config):
         # 1A: Unconditionally write unmangled packet to pcap
         self.write_pcap(pkt)
 
+        no_further_processing = False
+
         if (pkt._hdr, pkt.proto) == (None, None):
             self.logger.warning('%s: Failed to parse IP packet' % (pkt.label))
         else:
             self.pdebug(DGENPKT, '%s %s' % (pkt.label, pkt.hdrToStr()))
 
-            crit = DivertCriteria(self, pkt)
+            crit = DivertParms(self, pkt)
 
             # 1B: Parse IP packet
 
@@ -634,16 +652,26 @@ class DiverterBase(fnconfig.Config):
                         self.logger.info('  pid:  %d name: %s' %
                                          (pid, comm if comm else 'Unknown'))
 
+                    # Windows Diverter has always allowed loopback packets to
+                    # fall where they may. This behavior is being ported to all
+                    # Diverters.
+                    if crit.is_loopback:
+                        self.logger.debug('Ignoring loopback packet')
+                        self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
+                        no_further_processing = True
+
                     # 4: Layer 4 (Transport layer) callbacks
-                    for cb in callbacks4:
-                        # These debug outputs are useful for figuring out which
-                        # callback is responsible for an exception that was
-                        # masked by python-netfilterqueue's global callback.
-                        self.pdebug(DCB, 'Calling %s' % (cb))
+                    if not no_further_processing:
+                        for cb in callbacks4:
+                            # These debug outputs are useful for figuring out
+                            # which callback is responsible for an exception
+                            # that was masked by python-netfilterqueue's global
+                            # callback.
+                            self.pdebug(DCB, 'Calling %s' % (cb))
 
-                        cb(crit, pkt, pid, comm)
+                            cb(crit, pkt, pid, comm)
 
-                        self.pdebug(DCB, '%s finished' % (cb))
+                            self.pdebug(DCB, '%s finished' % (cb))
 
             else:
                 self.pdebug(DGENPKT, '%s: Not handling protocol %s' %
@@ -781,6 +809,9 @@ class DiverterBase(fnconfig.Config):
             return True
 
         return False
+
+    def addSession(self, pkt):
+        self.sessions[pkt.sport] = (pkt.dst_ip, pkt.dport)
 
 def test_redir_logic(diverter_factory):
     diverter_config = dict()
