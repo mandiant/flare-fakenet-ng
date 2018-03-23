@@ -374,18 +374,9 @@ class Diverter(DiverterBase, WinUtilMixin):
                        pkt.src_ip == self.loopback_ip and
                        pkt.dst_ip == self.loopback_ip)
 
-        bIsBlacklistedPort = (pkt.sport in blacklist_ports or
-                              pkt.dport in blacklist_ports)
-
         # Pass as-is if the packet is a loopback packet
         if bIsLoopback:
             self.logger.debug('Ignoring loopback packet')
-            self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
-            return pkt
-
-        # H: Pass as-is if the source or destination port is in the blacklist
-        if bIsBlacklistedPort:
-            self.logger.debug('Forwarding blacklisted port %s %s %s packet:', pkt.direction_string, pkt.interface_string, protocol)
             self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
             return pkt
 
