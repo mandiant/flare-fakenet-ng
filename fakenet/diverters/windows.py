@@ -357,7 +357,7 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         return pkt
 
-    def handle_tcp_udp_packet(self, pkt, pid, comm):
+    def handle_tcp_udp_packet(self, pkt, pid, process_name):
 
         # Protocol specific filters
         protocol = pkt.proto_name
@@ -406,33 +406,8 @@ class Diverter(DiverterBase, WinUtilMixin):
         # If a packet must be diverted to a local listener
         ############################################################
         if bDivertLocally:
-            # Find which process ID is sending the request
-            conn_pid = pid
-            process_name = comm
-
             # If the packet is in a blacklist, or is not in a whitelist, pass it as-is
             if self.check_should_ignore(pkt, pid, process_name):
-                return pkt
-
-            # Make sure you are not intercepting packets from one of the FakeNet listeners
-            if pid and (pid == self.pid):
-
-                # HACK: FTP Passive Mode Handling
-                # Check if a listener is initiating a new connection from a non-diverted port and add it to blacklist. This is done to handle a special use-case
-                # of FTP ACTIVE mode where FTP server is initiating a new connection for which the response may be redirected to a default listener.
-                # NOTE: Additional testing can be performed to check if this is actually a SYN packet
-                if pkt.dst_ip == self.external_ip and pkt.src_ip == self.external_ip and not pkt.sport in diverted_ports and not pkt.dport in diverted_ports:
-
-                    self.logger.debug('Listener initiated connection %s %s %s:', pkt.direction_string, pkt.interface_string, protocol)
-                    self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
-                    self.logger.debug('  Blacklisted port %d', pkt.sport)
-
-                    blacklist_ports.append(pkt.sport)
-
-                else:
-                    self.logger.debug('Skipping %s %s %s listener packet:', pkt.direction_string, pkt.interface_string, protocol)
-                    self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
-
                 return pkt
 
             # Modify the packet
