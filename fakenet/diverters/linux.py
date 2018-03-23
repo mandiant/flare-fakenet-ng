@@ -282,10 +282,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.port_fwd_table_lock.acquire()
         
         try:
-            if orig_src_key in self.port_fwd_table:
-                return self.port_fwd_table[orig_src_key]
-            
-            return None
+            return self.port_fwd_table.get(orig_src_key)
         finally:
             self.port_fwd_table_lock.release()
 
@@ -363,14 +360,14 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         nfqpkt.accept() # NF_ACCEPT
 
-    def check_log_icmp(self, pkt):
+    def check_log_icmp(self, crit, pkt):
         if pkt.is_icmp:
             self.logger.info('ICMP type %d code %d %s' % (
                 pkt.icmp_type, pkt.icmp_code, pkt.hdrToStr()))
 
         return None
 
-    def check_log_nonlocal(self, pkt):
+    def check_log_nonlocal(self, crit, pkt):
         """Conditionally log packets having a foreign destination.
 
         Each foreign destination will be logged only once if the Linux
@@ -392,7 +389,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return None
 
-    def maybe_redir_ip(self, pkt, pid, comm):
+    def maybe_redir_ip(self, crit, pkt, pid, comm):
         """Conditionally redirect foreign destination IPs to localhost.
 
         Used only under SingleHost mode.
@@ -441,7 +438,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return pkt.hdr if pkt.mangled else None
 
-    def maybe_fixup_srcip(self, pkt, pid, comm):
+    def maybe_fixup_srcip(self, crit, pkt, pid, comm):
         """Conditionally fix up the source IP address if the remote endpoint
         had their connection IP-forwarded.
 
@@ -474,20 +471,23 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return pkt.hdr if pkt.mangled else None
 
-    def maybe_redir_port(self, pkt, pid, comm):
+    def maybe_redir_port(self, crit, pkt, pid, comm):
         dport = pkt.dport
 
         # Get default listener port for this proto, or bail if none
-        default = None
-        if not pkt.proto_name in self.default_listener:
+        default = self.default_listener.get(pkt.proto_name)
+
+        # A: Check: There is a default listener for this protocol
+        if not default:
             return None
-        default = self.default_listener[pkt.proto_name]
 
         # Pre-condition 1: RedirectAllTraffic: Yes
         # NOTE: This only applies to port redirection in the Windows Diverter;
         # IP addresses will be modified by the Windows Diverter when
         # RedirectAllTraffic is disabled. So, the Linux Diverter implementation
         # will follow suit.
+
+        # B: Check: RedirectAllTraffic True
         if not self.is_set('redirectalltraffic'):
             self.pdebug(DIGN, 'Ignoring %s packet %s' %
                         (pkt.proto_name, pkt.hdrToStr()))
@@ -496,6 +496,9 @@ class Diverter(DiverterBase, LinUtilMixin):
         # Pre-condition 1: destination must not be present in port forwarding
         # table (prevents masqueraded ports responding to unbound ports from
         # being mistaken as starting a conversation with an unbound port).
+
+        # C: Check: Destination was recorded as talking to a local port that
+        # was not bound and was consequently redirected to the default listener
         found = False
         self.port_fwd_table_lock.acquire()
         try:
@@ -514,31 +517,15 @@ class Diverter(DiverterBase, LinUtilMixin):
         # being forwarded from proxy listener to bound/hidden listener
         # Next, check if listener for this port is 'Hidden'. If so, we need to
         # divert it to the proxy as per the Hidden config
-        if (dport in bound_ports and pid != self.pid and 
-                bound_ports[dport] is True):
-     
-            #divert to proxy
-            self.pdebug(DDPF, 'REDIRECTING %s to port %d' %
-                              (pkt.hdrToStr(), default))
-            pkt.dport = default
-        
-            # Record the foreign endpoint and old destination port in the port
-            # forwarding table
-            self.pdebug(DDPFV, ' + ADDING portfwd key entry: ' + pkt.skey)
-            self.port_fwd_table_lock.acquire()
-            try:
-                self.port_fwd_table[pkt.skey] = dport
-            finally:
-                self.port_fwd_table_lock.release()
 
-            # Record the altered port for making the ExecuteCmd decision
-            dport = default
+        # D: Check: Proxy: dport is bound and listener is hidden
+        dport_hidden_listener = bound_ports.get(dport) is True
 
         # Condition 2: If the packet is destined for an unbound port, then
         # redirect it to a bound port and save the old destination IP in
         # the port forwarding table keyed by the source endpoint identity.
 
-        elif self.decide_redir_port(pkt, bound_ports):
+        if dport_hidden_listener or self.decide_redir_port(pkt, bound_ports):
             self.pdebug(DDPFV, 'Condition 2 satisfied')
 
             # Post-condition 1: General ignore conditions are not met, or this
@@ -613,7 +600,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         return pkt.hdr if pkt.mangled else None
 
-    def maybe_fixup_sport(self, pkt, pid, comm):
+    def maybe_fixup_sport(self, crit, pkt, pid, comm):
         """Conditionally fix up source port if the remote endpoint had their
         connection port-forwarded.
 
@@ -633,22 +620,23 @@ class Diverter(DiverterBase, LinUtilMixin):
         # by that endpoint. The term "endpoint" is (ab)used loosely here to
         # apply to UDP host/port/proto combos and any other protocol that
         # may be supported in the future.
+        new_sport = None
         self.pdebug(DDPFV, "Condition 3 test: was remote endpoint port fwd'd?")
         self.port_fwd_table_lock.acquire()
         try:
-            if pkt.dkey in self.port_fwd_table:
-                self.pdebug(DDPFV, 'Condition 3 satisfied: must fix up ' +
-                            'source port')
-                self.pdebug(DDPFV, ' = FOUND portfwd key entry: ' + pkt.dkey)
-                new_sport = self.port_fwd_table[pkt.dkey]
-
-                self.pdebug(DDPF, 'MASQUERADING %s from port %d' %
-                                  (pkt.hdrToStr(), new_sport))
-                pkt.sport = new_sport
-            else:
-                self.pdebug(DDPFV, ' ! NO SUCH portfwd key entry: ' + pkt.dkey)
+            new_sport = self.port_fwd_table.get(pkt.dkey)
         finally:
             self.port_fwd_table_lock.release()
+
+        if new_sport:
+            self.pdebug(DDPFV, 'Condition 3 satisfied: must fix up ' +
+                        'source port')
+            self.pdebug(DDPFV, ' = FOUND portfwd key entry: ' + pkt.dkey)
+            self.pdebug(DDPF, 'MASQUERADING %s from port %d' %
+                              (pkt.hdrToStr(), new_sport))
+            pkt.sport = new_sport
+        else:
+            self.pdebug(DDPFV, ' ! NO SUCH portfwd key entry: ' + pkt.dkey)
 
         return pkt.hdr if pkt.mangled else None
 

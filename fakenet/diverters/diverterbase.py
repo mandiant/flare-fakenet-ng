@@ -13,6 +13,36 @@ from debuglevels import *
 from collections import namedtuple
 from collections import OrderedDict
 
+class DivertCriteria(object):
+    """Class to abstract all criteria possible out of the respective diverters.
+
+    Many of these critera are only applicable if the transport layer has
+    been parsed and validated.
+
+    These criteria largely derive from both the diverter state and the packet
+    contents. It seems more ideal to create a friend class for DiverterBase
+    than to load down the fnpacket abstraction with extraneous concepts.
+    """
+
+    def __init__(self, diverter, pkt):
+        self.diverter = diverter
+        self.pkt = pkt
+
+    @property
+    def dport_hidden_listener(self):
+        return self.diverter.bound_ports.get(self.pkt.dport) is True
+
+    @property
+    def src_local(self):
+        return self.pkt.src_ip in self.diverters.ip_addrs[self.pkt.ipver]
+
+    @property
+    def sport_bound(self):
+        return self.pkt.sport in self.diverter.bound_ports
+
+    @property
+    def dport_bound(self):
+        return self.pkt.dport in self.diverter.bound_ports
 
 class DiverterBase(fnconfig.Config):
 
@@ -518,6 +548,8 @@ class DiverterBase(fnconfig.Config):
         else:
             self.pdebug(DGENPKT, '%s %s' % (pkt.label, pkt.hdrToStr()))
 
+            crit = DivertCriteria(self, pkt)
+
             # 1B: Parse IP packet
 
             # 2: Call layer 3 (network) callbacks
@@ -527,7 +559,7 @@ class DiverterBase(fnconfig.Config):
                 # python-netfilterqueue's global callback.
                 self.pdebug(DCB, 'Calling %s' % (cb))
 
-                cb(pkt)
+                cb(crit, pkt)
 
                 self.pdebug(DCB, '%s finished' % (cb))
 
@@ -609,7 +641,7 @@ class DiverterBase(fnconfig.Config):
                         # masked by python-netfilterqueue's global callback.
                         self.pdebug(DCB, 'Calling %s' % (cb))
 
-                        cb(pkt, pid, comm)
+                        cb(crit, pkt, pid, comm)
 
                         self.pdebug(DCB, '%s finished' % (cb))
 

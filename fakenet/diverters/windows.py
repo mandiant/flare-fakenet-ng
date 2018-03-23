@@ -221,10 +221,7 @@ class Diverter(DiverterBase, WinUtilMixin):
     def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
         """Return original destination port, or None if it was not redirected
         """ 
-        
-        if orig_src_port in self.sessions:
-            return self.sessions[orig_src_port]
-        return None
+        return self.sessions.get(orig_src_port)
     
     ###########################################################################
     # Diverter controller functions
@@ -339,7 +336,7 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         self.flush_dns()
 
-    def handle_icmp_packet(self, pkt):
+    def handle_icmp_packet(self, crit, pkt):
         if pkt.is_icmp:
             # Modify outgoing ICMP packet to target local Windows host which will reply to the ICMP messages.
             # HACK: Can't intercept inbound ICMP server, but still works for now.
@@ -357,23 +354,24 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         return pkt
 
-    def handle_tcp_udp_packet(self, pkt, pid, process_name):
+    def handle_tcp_udp_packet(self, crit, pkt, pid, process_name):
 
         # Protocol specific filters
-        protocol = pkt.proto_name
-        default_listener_port  = self.default_listener.get(protocol)
+        protocol               = pkt.proto_name
+        default                = self.default_listener.get(protocol)
         blacklist_ports        = self.blacklist_ports.get(protocol)
-        diverted_ports         = self.diverted_ports.get(protocol)
+        bound_ports            = self.diverted_ports.get(protocol)
         port_process_whitelist = self.port_process_whitelist.get(protocol)
         port_process_blacklist = self.port_process_blacklist.get(protocol)
         port_host_whitelist    = self.port_host_whitelist.get(protocol)
         port_host_blacklist    = self.port_host_blacklist.get(protocol)
         port_execute           = self.port_execute.get(protocol)
 
+        # On Windows, which only operates in SingleHost mode, let the loopback
+        # packets fall where they may...
         bIsLoopback = (pkt.is_loopback0 and
                        pkt.src_ip == self.loopback_ip and
                        pkt.dst_ip == self.loopback_ip)
-
         # Pass as-is if the packet is a loopback packet
         if bIsLoopback:
             self.logger.debug('Ignoring loopback packet')
@@ -384,14 +382,16 @@ class Diverter(DiverterBase, WinUtilMixin):
         # 1) Divert outbound packets only
         # 2) Make sure we are not diverting response packet based on the source port
         # 3) Make sure the destination port is a known diverted port or we have a default listener port defined
-        bDivertLocally = (diverted_ports and
-                          not pkt.sport in diverted_ports and
-                          (pkt.dport in diverted_ports or
-                           default_listener_port != None))
+
+        # A: There is a default listener for this protocol (default != None)
+        bDivertLocally = (bound_ports and
+                          not pkt.sport in bound_ports and
+                          (pkt.dport in bound_ports or
+                           default != None))
 
 
         # Check to see if it is a listener reply needing fixups
-        bIsListenerReply = diverted_ports and pkt.sport in diverted_ports
+        bIsListenerReply = bound_ports and pkt.sport in bound_ports
 
         ############################################################
         # If a packet must be diverted to a local listener
@@ -417,10 +417,10 @@ class Diverter(DiverterBase, WinUtilMixin):
                 logger_level = self.logger.info
 
                 # Execute command
-                if pid and port_execute and (pkt.dport in port_execute or (default_listener_port and default_listener_port in port_execute)):
+                if pid and port_execute and (pkt.dport in port_execute or (default and default in port_execute)):
 
 
-                    execute_cmd = port_execute[pkt.dport if pkt.dport in diverted_ports else default_listener_port].format(pid = pid, 
+                    execute_cmd = port_execute[pkt.dport if pkt.dport in bound_ports else default].format(pid = pid, 
                                                                            procname = process_name, 
                                                                            src_addr = pkt.src_ip, 
                                                                            src_port = pkt.sport,
@@ -441,10 +441,10 @@ class Diverter(DiverterBase, WinUtilMixin):
             # Direct packet to an existing or a default listener
             # check if 'hidden' config is set. If so, the packet is 
             # directed to the default listener which is the proxy
-            pkt.dport = (pkt.dport if (
-                    pkt.dport in diverted_ports and 
-                    diverted_ports[pkt.dport] is False) 
-                    else default_listener_port)
+            dport_bound = pkt.dport in bound_ports
+            dport_hidden_listener = bound_ports.get(pkt.dport) is True
+            if (not dport_bound) or dport_hidden_listener:
+                pkt.dport = default
 
             logger_level('  to:   %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
 
@@ -457,13 +457,9 @@ class Diverter(DiverterBase, WinUtilMixin):
         # Restore diverted response from a local listener
         # NOTE: The response can come from a legitimate request
         ############################################################
-        if bIsListenerReply:
+        if bIsListenerReply: # bound_ports and pkt.sport in bound_ports
             # The packet is a response from a listener. It needs to be 
             # redirected to the original source
-
-            # Find which process ID is sending the request
-            pid = self.get_pid_port_tcp(pkt.dport) if (pkt.proto_name == 'TCP') else self.get_pid_port_udp(pkt.dport)
-            process_name = self.get_process_image_filename(pid)
 
             if not pkt.dport in self.sessions:
                 self.logger.debug('Unknown %s %s %s response packet:', pkt.direction_string, pkt.interface_string, protocol)
@@ -487,7 +483,7 @@ class Diverter(DiverterBase, WinUtilMixin):
         ############################################################
         # Catch-all / else case
         # At this point whe know the packet is either a response packet 
-        # from a listener(sport is bound) or is bound for a port with no 
+        # from a listener (sport is bound) or is destined for a port with no 
         # listener (dport not bound)
         ############################################################
 
@@ -495,7 +491,7 @@ class Diverter(DiverterBase, WinUtilMixin):
         self.sessions[pkt.sport] = (pkt.dst_ip, pkt.dport)
       
         # forward to proxy
-        pkt.dport = default_listener_port
+        pkt.dport = default
 
         self.logger.debug('Redirected %s %s %s packet to proxy:', pkt.direction_string, pkt.interface_string, protocol)
         self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
