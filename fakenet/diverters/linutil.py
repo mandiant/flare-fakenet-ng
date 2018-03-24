@@ -8,6 +8,7 @@ import binascii
 import threading
 import subprocess
 import netfilterqueue
+import diverterbase
 from debuglevels import *
 from collections import defaultdict
 
@@ -205,7 +206,7 @@ class ProcfsReader:
         return retval
 
 
-class LinUtilMixin():
+class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
     """Automate addition/removal of iptables rules, checking interface names,
     checking available netfilter queue numbers, etc.
     """
@@ -213,6 +214,12 @@ class LinUtilMixin():
     def init_linux_mixin(self):
         self.old_dns = None
         self.iptables_captured = ''
+
+    def getNewDestinationIp(self, ip):
+        """On Linux, FTP tests fail if IP redirection uses the external IP, so
+        always return localhost.
+        """
+        return '127.0.0.1'
 
     def check_active_ethernet_adapters(self):
         return (len(self._linux_get_ifaces()) > 0)
@@ -693,6 +700,10 @@ class LinUtilMixin():
                         pass
 
         return pid, comm
+
+    def get_pid_comm(self, pkt):
+        return self.linux_get_pid_comm_by_endpoint(pkt.ipver, pkt.proto_name,
+                                                   pkt.src_ip, pkt.sport)
 
     def linux_endpoint_owned_by_processes(self, ipver, proto_name, ip, port,
                                           names):

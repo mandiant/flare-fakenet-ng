@@ -234,12 +234,6 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         self.linux_restore_iptables()
 
-    def getNewDestinationIp(self, ip):
-        """On Linux, FTP tests fail if IP redirection uses the external IP, so
-        always return localhost.
-        """
-        return '127.0.0.1'
-
     def handle_nonlocal(self, nfqpkt):
         """Handle comms sent to IP addresses that are not bound to any adapter.
 
@@ -335,10 +329,6 @@ class Diverter(DiverterBase, LinUtilMixin):
                     (pkt.ipver, pkt.dst_ip))
 
         return None
-
-    def get_pid_comm(self, pkt):
-        return self.linux_get_pid_comm_by_endpoint(pkt.ipver, pkt.proto_name,
-                                                   pkt.src_ip, pkt.sport)
 
 
 if __name__ == '__main__':

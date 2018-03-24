@@ -148,76 +148,6 @@ class Diverter(DiverterBase, WinUtilMixin):
                 self.logger.error('ERROR: Failed to open a handle to the WinDivert driver: %s', e)
                 sys.exit(1)
 
-    def fix_gateway(self):
-        """Check if there is a gateway configured on any of the Ethernet
-        interfaces. If that's not the case, then locate configured IP address
-        and set a gateway automatically. This is necessary for VMWare Host-Only
-        DHCP server which leaves default gateway empty.
-        """
-        fixed = False
-
-        for adapter in self.get_adapters_info():
-
-            # Look for a DHCP interface with a set IP address but no gateway (Host-Only)
-            if self.check_ipaddresses_interface(adapter) and adapter.DhcpEnabled:
-
-                (ip_address, netmask) = next(self.get_ipaddresses_netmask(adapter))
-                gw_address =  ip_address[:ip_address.rfind('.')]+'.254'
-
-                interface_name = self.get_adapter_friendlyname(adapter.Index)
-
-                # Don't set gateway on loopback interfaces (e.g. Npcap Loopback Adapter)
-                if not "loopback" in interface_name.lower():
-
-                    self.adapters_dhcp_restore.append(interface_name)
-
-                    cmd_set_gw = "netsh interface ip set address name=\"%s\" static %s %s %s" % (interface_name, ip_address, netmask, gw_address)
-
-                    # Configure gateway
-                    try:
-                        subprocess.check_call(cmd_set_gw, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    except subprocess.CalledProcessError, e:
-                        self.logger.error("         Failed to set gateway %s on interface %s." % (gw_address, interface_name))
-                    else:
-                        self.logger.info("         Setting gateway %s on interface %s" % (gw_address, interface_name))
-                        fixed = True
-
-        return fixed
-
-    def fix_dns(self):
-        """Check if there is a DNS server on any of the Ethernet interfaces. If
-        that's not the case, then locate configured IP address and set a DNS
-        server automatically.
-        """
-        fixed = False
-
-        for adapter in self.get_adapters_info():
-
-            if self.check_ipaddresses_interface(adapter):
-
-                ip_address = next(self.get_ipaddresses(adapter))
-                dns_address = ip_address
-
-                interface_name = self.get_adapter_friendlyname(adapter.Index)
-
-                # Don't set DNS on loopback interfaces (e.g. Npcap Loopback Adapter)
-                if not "loopback" in interface_name.lower():
-
-                    self.adapters_dns_restore.append(interface_name)
-
-                    cmd_set_dns = "netsh interface ip set dns name=\"%s\" static %s" % (interface_name, dns_address)
-
-                    # Configure DNS server
-                    try:
-                        subprocess.check_call(cmd_set_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    except subprocess.CalledProcessError, e:
-                        self.logger.error("         Failed to set DNS %s on interface %s." % (dns_address, interface_name))
-                    else:
-                        self.logger.info("         Setting DNS %s on interface %s" % (dns_address, interface_name))
-                        fixed = True
-
-        return fixed
-
     # def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
     #     """Return original destination port, or None if it was not redirected
     #     """ 
@@ -247,11 +177,6 @@ class Diverter(DiverterBase, WinUtilMixin):
         self.diverter_thread.daemon = True
 
         self.diverter_thread.start()
-
-    def get_pid_comm(self, pkt):
-        conn_pid = self.get_pid_port_tcp(pkt.sport) if (pkt.proto_name == 'TCP') else self.get_pid_port_udp(pkt.sport)
-        process_name = self.get_process_image_filename(conn_pid) if conn_pid else None
-        return conn_pid, process_name
 
     def divert_thread(self):
         try:
@@ -285,6 +210,8 @@ class Diverter(DiverterBase, WinUtilMixin):
 
                 #######################################################################
                 # Attempt to send the processed packet
+
+                self.setLastErrorNull() # WinDivert/LastError workaround
                 try:
                     self.handle.send(pkt.wdpkt)
                 except Exception, e:
@@ -358,7 +285,11 @@ class Diverter(DiverterBase, WinUtilMixin):
         ICMP packets sent back home for free, so here is some code.
         """
         if pkt.is_icmp and pkt.dst_ip not in [self.loopback_ip, self.external_ip]:
+            self.logger.info('Modifying ICMP packet (type %d, code %d):' %
+                             (pkt.icmp_type, pkt.icmp_code))
+            self.logger.info('  from: %s' % (pkt.hdrToStr()))
             pkt.dst_ip = self.getNewDestinationIp(pkt.src_ip)
+            self.logger.info('  to:   %s' % (pkt.hdrToStr()))
 
         return pkt
 

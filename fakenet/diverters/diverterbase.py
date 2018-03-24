@@ -1,4 +1,5 @@
 import os
+import abc
 import sys
 import time
 import dpkt
@@ -6,12 +7,13 @@ import signal
 import socket
 import logging
 import fnconfig
+import fnpacket
 import threading
 import subprocess
-import fnpacket
 from debuglevels import *
 from collections import namedtuple
 from collections import OrderedDict
+
 
 class DivertParms(object):
     """Class to abstract all criteria possible out of the respective diverters.
@@ -65,6 +67,74 @@ class DivertParms(object):
         """Check to see if it is a listener reply needing fixups."""
         bound_ports = self.diverter.diverted_ports.get(self.pkt.proto_name)
         return self.pkt.sport in bound_ports if bound_ports else False
+
+
+class DiverterPerOSDelegate(object):
+    """Delegate class for OS-specific methods that FakeNet-NG implementors must
+    override.
+    """
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractmethod
+    def check_active_ethernet_adapters(self):
+        """Check that there is at least one Ethernet interface."""
+        pass
+
+    @abc.abstractmethod
+    def check_ipaddresses(self):
+        """Check that there is at least one non-null IP address associated with
+        at least one interface."""
+        pass
+
+    @abc.abstractmethod
+    def check_gateways(self):
+        """Check that at least one interface has a non-NULL gateway set."""
+        pass
+
+    @abc.abstractmethod
+    def fix_gateway(self):
+        """Check if there is a gateway configured on any of the Ethernet
+        interfaces. If not, then locate a configured IP address and set a gw
+        automatically. This is necessary for VMware's Host-Only DHCP server
+        which leaves the default gateway empty.
+        """
+        pass
+
+    @abc.abstractmethod
+    def check_dns_servers(self):
+        """Check that a DNS server is set."""
+        pass
+
+    @abc.abstractmethod
+    def fix_dns(self):
+        """Check if there is a DNS server on any of the Ethernet interfaces. If
+        not, then locate configured IP address and set a DNS server
+        automatically.
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_pid_comm(self, pkt):
+        """Get the PID and process name by IP/port info.
+        
+        comm is the Linux term for process name.
+        """
+        pass
+
+    @abc.abstractmethod
+    def getNewDestinationIp(self, src_ip):
+        """Get IP to redirect to after a redirection decision has been made.
+
+        On Windows, and possibly other operating systems, simply redirecting 
+        external packets to the loopback address will cause the packets not to
+        be routable, so it is necessary to choose an external interface IP in
+        some cases.
+
+        On the contrary, the Linux FTP tests will fail if all redirections are
+        not routed to 127.0.0.1.
+        """
+        pass
+
 
 class DiverterBase(fnconfig.Config):
 
@@ -212,7 +282,7 @@ class DiverterBase(fnconfig.Config):
         if not gw_ok:
             self.logger.warning('WARNING: No gateways configured!')
             if self.is_set('fixgateway'):
-                gw_ok = fix_gateway()
+                gw_ok = self.fix_gateway()
                 if not gw_ok:
                     self.logger.warning('Cannot fix gateway')
 
@@ -694,7 +764,8 @@ class DiverterBase(fnconfig.Config):
                         self.pdebug(DGENPKTV, logline)
 
                     if ((not (self.pdebug_level & DGENPKTV)) and
-                        pid and (pid != self.pid)):
+                        pid and (pid != self.pid) and
+                        crit.first_packet_new_session):
                         self.logger.info('  pid:  %d name: %s' %
                                          (pid, comm if comm else 'Unknown'))
 
@@ -882,12 +953,6 @@ class DiverterBase(fnconfig.Config):
             return self.port_fwd_table.get(orig_src_key)
         finally:
             self.port_fwd_table_lock.release()
-
-    def getNewDestinationIp(self, src_ip):
-        """Gets the IP to redirect to - loopback if loopback, external
-        otherwise.
-        """
-        return self.loopback_ip if src_ip.startswith('127.') else self.external_ip
 
     def maybe_redir_ip(self, crit, pkt, pid, comm):
         """Conditionally redirect foreign destination IPs to localhost.
