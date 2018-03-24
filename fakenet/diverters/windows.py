@@ -267,7 +267,7 @@ class Diverter(DiverterBase, WinUtilMixin):
                 cb3 = [self.handle_icmp_packet,]
                 cb4 = [self.handle_tcp_udp_packet,]
 
-                use_linux_callbacks = True
+                use_linux_callbacks = False
 
                 if use_linux_callbacks:
                     cb3 = [self.check_log_icmp,]
