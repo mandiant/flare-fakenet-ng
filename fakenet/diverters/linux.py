@@ -234,20 +234,11 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         self.linux_restore_iptables()
 
-    def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
-        """Return original destination port, or None if it was not redirected.
-
-        Called by proxy listener.
-        """ 
-        
-        orig_src_key = fnpacket.PacketCtx.gen_endpoint_key(proto, orig_src_ip,
-                                                  orig_src_port)
-        self.port_fwd_table_lock.acquire()
-        
-        try:
-            return self.port_fwd_table.get(orig_src_key)
-        finally:
-            self.port_fwd_table_lock.release()
+    def getNewDestinationIp(self, ip):
+        """On Linux, FTP tests fail if IP redirection uses the external IP, so
+        always return localhost.
+        """
+        return '127.0.0.1'
 
     def handle_nonlocal(self, nfqpkt):
         """Handle comms sent to IP addresses that are not bound to any adapter.

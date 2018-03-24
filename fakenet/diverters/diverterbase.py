@@ -868,6 +868,27 @@ class DiverterBase(fnconfig.Config):
 
         return None
 
+    def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
+        """Return original destination port, or None if it was not redirected.
+
+        Called by proxy listener.
+        """ 
+        
+        orig_src_key = fnpacket.PacketCtx.gen_endpoint_key(proto, orig_src_ip,
+                                                  orig_src_port)
+        self.port_fwd_table_lock.acquire()
+        
+        try:
+            return self.port_fwd_table.get(orig_src_key)
+        finally:
+            self.port_fwd_table_lock.release()
+
+    def getNewDestinationIp(self, src_ip):
+        """Gets the IP to redirect to - loopback if loopback, external
+        otherwise.
+        """
+        return self.loopback_ip if src_ip.startswith('127.') else self.external_ip
+
     def maybe_redir_ip(self, crit, pkt, pid, comm):
         """Conditionally redirect foreign destination IPs to localhost.
 
@@ -892,8 +913,7 @@ class DiverterBase(fnconfig.Config):
             finally:
                 self.ip_fwd_table_lock.release()
 
-            newdst = '127.0.0.1'
-            # newdst = self.loopback_ip if pkt.src_ip.startswith('127.') else self.external_ip
+            newdst = self.getNewDestinationIp(pkt.src_ip)
 
             self.pdebug(DIPNAT, 'REDIRECTING %s to IP %s' %
                         (pkt.hdrToStr(), newdst))

@@ -218,10 +218,10 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         return fixed
 
-    def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
-        """Return original destination port, or None if it was not redirected
-        """ 
-        return self.sessions.get(orig_src_port)
+    # def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
+    #     """Return original destination port, or None if it was not redirected
+    #     """ 
+    #     return self.sessions.get(orig_src_port)
     
     ###########################################################################
     # Diverter controller functions
@@ -267,10 +267,13 @@ class Diverter(DiverterBase, WinUtilMixin):
                 cb3 = [self.handle_icmp_packet,]
                 cb4 = [self.handle_tcp_udp_packet,]
 
-                use_linux_callbacks = False
+                use_linux_callbacks = True
 
                 if use_linux_callbacks:
-                    cb3 = [self.check_log_icmp,]
+                    cb3 = [
+                        self.check_log_icmp,
+                        self.redirIcmpIpUnconditionally
+                       ]
                     cb4 = [
                         self.maybe_redir_port,
                         self.maybe_fixup_sport,
@@ -347,6 +350,17 @@ class Diverter(DiverterBase, WinUtilMixin):
             self.start_service_helper('Dnscache')  
 
         self.flush_dns()
+
+    def redirIcmpIpUnconditionally(self, crit, pkt):
+        """Redirect ICMP to loopback or external IP if necessary.
+
+        On Windows, we can't conveniently use an iptables REDIRECT rule to get
+        ICMP packets sent back home for free, so here is some code.
+        """
+        if pkt.is_icmp and pkt.dst_ip not in [self.loopback_ip, self.external_ip]:
+            pkt.dst_ip = self.getNewDestinationIp(pkt.src_ip)
+
+        return pkt
 
     def handle_icmp_packet(self, crit, pkt):
         if pkt.is_icmp:
