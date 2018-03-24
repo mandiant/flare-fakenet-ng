@@ -266,6 +266,18 @@ class Diverter(DiverterBase, WinUtilMixin):
 
                 cb3 = [self.handle_icmp_packet,]
                 cb4 = [self.handle_tcp_udp_packet,]
+
+                use_linux_callbacks = True
+
+                if use_linux_callbacks:
+                    cb3 = [self.check_log_icmp,]
+                    cb4 = [
+                        self.maybe_redir_port,
+                        self.maybe_fixup_sport,
+                        self.maybe_redir_ip,
+                        self.maybe_fixup_srcip,
+                       ]
+
                 self.handle_pkt(pkt, cb3, cb4)
 
                 #######################################################################
@@ -372,13 +384,9 @@ class Diverter(DiverterBase, WinUtilMixin):
         # 2) Make sure we are not diverting response packet based on the source port
         # 3) Make sure the destination port is a known diverted port or we have a default listener port defined
 
-        # Check to see if it is a listener reply needing fixups
-        bIsListenerReply = bound_ports and pkt.sport in bound_ports
-
         ############################################################
         # If a packet must be diverted to a local listener
         ############################################################
-        # A: There is a default listener for this protocol (default != None)
         if crit.win_divert_locally:
             # If the packet is in a blacklist, or is not in a whitelist, pass it as-is
             if self.check_should_ignore(pkt, pid, process_name):
@@ -392,27 +400,13 @@ class Diverter(DiverterBase, WinUtilMixin):
 
             # First packet in a new session
             if crit.first_packet_new_session:
-                # Cache original target IP address based on source port
-                self.addSession(pkt)
+                self.addSession(pkt) # Cache original target IP based on sport
 
                 # Override log level to display all information on info level
                 logger_level = self.logger.info
 
-                # Execute command
-                if pid and port_execute and (pkt.dport in port_execute or (default and default in port_execute)):
-
-
-                    execute_cmd = port_execute[pkt.dport if pkt.dport in bound_ports else default].format(pid = pid, 
-                                                                           procname = process_name, 
-                                                                           src_addr = pkt.src_ip, 
-                                                                           src_port = pkt.sport,
-                                                                           dst_addr = pkt.dst_ip,
-                                                                           dst_port = pkt.dport)
-
-                    logger_level('Executing command: %s', execute_cmd)
-
-                    self.execute_detached(execute_cmd)       
-
+                # Execute command if applicable
+                self.maybeExecuteCmd(pkt, pid, process_name)
 
             logger_level('Modifying %s %s %s request packet:', pkt.direction_string, pkt.interface_string, protocol)
             logger_level('  from: %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
@@ -439,7 +433,7 @@ class Diverter(DiverterBase, WinUtilMixin):
         # Restore diverted response from a local listener
         # NOTE: The response can come from a legitimate request
         ############################################################
-        if bIsListenerReply: # bound_ports and pkt.sport in bound_ports
+        if crit.win_listener_reply: # bound_ports and pkt.sport in bound_ports
             # The packet is a response from a listener. It needs to be 
             # redirected to the original source
 
@@ -469,11 +463,8 @@ class Diverter(DiverterBase, WinUtilMixin):
         # listener (dport not bound)
         ############################################################
 
-        # Cache original target IP address based on source port
-        self.sessions[pkt.sport] = (pkt.dst_ip, pkt.dport)
-      
-        # forward to proxy
-        pkt.dport = default
+        self.addSession(pkt) # Cache original target IP based on sport
+        pkt.dport = default # forward to proxy
 
         self.logger.debug('Redirected %s %s %s packet to proxy:', pkt.direction_string, pkt.interface_string, protocol)
         self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
