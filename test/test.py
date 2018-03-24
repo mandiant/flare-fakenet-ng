@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import time
 import ctypes
@@ -218,11 +219,11 @@ class FakeNetTester:
         if os.path.exists(self.settings.configpath):
             os.remove(self.settings.configpath)
 
-    def doTests(self):
-        self.testGeneral()
-        self.testNoRedirect()
-        self.testBlacklistProcess()
-        self.testWhitelistProcess()
+    def doTests(self, match_spec):
+        self.testGeneral(match_spec)
+        self.testNoRedirect(match_spec)
+        self.testBlacklistProcess(match_spec)
+        self.testWhitelistProcess(match_spec)
 
     def _printStatus(self, desc, passed):
         status = 'Passed' if passed else 'FAILED'
@@ -240,7 +241,28 @@ class FakeNetTester:
 
         return passed
 
-    def _testGeneric(self, config, tests):
+    def _getMatchingTests(self, t, matchspec):
+        matching = t        # All tests match by default absent any matchspec
+
+        if len(matchspec):
+            matching = {}   # Else, we pick and choose...
+
+            # Iterating over tests first, match specifications second to
+            # preserve the order of the selected tests. Less efficient to
+            # compile every regex several times, but less confusing.
+            for testname, test in t.items():
+                for spec in matchspec:
+                    if bool(re.search(spec, testname)):
+                        matching[testname] = test
+
+        return matching
+
+    def _testGeneric(self, config, tests, matchspec=[]):
+        matching = self._getMatchingTests(tests, matchspec)
+        if not len(matching):
+            logger.info('No matching tests')
+            return False
+        
         self.writeConfig(config)
 
         if not self.executeFakenet():
@@ -255,7 +277,7 @@ class FakeNetTester:
         logger.info('Testing')
         logger.info('-' * 79)
 
-        for desc, (callback, args, expected) in tests.iteritems():
+        for desc, (callback, args, expected) in matching.iteritems():
             logger.debug('Testing: %s' % (desc))
             passed = self._tryTest(desc, callback, args, expected)
             if not passed:
@@ -384,7 +406,7 @@ class FakeNetTester:
 
         return (digest == expected)
 
-    def testNoRedirect(self):
+    def testNoRedirect(self, matchspec=[]):
         config = self.makeConfig(singlehostmode=True, proxied=False, redirectall=False)
 
         domain_dne = self.settings.domain_dne
@@ -400,18 +422,18 @@ class FakeNetTester:
         t['RedirectAllTraffic disabled local external IP @ bound'] = (self._test_sk, (tcp, ext_ip, 1337), True)
         t['RedirectAllTraffic disabled local external IP @ unbound'] = (self._test_sk, (tcp, ext_ip, 9999), False)
 
-        t['RedirectAllTraffic disabled arbitrary host @ bound'] = (self._test_sk, (tcp, arbitrary, 1337), True)
+        t['RedirectAllTraffic disabled arbitrary host @ bound'] = (self._test_sk, (tcp, arbitrary, 1337), False)
         t['RedirectAllTraffic disabled arbitrary host @ unbound'] = (self._test_sk, (tcp, arbitrary, 9999), False)
 
-        t['RedirectAllTraffic disabled named host @ bound'] = (self._test_sk, (tcp, domain_dne, 1337), True)
+        t['RedirectAllTraffic disabled named host @ bound'] = (self._test_sk, (tcp, domain_dne, 1337), False)
         t['RedirectAllTraffic disabled named host @ unbound'] = (self._test_sk, (tcp, domain_dne, 9999), False)
 
         t['RedirectAllTraffic disabled localhost @ bound'] = (self._test_sk, (tcp, localhost, 1337), True)
         t['RedirectAllTraffic disabled localhost @ unbound'] = (self._test_sk, (tcp, localhost, 9999), False)
 
-        return self._testGeneric(config, t)
+        return self._testGeneric(config, t, matchspec)
 
-    def testBlacklistProcess(self):
+    def testBlacklistProcess(self, matchspec=[]):
         config = self.makeConfig()
         config.blacklistProcess(self.settings.pythonname)
 
@@ -424,9 +446,9 @@ class FakeNetTester:
 
         t['Global blacklisted process test'] = (self._test_sk, (tcp, arbitrary, 9999), False)
 
-        return self._testGeneric(config, t)
+        return self._testGeneric(config, t, matchspec)
 
-    def testWhitelistProcess(self):
+    def testWhitelistProcess(self, matchspec=[]):
         config = self.makeConfig()
         config.whitelistProcess(self.settings.pythonname)
 
@@ -439,9 +461,9 @@ class FakeNetTester:
 
         t['Global whitelisted process test'] = (self._test_sk, (tcp, arbitrary, 9999), True)
 
-        return self._testGeneric(config, t)
+        return self._testGeneric(config, t, matchspec)
 
-    def testGeneral(self):
+    def testGeneral(self, matchspec=[]):
         config = self.makeConfig()
 
         domain_dne = self.settings.domain_dne
@@ -465,7 +487,8 @@ class FakeNetTester:
         t['TCP domainname @ bound'] = (self._test_sk, (tcp, domain_dne, 1337), True)
         t['TCP domainname @ unbound'] = (self._test_sk, (tcp, domain_dne, 9999), True)
         t['TCP localhost @ bound'] = (self._test_sk, (tcp, localhost, 1337), True)
-        # t['TCP localhost @ unbound'] = (self._test_sk, (tcp, localhost, 9999), False)
+
+        t['TCP localhost @ unbound'] = (self._test_sk, (tcp, localhost, 9999), False)
 
         t['UDP local external IP @ bound'] = (self._test_sk, (udp, ext_ip, 1337), True)
         t['UDP local external IP @ unbound'] = (self._test_sk, (udp, ext_ip, 9999), True)
@@ -474,11 +497,12 @@ class FakeNetTester:
         t['UDP domainname @ bound'] = (self._test_sk, (udp, domain_dne, 1337), True)
         t['UDP domainname @ unbound'] = (self._test_sk, (udp, domain_dne, 9999), True)
         t['UDP localhost @ bound'] = (self._test_sk, (udp, localhost, 1337), True)
-        # t['UDP localhost @ unbound'] = (self._test_sk, (udp, localhost, 9999), False)
+
+        t['UDP localhost @ unbound'] = (self._test_sk, (udp, localhost, 9999), False)
 
         t['ICMP local external IP'] = (self._test_icmp, (ext_ip,), True)
         t['ICMP arbitrary host'] = (self._test_icmp, (arbitrary,), True)
-        # t['ICMP domainname'] = (self._test_icmp, (domain_dne,), True)
+        t['ICMP domainname'] = (self._test_icmp, (domain_dne,), True)
 
         t['DNS listener test'] = (self._test_ns, (domain_dne, dns_expected), True)
         t['HTTP listener test'] = (self._test_http, (arbitrary,), True)
@@ -495,7 +519,7 @@ class FakeNetTester:
         t['Listener host blacklist'] = (self._test_http, (arbitrary, self.settings.listener_host_black), True)
         t['Listener host whitelist'] = (self._test_http, (arbitrary, self.settings.listener_host_black), True)
 
-        return self._testGeneric(config, t)
+        return self._testGeneric(config, t, matchspec)
 
     def makeConfig(self, singlehostmode=True, proxied=True, redirectall=True):
         template = self.settings.configtemplate
@@ -598,13 +622,22 @@ def main():
         logger.info('Not an admin, exiting...')
         sys.exit(1)
 
+    # Will execute only tests matching *match_spec if specified
+    match_spec = sys.argv[1:]
+
+    if len(match_spec):
+        logger.info('Only running tests that match the following ' +
+                    'specifications:')
+        for spec in match_spec:
+            logger.info('  %s' % (spec))
+
     startingpath = os.getcwd()
     settings = FakeNetTestSettings(startingpath)
     tester = FakeNetTester(settings)
 
     logger.info('Running with privileges on %s' % (settings.platform_name))
 
-    tester.doTests()
+    tester.doTests(match_spec)
 
 if __name__ == '__main__':
     main()
