@@ -820,7 +820,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         In these cases, calling SetLastError(0) before invoking handle.send()
         yielded normal operation.
         """
-        ctypes.windll.kernel32.SetLastError(1234)
+        ctypes.windll.kernel32.SetLastError(0)
 
 
     ###############################################################################
