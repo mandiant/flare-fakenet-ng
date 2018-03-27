@@ -764,7 +764,6 @@ class DiverterBase(fnconfig.Config):
                     flags='',
                     seqack='',
                 )
-            self.pdebug(DGENPKTV, logline)
 
         elif pkt.proto_name == 'TCP':
             tcp = pkt._hdr.data
