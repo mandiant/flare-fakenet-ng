@@ -107,29 +107,9 @@ class Diverter(DiverterBase, WinUtilMixin):
         #######################################################################
         # Initialize filter and WinDivert driver
 
-        # Build filter
-        self.filter = None
-        if self.is_set('redirectalltraffic'):
-            self.filter = "outbound and ip and (icmp or tcp or udp)"
-        # Redirect only specific traffic, build the filter dynamically
-        else:
-
-            filter_diverted_ports = list()
-            
-            if self.diverted_ports.get('TCP') != None:
-                for tcp_port in self.diverted_ports.get('TCP'):
-                    filter_diverted_ports.append("tcp.DstPort == %s" % tcp_port)
-                    filter_diverted_ports.append("tcp.SrcPort == %s" % tcp_port)
-
-            if self.diverted_ports.get('UDP') != None:
-                for udp_port in self.diverted_ports.get('UDP'):
-                    filter_diverted_ports.append("udp.DstPort == %s" % udp_port)
-                    filter_diverted_ports.append("udp.SrcPort == %s" % udp_port)
-
-            if len(filter_diverted_ports) > 0:
-                self.filter = "outbound and ip and (icmp or %s)" % " or ".join(filter_diverted_ports)
-            else:
-                self.filter = "outbound and ip"
+        # Interpose on all IP datagrams so they appear in the pcap, let
+        # DiverterBase decide whether they're actually forwarded etc.
+        self.filter = 'outbound and ip'
         
         # Initialize WinDivert
         try:
