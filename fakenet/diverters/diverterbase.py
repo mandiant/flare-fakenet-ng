@@ -663,7 +663,7 @@ class DiverterBase(fnconfig.Config):
             A.) Unconditionally Write unmangled packet to pcap
             B.) Parse IP packet
         2.) Call layer 3 (network) callbacks...
-        3.) Parse higher-layer protocol (TCP, UDP) for port numbers
+        3.) Handle higher-layer protocol (TCP, UDP) for port numbers
         4.) Call layer 4 (transport) callbacks...
         5.) If the packet headers have been modified, double-write the mangled
             packet to the pcap for SSL decoding purposes
@@ -684,6 +684,15 @@ class DiverterBase(fnconfig.Config):
 
             crit = DivertParms(self, pkt)
 
+            # fnpacket has parsed all that can be parsed, so 
+            pid, comm = self.get_pid_comm(pkt)
+            if self.pdebug_level & DGENPKTV:
+                logline = self.formatPkt(pkt, pid, comm)
+                self.pdebug(DGENPKTV, logline)
+            elif pid and (pid != self.pid) and crit.first_packet_new_session:
+                self.logger.info('  pid:  %d name: %s' %
+                                 (pid, comm if comm else 'Unknown'))
+
             # 1B: Parse IP packet
 
             # 2: Call layer 3 (network) callbacks
@@ -700,77 +709,10 @@ class DiverterBase(fnconfig.Config):
             if pkt.proto_name:
 
                 if len(callbacks4):
-                    # 3: Parse higher-layer protocol
-                    pid, comm = self.get_pid_comm(pkt)
-
-                    if pkt.proto_name == 'UDP':
-                        fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
-                        logline = fmt.format(
-                                label=pkt.label,
-                                proto=pkt.proto_name,
-                                pid=pid,
-                                comm=comm,
-                                src=pkt.src_ip,
-                                sport=pkt.sport,
-                                dst=pkt.dst_ip,
-                                dport=pkt.dport,
-                                length=len(pkt),
-                                flags='',
-                                seqack='',
-                            )
-                        self.pdebug(DGENPKTV, logline)
-
-                    elif pkt.proto_name == 'TCP':
-                        tcp = pkt._hdr.data
-                        # Interested in:
-                        # SYN
-                        # SYN,ACK
-                        # ACK
-                        # PSH
-                        # FIN
-                        syn = (tcp.flags & dpkt.tcp.TH_SYN) != 0
-                        ack = (tcp.flags & dpkt.tcp.TH_ACK) != 0
-                        fin = (tcp.flags & dpkt.tcp.TH_FIN) != 0
-                        psh = (tcp.flags & dpkt.tcp.TH_PUSH) != 0
-                        rst = (tcp.flags & dpkt.tcp.TH_RST) != 0
-
-                        sa = 'Seq=%d, Ack=%d' % (tcp.seq, tcp.ack)
-                        f = []
-                        if rst:
-                            f.append('RST')
-                        if syn:
-                            f.append('SYN')
-                        if ack:
-                            f.append('ACK')
-                        if fin:
-                            f.append('FIN')
-                        if psh:
-                            f.append('PSH')
-
-                        fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
-                        logline = fmt.format(
-                                label=pkt.label,
-                                proto=pkt.proto_name,
-                                pid=pid,
-                                comm=comm,
-                                src=pkt.src_ip,
-                                sport=pkt.sport,
-                                dst=pkt.dst_ip,
-                                dport=pkt.dport,
-                                length=len(pkt),
-                                flags=','.join(f),
-                                seqack=sa,
-                            )
-                        self.pdebug(DGENPKTV, logline)
-
-                    if ((not (self.pdebug_level & DGENPKTV)) and
-                        pid and (pid != self.pid) and
-                        crit.first_packet_new_session):
-                        self.logger.info('  pid:  %d name: %s' %
-                                         (pid, comm if comm else 'Unknown'))
+                    # 3: Handle higher-layer protocol
 
                     # Windows Diverter has always allowed loopback packets to
-                    # fall where they may. This behavior is being ported to all
+                    # fall where they may. This behavior now applies to all
                     # Diverters.
                     if crit.is_loopback:
                         self.logger.debug('Ignoring loopback packet')
@@ -803,6 +745,74 @@ class DiverterBase(fnconfig.Config):
             return pkt.octets
 
         return None
+
+    def formatPkt(self, pkt, pid, comm):
+        logline = ''
+
+        if pkt.proto_name == 'UDP':
+            fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
+            logline = fmt.format(
+                    label=pkt.label,
+                    proto=pkt.proto_name,
+                    pid=pid,
+                    comm=comm,
+                    src=pkt.src_ip,
+                    sport=pkt.sport,
+                    dst=pkt.dst_ip,
+                    dport=pkt.dport,
+                    length=len(pkt),
+                    flags='',
+                    seqack='',
+                )
+            self.pdebug(DGENPKTV, logline)
+
+        elif pkt.proto_name == 'TCP':
+            tcp = pkt._hdr.data
+
+            sa = 'Seq=%d, Ack=%d' % (tcp.seq, tcp.ack)
+
+            f = []
+            if (tcp.flags & dpkt.tcp.TH_RST) != 0:
+                f.append('RST')
+            if (tcp.flags & dpkt.tcp.TH_SYN) != 0:
+                f.append('SYN')
+            if (tcp.flags & dpkt.tcp.TH_ACK) != 0:
+                f.append('ACK')
+            if (tcp.flags & dpkt.tcp.TH_FIN) != 0:
+                f.append('FIN')
+            if (tcp.flags & dpkt.tcp.TH_PUSH) != 0:
+                f.append('PSH')
+
+            fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
+            logline = fmt.format(
+                    label=pkt.label,
+                    proto=pkt.proto_name,
+                    pid=pid,
+                    comm=comm,
+                    src=pkt.src_ip,
+                    sport=pkt.sport,
+                    dst=pkt.dst_ip,
+                    dport=pkt.dport,
+                    length=len(pkt),
+                    flags=','.join(f),
+                    seqack=sa,
+                )
+        else:
+            fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
+            logline = fmt.format(
+                    label = pkt.label,
+                    proto = '',
+                    pid = pid,
+                    comm = comm,
+                    src = str(pkt.src_ip),
+                    sport = str(pkt.sport),
+                    dst = str(pkt.dst_ip),
+                    dport = str(pkt.dport),
+                    length = len(pkt),
+                    flags = '',
+                    seqack = '',
+                )
+        return logline
 
     def check_should_ignore(self, pkt, pid, comm):
 

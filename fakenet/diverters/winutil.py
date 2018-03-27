@@ -713,8 +713,10 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             yield item
 
     def get_pid_comm(self, pkt):
-        conn_pid = self.get_pid_port_tcp(pkt.sport) if (pkt.proto_name == 'TCP') else self.get_pid_port_udp(pkt.sport)
-        process_name = self.get_process_image_filename(conn_pid) if conn_pid else None
+        conn_pid, process_name = None, None
+        if pkt.proto_name and pkt.sport:
+            conn_pid = self.get_pid_port_tcp(pkt.sport) if (pkt.proto_name == 'TCP') else self.get_pid_port_udp(pkt.sport)
+            process_name = self.get_process_image_filename(conn_pid) if conn_pid else None
         return conn_pid, process_name
 
     def get_pid_port_tcp(self, port):
@@ -784,7 +786,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         if pid == 4:
             # Skip the inevitable errno 87, invalid parameter
             process_name = 'System'
-        else:
+        elif pid:
             hProcess = windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
             if hProcess:
 

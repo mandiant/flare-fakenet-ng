@@ -506,6 +506,16 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
     def linux_find_sock_by_endpoint(self, ipver, proto_name, ip, port,
                                     local=True):
+        """Check args and call _linux_find_sock_by_endpoint_unsafe."""
+
+        if proto_name and ip and port:
+            return self._linux_find_sock_by_endpoint_unsafe(ipver, proto_name,
+                                                            ip, port, local)
+        else:
+            return None
+
+    def _linux_find_sock_by_endpoint_unsafe(self, ipver, proto_name, ip, port,
+                                    local=True):
         """Search /proc/net/tcp for a socket whose local (field 1, zero-based)
         or remote (field 2) address matches ip:port and return the
         corresponding inode (field 9).
