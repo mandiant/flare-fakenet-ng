@@ -197,7 +197,7 @@ class FakeNetTester:
                     os.remove(self.settings.logpath)
                 except WindowsError: # i.e. log file locked by another process
                     logger.warning('Failed to delete %s, attempt %d' %
-                                   (self.settings.configpath, i))
+                                   (self.settings.logpath, i))
                     if i == max_del_attempts:
                         logger.error('Final attempt, re-raising exception')
                         raise
