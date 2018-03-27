@@ -640,11 +640,10 @@ class DiverterBase(fnconfig.Config):
         if self.pcap and self.pcap_lock:
             self.pcap_lock.acquire()
             try:
-                if isinstance(pkt, fnpacket.PacketCtx):
-                    self.pdebug(DPCAP, 'Writing %s' % (pkt.hdrToStr2()))
-                    self.pcap.writepkt(pkt.octets)
-                else:
-                    self.pcap.writepkt(pkt)
+                mangled = 'mangled' if pkt.mangled else 'initial'
+                self.pdebug(DPCAP, 'Writing %s packet %s' %
+                            (mangled, pkt.hdrToStr2()))
+                self.pcap.writepkt(pkt.octets)
             finally:
                 self.pcap_lock.release()
 
@@ -1087,7 +1086,7 @@ class DiverterBase(fnconfig.Config):
         # the port forwarding table keyed by the source endpoint identity.
 
         if dport_hidden_listener or self.decide_redir_port(pkt, bound_ports):
-            self.pdebug(DDPFV, 'Condition 2 satisfied')
+            self.pdebug(DDPFV, 'Condition 2 satisfied: Packet destined for unbound port or hidden listener')
 
             # Post-condition 1: General ignore conditions are not met, or this
             # is part of a conversation that is already being ignored.
@@ -1131,6 +1130,8 @@ class DiverterBase(fnconfig.Config):
             finally:
                 self.port_fwd_table_lock.release()
 
+            self.pdebug(DDPF, 'Redirecting %s to go to port %d' %
+                        (pkt.hdrToStr(), default))
             pkt.dport = default
 
         else:
@@ -1186,7 +1187,7 @@ class DiverterBase(fnconfig.Config):
             self.pdebug(DDPFV, 'Condition 3 satisfied: must fix up ' +
                         'source port')
             self.pdebug(DDPFV, ' = FOUND portfwd key entry: ' + pkt.dkey)
-            self.pdebug(DDPF, 'MASQUERADING %s from port %d' %
+            self.pdebug(DDPF, 'MASQUERADING %s to come from port %d' %
                               (pkt.hdrToStr(), new_sport))
             pkt.sport = new_sport
         else:
