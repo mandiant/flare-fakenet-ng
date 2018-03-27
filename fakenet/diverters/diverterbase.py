@@ -1224,7 +1224,7 @@ class DiverterBase(fnconfig.Config):
             self.pdebug(DDPFV, 'dst %s (%s)' %
                         (str(pkt.dst_ip), ['foreign', 'local'][b]))
             self.pdebug(DDPFV, 'sport %s (%sbound)' %
-                        (str(sport), ['un', ''][c]))
+                        (str(pkt.sport), ['un', ''][c]))
             self.pdebug(DDPFV, 'dport %s (%sbound)' %
                         (str(pkt.dport), ['un', ''][d]))
 
