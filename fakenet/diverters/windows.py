@@ -128,11 +128,6 @@ class Diverter(DiverterBase, WinUtilMixin):
                 self.logger.error('ERROR: Failed to open a handle to the WinDivert driver: %s', e)
                 sys.exit(1)
 
-    # def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
-    #     """Return original destination port, or None if it was not redirected
-    #     """ 
-    #     return self.sessions.get(orig_src_port)
-    
     ###########################################################################
     # Diverter controller functions
 
