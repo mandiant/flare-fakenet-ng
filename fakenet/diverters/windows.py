@@ -31,8 +31,10 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
     # the pydivert.Packet object. This is because there appears to be no way to
     # populate the pydivert.Packet object with plain octets unless you can also
     # provide @interface and @direction arguments which do not appear at a
-    # glance to be available as attributes of pydivert.Packet, according to
-    # https://ffalcinelli.github.io/pydivert/
+    # glance to be directly available as attributes of pydivert.Packet,
+    # according to https://ffalcinelli.github.io/pydivert/
+    #
+    # Perhaps we can get these from wd_addr?
 
     # src_ip overrides
 
@@ -87,10 +89,11 @@ class Diverter(DiverterBase, WinUtilMixin):
             self.logger.error('Windows diverter currently only supports SingleHost mode')
             sys.exit(1)
 
-        # Used for caching of DNS server names prior to changing
+        # Used (by winutil) for caching of DNS server names prior to changing
         self.adapters_dns_server_backup = dict()
 
-        # Used to restore modified Interfaces back to DHCP
+        # Populated by winutil and used to restore modified Interfaces back to
+        # DHCP
         self.adapters_dhcp_restore = list()
         self.adapters_dns_restore = list()
 

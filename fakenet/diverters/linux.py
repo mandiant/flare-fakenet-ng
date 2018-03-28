@@ -232,7 +232,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.handle_pkt(pkt, self.nonlocal_net_cbs, [])
             if pkt.mangled:
                 nfqpkt.set_payload(pkt.octets)
-        # Catch-all exceptions are usually bad practice, sure, but
+        # Catch-all exceptions are usually bad practice, agreed, but
         # python-netfilterqueue has a catch-all that will not print enough
         # information to troubleshoot with, so if there is going to be a
         # catch-all exception handler anyway, it might as well be mine so that
