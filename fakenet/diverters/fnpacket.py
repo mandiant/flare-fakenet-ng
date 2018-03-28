@@ -16,7 +16,11 @@ class PacketCtx(object):
 
     @staticmethod
     def gen_endpoint_key(proto_name, ip, port):
-        """e.g. 192.168.19.132:tcp/3030"""
+        """e.g. 192.168.19.132:tcp/3030
+        
+        Need static method because getOriginalDestPort (called by proxy
+        listener) uses this.
+        """
         return str(ip) + ':' + str(proto_name) + '/' + str(port)
 
 
