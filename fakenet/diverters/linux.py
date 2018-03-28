@@ -229,9 +229,9 @@ class Diverter(DiverterBase, LinUtilMixin):
         """
         try:
             pkt = LinuxPacketCtx('handle_nonlocal', nfqpkt)
-            newraw = self.handle_pkt(pkt, self.nonlocal_net_cbs, [])
-            if newraw:
-                nfqpkt.set_payload(newraw)
+            self.handle_pkt(pkt, self.nonlocal_net_cbs, [])
+            if pkt.mangled:
+                nfqpkt.set_payload(pkt.octets)
         # Catch-all exceptions are usually bad practice, sure, but
         # python-netfilterqueue has a catch-all that will not print enough
         # information to troubleshoot with, so if there is going to be a
@@ -258,10 +258,10 @@ class Diverter(DiverterBase, LinUtilMixin):
         """
         try:
             pkt = LinuxPacketCtx('handle_incoming', nfqpkt)
-            newraw = self.handle_pkt(pkt, self.incoming_net_cbs,
+            self.handle_pkt(pkt, self.incoming_net_cbs,
                                      self.incoming_trans_cbs)
-            if newraw:
-                nfqpkt.set_payload(newraw)
+            if pkt.mangled:
+                nfqpkt.set_payload(pkt.octets)
         except Exception:
             self.logger.error('Exception: %s' % (traceback.format_exc()))
             raise
@@ -285,10 +285,10 @@ class Diverter(DiverterBase, LinUtilMixin):
         """
         try:
             pkt = LinuxPacketCtx('handle_outgoing', nfqpkt)
-            newraw = self.handle_pkt(pkt, self.outgoing_net_cbs,
+            self.handle_pkt(pkt, self.outgoing_net_cbs,
                                      self.outgoing_trans_cbs)
-            if newraw:
-                nfqpkt.set_payload(newraw)
+            if pkt.mangled:
+                nfqpkt.set_payload(pkt.octets)
         except Exception:
             self.logger.error('Exception: %s' % (traceback.format_exc()))
             raise

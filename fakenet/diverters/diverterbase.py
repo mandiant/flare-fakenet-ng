@@ -110,7 +110,7 @@ class DiverterPerOSDelegate(object):
     @abc.abstractmethod
     def get_pid_comm(self, pkt):
         """Get the PID and process name by IP/port info.
-        
+
         comm is the Linux term for process name.
         """
         pass
@@ -119,7 +119,7 @@ class DiverterPerOSDelegate(object):
     def getNewDestinationIp(self, src_ip):
         """Get IP to redirect to after a redirection decision has been made.
 
-        On Windows, and possibly other operating systems, simply redirecting 
+        On Windows, and possibly other operating systems, simply redirecting
         external packets to the loopback address will cause the packets not to
         be routable, so it is necessary to choose an external interface IP in
         some cases.
@@ -355,8 +355,8 @@ class DiverterBase(fnconfig.Config):
                 if not protocol in self.diverted_ports:
                     self.diverted_ports[protocol] = dict()
 
-                # diverted_ports[protocol][port] is True if the listener is 
-                # configured as 'Hidden', which means it will not receive 
+                # diverted_ports[protocol][port] is True if the listener is
+                # configured as 'Hidden', which means it will not receive
                 # packets unless the ProxyListener determines that the protocol
                 # matches the listener
                 self.diverted_ports[protocol][port] = hidden
@@ -413,7 +413,7 @@ class DiverterBase(fnconfig.Config):
                     if not protocol in self.port_host_whitelist:
                         self.port_host_whitelist[protocol] = dict()
 
-                    self.port_host_whitelist[protocol][port] = [host.strip() 
+                    self.port_host_whitelist[protocol][port] = [host.strip()
                         for host in
                         listener_config['hostwhitelist'].split(',')]
 
@@ -444,7 +444,7 @@ class DiverterBase(fnconfig.Config):
 
                     # Would prefer not to get into the middle of a debug
                     # session and learn that a typo has ruined the day, so we
-                    # test beforehand by 
+                    # test beforehand by
                     test = self._build_cmd(template, 0, 'test', '1.2.3.4',
                                            12345, '4.3.2.1', port)
                     if not test:
@@ -644,28 +644,28 @@ class DiverterBase(fnconfig.Config):
     def handle_pkt(self, pkt, callbacks3, callbacks4):
         """Generic packet hook.
 
+        Does the following:
+        1.) Unconditionally Write unmangled packet to pcap
+        2.) Call layer 3 (network) callbacks...
+        3.) Call layer 4 (transport) callbacks...
+        4.) If the packet headers have been modified, double-write the mangled
+            packet to the pcap for SSL decoding purposes
+
+        The caller is responsible for checking if the packet was mangled,
+        updating the contents of the datagram with the network hooking specific
+        to their OS, and accepting/transmitting the final packet.
+
         Params
         ------
         pkt: fnpacket.PacketCtx object
-        callbacks3: Array of L3 callbacks
-        callbacks4: Array of L4 callbacks
-        Returns:
-            Modified raw octets, if applicable
+        callbacks3: Array of L3 (network) callbacks
+        callbacks4: Array of L4 (transport) callbacks
 
-        1.) Common prologue:
-            A.) Unconditionally Write unmangled packet to pcap
-            B.) Parse IP packet
-        2.) Call layer 3 (network) callbacks...
-        3.) Handle higher-layer protocol (TCP, UDP) for port numbers
-        4.) Call layer 4 (transport) callbacks...
-        5.) If the packet headers have been modified, double-write the mangled
-            packet to the pcap for SSL decoding purposes
-        6.) The caller must:
-            A.) Update the packet payload
-            B.) Accept the packet with NetfilterQueue or whatever
+        Side-effects:
+            Mangles pkt as necessary
         """
 
-        # 1A: Unconditionally write unmangled packet to pcap
+        # 1: Unconditionally write unmangled packet to pcap
         self.write_pcap(pkt)
 
         no_further_processing = False
@@ -677,7 +677,7 @@ class DiverterBase(fnconfig.Config):
 
             crit = DivertParms(self, pkt)
 
-            # fnpacket has parsed all that can be parsed, so 
+            # fnpacket has parsed all that can be parsed, so
             pid, comm = self.get_pid_comm(pkt)
             if self.pdebug_level & DGENPKTV:
                 logline = self.formatPkt(pkt, pid, comm)
@@ -685,8 +685,6 @@ class DiverterBase(fnconfig.Config):
             elif pid and (pid != self.pid) and crit.first_packet_new_session:
                 self.logger.info('  pid:  %d name: %s' %
                                  (pid, comm if comm else 'Unknown'))
-
-            # 1B: Parse IP packet
 
             # 2: Call layer 3 (network) callbacks
             for cb in callbacks3:
@@ -702,8 +700,6 @@ class DiverterBase(fnconfig.Config):
             if pkt.proto_name:
 
                 if len(callbacks4):
-                    # 3: Handle higher-layer protocol
-
                     # Windows Diverter has always allowed loopback packets to
                     # fall where they may. This behavior now applies to all
                     # Diverters.
@@ -712,7 +708,7 @@ class DiverterBase(fnconfig.Config):
                         self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
                         no_further_processing = True
 
-                    # 4: Layer 4 (Transport layer) callbacks
+                    # 3: Layer 4 (Transport layer) callbacks
                     if not no_further_processing:
                         for cb in callbacks4:
                             # These debug outputs are useful for figuring out
@@ -729,15 +725,10 @@ class DiverterBase(fnconfig.Config):
                 self.pdebug(DGENPKT, '%s: Not handling protocol %s' %
                                      (pkt.label, pkt.proto))
 
+        # 4: Double write mangled packets to represent changes made by
+        # FakeNet-NG while still allowing SSL decoding with the old packets
         if pkt.mangled:
-            # 5Ai: Double write mangled packets to represent changes
-            # made by FakeNet-NG while still allowing SSL decoding
             self.write_pcap(pkt)
-
-            # 5Aii: Finalize changes with caller
-            return pkt.octets
-
-        return None
 
     def formatPkt(self, pkt, pid, comm):
         logline = ''
@@ -793,7 +784,7 @@ class DiverterBase(fnconfig.Config):
             fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
             logline = fmt.format(
                     label = pkt.label,
-                    proto = '',
+                    proto = 'UNK',
                     pid = pid,
                     comm = comm,
                     src = str(pkt.src_ip),
@@ -945,12 +936,12 @@ class DiverterBase(fnconfig.Config):
         """Return original destination port, or None if it was not redirected.
 
         Called by proxy listener.
-        """ 
-        
+        """
+
         orig_src_key = fnpacket.PacketCtx.gen_endpoint_key(proto, orig_src_ip,
                                                   orig_src_port)
         self.port_fwd_table_lock.acquire()
-        
+
         try:
             return self.port_fwd_table.get(orig_src_key)
         finally:
@@ -1065,9 +1056,9 @@ class DiverterBase(fnconfig.Config):
             return None
 
         bound_ports = self.diverted_ports.get(pkt.proto_name, [])
-        
+
         # First, check if this packet is sent from a listener/diverter
-        # If so, don't redir for 'Hidden' status because it is already 
+        # If so, don't redir for 'Hidden' status because it is already
         # being forwarded from proxy listener to bound/hidden listener
         # Next, check if listener for this port is 'Hidden'. If so, we need to
         # divert it to the proxy as per the Hidden config
@@ -1095,7 +1086,7 @@ class DiverterBase(fnconfig.Config):
             # 3.) Reporting of packets that are being ignored (i.e. not
             #     redirected), which is integrated into this check, should only
             #     appear when packets would otherwise have been redirected.
-            
+
             # Is this conversation already being ignored for DPF purposes?
             self.ignore_table_lock.acquire()
             try:
@@ -1239,7 +1230,7 @@ class DiverterBase(fnconfig.Config):
         port_exec = self.port_execute.get(pkt.proto_name)
         if not port_exec:
             return
-        
+
         default = self.default_listener.get(pkt.proto_name)
 
         if (pkt.dport in port_exec) or (default and default in port_exec):
