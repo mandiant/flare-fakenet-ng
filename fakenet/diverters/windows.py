@@ -21,16 +21,11 @@ import subprocess
 
 
 class WindowsPacketCtx(fnpacket.PacketCtx):
-    def __init__(self, lbl, wdpkt, local_ips):
+    def __init__(self, lbl, wdpkt):
         self.wdpkt = wdpkt
         raw = wdpkt.raw.tobytes()
 
         super(WindowsPacketCtx, self).__init__(lbl, raw)
-
-        self.is_loopback0 = wdpkt.is_loopback
-        self.is_inbound0 = wdpkt.is_inbound
-        self.interface_string = 'loopback' if self.is_loopback0 else 'external'
-        self.direction_string = 'inbound' if self.is_inbound0 else 'outbound'
 
     # Packet mangling properties are extended here to also write the data to
     # the pydivert.Packet object. This is because there appears to be no way to
@@ -162,24 +157,18 @@ class Diverter(DiverterBase, WinUtilMixin):
                     self.logger.error('ERROR: Can\'t handle packet.')
                     continue
 
-                pkt = WindowsPacketCtx('divert_thread', wdpkt, self.ip_addrs)
+                pkt = WindowsPacketCtx('divert_thread', wdpkt)
 
-                cb3 = [self.handle_icmp_packet,]
-                cb4 = [self.handle_tcp_udp_packet,]
-
-                use_linux_callbacks = True
-
-                if use_linux_callbacks:
-                    cb3 = [
-                        self.check_log_icmp,
-                        self.redirIcmpIpUnconditionally
-                       ]
-                    cb4 = [
-                        self.maybe_redir_port,
-                        self.maybe_fixup_sport,
-                        self.maybe_redir_ip,
-                        self.maybe_fixup_srcip,
-                       ]
+                cb3 = [
+                    self.check_log_icmp,
+                    self.redirIcmpIpUnconditionally
+                   ]
+                cb4 = [
+                    self.maybe_redir_port,
+                    self.maybe_fixup_sport,
+                    self.maybe_redir_ip,
+                    self.maybe_fixup_srcip,
+                   ]
 
                 self.handle_pkt(pkt, cb3, cb4)
 
@@ -198,7 +187,7 @@ class Diverter(DiverterBase, WinUtilMixin):
                     elif pkt.is_icmp:
                         protocol = 'ICMP'
 
-                    self.logger.error('ERROR: Failed to send %s %s %s packet', pkt.direction_string, pkt.interface_string, protocol)
+                    self.logger.error('ERROR: Failed to send %s %s %s packet', self.pktDirectionStr(pkt), self.pktInterfaceStr(pkt), protocol)
                     self.logger.error('  %s' % (pkt.hdrToStr()))
                     self.logger.error('  %s', e)
 
@@ -253,6 +242,20 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         self.flush_dns()
 
+    def pktInterfaceStr(self, pkt):
+        """WinDivert provides is_loopback which Windows Diverter uses to
+        display information about the disposition of packets it is
+        processing during error and other cases.
+        """
+        return 'loopback' if pkt.wdpkt.is_loopback else 'external'
+
+    def pktDirectionStr(self, pkt):
+        """WinDivert provides is_inbound which Windows Diverter uses to
+        display information about the disposition of packets it is
+        processing during error and other cases.
+        """
+        return 'inbound' if pkt.wdpkt.is_inbound else 'outbound'
+
     def redirIcmpIpUnconditionally(self, crit, pkt):
         """Redirect ICMP to loopback or external IP if necessary.
 
@@ -265,129 +268,6 @@ class Diverter(DiverterBase, WinUtilMixin):
             self.logger.info('  from: %s' % (pkt.hdrToStr()))
             pkt.dst_ip = self.getNewDestinationIp(pkt.src_ip)
             self.logger.info('  to:   %s' % (pkt.hdrToStr()))
-
-        return pkt
-
-    def handle_icmp_packet(self, crit, pkt):
-        if pkt.is_icmp:
-            # Modify outgoing ICMP packet to target local Windows host which will reply to the ICMP messages.
-            # HACK: Can't intercept inbound ICMP server, but still works for now.
-
-            if not ((pkt.is_loopback0 and pkt.src_ip == self.loopback_ip and pkt.dst_ip == self.loopback_ip) or \
-               (pkt.src_ip == self.external_ip and pkt.dst_ip == self.external_ip)):
-
-                self.logger.info('Modifying %s ICMP packet:', 'loopback' if pkt.is_loopback0 else 'external')
-                self.logger.info('  from: %s -> %s', pkt.src_ip, pkt.dst_ip)
-
-                # Direct packet to the right interface IP address to avoid routing issues
-                pkt.dst_ip = self.loopback_ip if pkt.is_loopback0 else self.external_ip
-
-                self.logger.info('  to:   %s -> %s', pkt.src_ip, pkt.dst_ip)
-
-        return pkt
-
-    def handle_tcp_udp_packet(self, crit, pkt, pid, process_name):
-
-        # Protocol specific filters
-        protocol               = pkt.proto_name
-        default                = self.default_listener.get(protocol)
-        blacklist_ports        = self.blacklist_ports.get(protocol)
-        bound_ports            = self.diverted_ports.get(protocol)
-        port_process_whitelist = self.port_process_whitelist.get(protocol)
-        port_process_blacklist = self.port_process_blacklist.get(protocol)
-        port_host_whitelist    = self.port_host_whitelist.get(protocol)
-        port_host_blacklist    = self.port_host_blacklist.get(protocol)
-        port_execute           = self.port_execute.get(protocol)
-
-        # Criteria to divert a packet to a local listener:
-        # 1) Divert outbound packets only
-        # 2) Make sure we are not diverting response packet based on the source port
-        # 3) Make sure the destination port is a known diverted port or we have a default listener port defined
-
-        ############################################################
-        # If a packet must be diverted to a local listener
-        ############################################################
-        if crit.win_divert_locally:
-            # If the packet is in a blacklist, or is not in a whitelist, pass it as-is
-            if self.check_should_ignore(pkt, pid, process_name):
-                return pkt
-
-            # Modify the packet
-
-            # Adjustable log level output. Used to display info level logs for first packets of the session and 
-            # debug level for the rest of the communication in order to reduce log output.
-            logger_level = self.logger.debug
-
-            # First packet in a new session
-            if crit.first_packet_new_session:
-                self.addSession(pkt) # Cache original target IP based on sport
-
-                # Override log level to display all information on info level
-                logger_level = self.logger.info
-
-                # Execute command if applicable
-                self.maybeExecuteCmd(pkt, pid, process_name)
-
-            logger_level('Modifying %s %s %s request packet:', pkt.direction_string, pkt.interface_string, protocol)
-            logger_level('  from: %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
-
-            # Direct packet to the right interface IP address to avoid routing issues
-            pkt.dst_ip = self.loopback_ip if pkt.is_loopback0 else self.external_ip
-
-            # Direct packet to an existing or a default listener
-            # check if 'hidden' config is set. If so, the packet is 
-            # directed to the default listener which is the proxy
-            dport_bound = pkt.dport in bound_ports
-            dport_hidden_listener = bound_ports.get(pkt.dport) is True
-            if (not dport_bound) or dport_hidden_listener:
-                pkt.dport = default
-
-            logger_level('  to:   %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
-
-            if pid:
-                logger_level('  pid:  %d name: %s', pid, process_name if process_name else 'Unknown')
-            return pkt
-
-
-        ############################################################
-        # Restore diverted response from a local listener
-        # NOTE: The response can come from a legitimate request
-        ############################################################
-        if crit.win_listener_reply: # bound_ports and pkt.sport in bound_ports
-            # The packet is a response from a listener. It needs to be 
-            # redirected to the original source
-
-            if not pkt.dport in self.sessions:
-                self.logger.debug('Unknown %s %s %s response packet:', pkt.direction_string, pkt.interface_string, protocol)
-                self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
-
-            # Restore original target IP address from the cache
-            else:
-                self.logger.debug('Modifying %s %s %s response packet:', pkt.direction_string, pkt.interface_string, protocol)
-                self.logger.debug('  from: %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
-
-                # Restore original target IP address based on destination port
-                pkt.src_ip, pkt.sport = self.sessions[pkt.dport]
-
-                self.logger.debug('  to:   %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
-
-            if pid:
-                self.logger.debug('  pid:  %d name: %s', pid, process_name if process_name else 'Unknown')
-
-            return pkt
-
-        ############################################################
-        # Catch-all / else case
-        # At this point whe know the packet is either a response packet 
-        # from a listener (sport is bound) or is destined for a port with no 
-        # listener (dport not bound)
-        ############################################################
-
-        self.addSession(pkt) # Cache original target IP based on sport
-        pkt.dport = default # forward to proxy
-
-        self.logger.debug('Redirected %s %s %s packet to proxy:', pkt.direction_string, pkt.interface_string, protocol)
-        self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
 
         return pkt
 

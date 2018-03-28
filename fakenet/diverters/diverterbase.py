@@ -31,6 +31,11 @@ class DivertParms(object):
         self.pkt = pkt
 
     @property
+    def is_loopback0(self):
+        return (self.pkt.src_ip0 == self.pkt.dst_ip0 ==
+                self.diverter.loopback_ip)
+
+    @property
     def is_loopback(self):
         return self.pkt.src_ip == self.pkt.dst_ip == self.diverter.loopback_ip
 
@@ -44,29 +49,18 @@ class DivertParms(object):
 
     @property
     def sport_bound(self):
-        return self.pkt.sport in self.diverter.diverted_ports.get(self.pkt.proto_name)
+        return (self.pkt.sport in
+                self.diverter.diverted_ports.get(self.pkt.proto_name))
 
     @property
     def dport_bound(self):
-        return self.pkt.dport in self.diverter.diverted_ports.get(self.pkt.proto_name)
+        return (self.pkt.dport in
+                self.diverter.diverted_ports.get(self.pkt.proto_name))
 
     @property
     def first_packet_new_session(self):
         return not (self.diverter.sessions.get(self.pkt.sport) ==
                     (self.pkt.dst_ip, self.pkt.dport))
-
-    @property
-    def win_divert_locally(self):
-        return (self.diverter.diverted_ports.get(self.pkt.proto_name) and
-                (not self.sport_bound) and
-                (self.dport_bound or
-                 self.diverter.default_listener.get(self.pkt.proto_name)))
-
-    @property
-    def win_listener_reply(self):
-        """Check to see if it is a listener reply needing fixups."""
-        bound_ports = self.diverter.diverted_ports.get(self.pkt.proto_name)
-        return self.pkt.sport in bound_ports if bound_ports else False
 
 
 class DiverterPerOSDelegate(object):

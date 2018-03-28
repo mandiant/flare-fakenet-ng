@@ -17,7 +17,7 @@ from netfilterqueue import NetfilterQueue
 
 
 class LinuxPacketCtx(fnpacket.PacketCtx):
-    def __init__(self, lbl, nfqpkt, local_ips):
+    def __init__(self, lbl, nfqpkt):
         self.nfqpkt = nfqpkt
         raw = nfqpkt.get_payload()
 
