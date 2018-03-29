@@ -274,7 +274,7 @@ def main():
   _____________________________________________________________
                          Developed by            
              Peter Kacherginsky and Michael Bailey      
-       FLARE (FireEye Labs Advanced Reverse Engineering)       
+                          FLARE Team
   _____________________________________________________________               
                                                """
 
