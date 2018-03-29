@@ -215,9 +215,15 @@ class DiverterBase(fnconfig.Config):
                   logging_level=logging.INFO):
         """Initialize the DiverterBase.
 
+        TODO: Replace the sys.exit() calls from this function with exceptions
+        or some other mechanism appropriate for allowing the user of this class
+        to programmatically detect and handle these cases in their own way.
+        This may entail moving configuration parsing to a method with a return
+        value, or modifying fakenet.py to handle Diverter exceptions.
+
         Args:
-            diverter_config: Dictionary of [Diverter] config section
-            listeners_config: Dictionary of listener configuration sections
+            diverter_config: A dict of [Diverter] config section
+            listeners_config: A dict of listener configuration sections
             ip_addrs: dictionary keyed by integers 4 and 6, with each element
                 being a list and each list member being a str that is an ASCII
                 representation of an IP address that is associated with a local
@@ -232,6 +238,8 @@ class DiverterBase(fnconfig.Config):
         # pass logging.DEBUG as the logging_level argument to init_base.
         self.pdebug_level = 0
         self.pdebug_labels = dict()
+
+        self.running_on_windows = False # Override in Windows implementation
 
         self.pid = os.getpid()
 
@@ -396,7 +404,17 @@ class DiverterBase(fnconfig.Config):
         # libnetfilter_queue, pf/alf, etc.
 
     def set_debug_level(self, lvl, labels={}):
-        """Enable debug output if necessary and set the debug output level."""
+        """Enable debug output if necessary, set the debug output level, and
+        maintain a reference to the dictionary of labels to print when a given
+        logging level is encountered.
+        
+        Args:
+            lvl: An int mask of all debug logging levels
+            labels: A dict of int => str assigning names to each debug level
+
+        Returns:
+            None
+        """
         if lvl:
             self.logger.setLevel(logging.DEBUG)
 
@@ -405,13 +423,27 @@ class DiverterBase(fnconfig.Config):
         self.pdebug_labels = labels
 
     def pdebug(self, lvl, s):
-        """Log only the debug trace messages that have been enabled."""
+        """Log only the debug trace messages that have been enabled via
+        set_debug_level.
+
+        Args:
+            lvl: An int indicating the debug level of this message
+            s: The mssage
+
+        Returns:
+            None
+        """
         if self.pdebug_level & lvl:
             label = self.pdebug_labels.get(lvl)
             prefix = '[' + label + '] ' if label else '[some component] '
             self.logger.debug(prefix + str(s))
 
     def check_privileged(self):
+        """UNIXy and Windows-oriented check for superuser privileges.
+
+        Returns:
+            True if superuser, else False
+        """
         try:
             privileged = (os.getuid() == 0)
         except AttributeError:
@@ -420,6 +452,19 @@ class DiverterBase(fnconfig.Config):
         return privileged
 
     def parse_listeners_config(self, listeners_config):
+        """Parse listener config sections.
+
+        TODO: Replace the sys.exit() calls from this function with exceptions
+        or some other mechanism appropriate for allowing the user of this class
+        to programmatically detect and handle these cases in their own way.
+        This may entail modifying fakenet.py.
+
+        Args:
+            listeners_config: A dict of listener configuration sections
+
+        Returns:
+            None
+        """
 
         #######################################################################
         # Populate diverter ports and process filters from the configuration
@@ -553,7 +598,39 @@ class DiverterBase(fnconfig.Config):
                                       protocol,
                                       self.port_execute[protocol][port])
 
+    def build_cmd(self, pkt, pid, comm):
+        """Retrieve the ExecuteCmd directive if applicable and build the
+        command to execute.
+
+        """
+        cmd = None
+
+        if ((pkt.proto_name in self.port_execute) and
+                (pkt.dport in self.port_execute[pkt.proto_name])
+           ):
+            template = self.port_execute[pkt.proto_name][pkt.dport]
+            cmd = self._build_cmd(template, pid, comm, pkt.src_ip, pkt.sport,
+                                  pkt.dst_ip, pkt.dport)
+
+        return cmd
+
     def _build_cmd(self, tmpl, pid, comm, src_ip, sport, dst_ip, dport):
+        """Build a command based on the template specified in an ExecuteCmd
+        config directive, applying the parameters as needed.
+
+        Args:
+            tmpl: A str containing the body of the ExecuteCmd config directive
+            pid: An int that is the process ID of the process that sent the
+                packet
+            comm: The command (process name) that sent the packet
+            src_ip: The source IP address that originated the packet
+            sport: The source port that originated the packet
+            dst_ip: The destination IP that the packet was directed at
+            dport: The destination port that the packet was directed at
+
+        Returns:
+            A str that is the resultant command to execute
+        """
         cmd = None
 
         try:
@@ -573,50 +650,47 @@ class DiverterBase(fnconfig.Config):
 
     ###########################################################################
     # Execute process and detach
-    def execute_detached(self, execute_cmd, winders=False):
-        """Supposedly OS-agnostic asynchronous subprocess creation.
+    def execute_detached(self, execute_cmd):
+        """OS-agnostic asynchronous subprocess creation.
 
-        Written in anticipation of re-factoring diverters into a common class
-        parentage.
+        Executes the process via UNIXy methods unless Windows is specified.
+        Isolates the process from FakeNet-NG to prevent it from being
+        interrupted by termination of FakeNet-NG, Ctrl-C, etc.
 
-        Not tested on Windows. Override or fix this if it does not work, for
-        instance to use the Popen creationflags argument or omit the close_fds
-        argument on Windows.
+        Args:
+            execute_cmd: A str that is the command to execute
+
+        Side-effects:
+            Creates the specified process.
+
+        Returns:
+            An int that is the pid of the new process, else None
         """
         DETACHED_PROCESS = 0x00000008
-        cflags = DETACHED_PROCESS if winders else 0
-        cfds = False if winders else True
-        shl = False if winders else True
+        cflags = DETACHED_PROCESS if self.running_on_windows else 0
+        cfds = False if self.running_on_windows else True
+        shl = False if self.running_on_windows else True
 
         def ign_sigint():
             # Prevent KeyboardInterrupt in FakeNet-NG's console from
             # terminating child processes
             signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-        # import pdb
-        # pdb.set_trace()
+        preexec = None if self.running_on_windows else ign_sigint
+
+        self.logger.error('Preexec = %s' % (str(preexec)))
+
         try:
             pid = subprocess.Popen(execute_cmd, creationflags=cflags,
                                    shell=shl,
                                    close_fds = cfds,
-                                   preexec_fn = ign_sigint).pid
-        except Exception, e:
+                                   preexec_fn = preexec).pid
+        except Exception as e:
+            self.logger.error('Exception of type %s' % (str(type(e))))
             self.logger.error('Error: Failed to execute command: %s', execute_cmd)
             self.logger.error('       %s', e)
         else:
             return pid
-
-    def build_cmd(self, proto_name, pid, comm, src_ip, sport, dst_ip, dport):
-        cmd = None
-
-        if ((proto_name in self.port_execute) and
-                (dport in self.port_execute[proto_name])
-           ):
-            template = self.port_execute[proto_name][dport]
-            cmd = self._build_cmd(template, pid, comm, src_ip, sport, dst_ip,
-                                  dport)
-
-        return cmd
 
     def parse_diverter_config(self):
         """Parse [Diverter] config section.
@@ -1389,8 +1463,7 @@ class DiverterBase(fnconfig.Config):
         default = self.default_listener.get(pkt.proto_name)
 
         if (pkt.dport in port_exec) or (default and default in port_exec):
-            execCmd = self.build_cmd(pkt.proto_name, pid, comm, pkt.src_ip,
-                                     pkt.sport, pkt.dst_ip, pkt.dport)
+            execCmd = self.build_cmd(pkt, pid, comm)
         if execCmd:
             self.logger.info('Executing command: %s' % (execCmd))
             self.execute_detached(execCmd)
