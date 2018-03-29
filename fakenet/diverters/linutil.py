@@ -712,7 +712,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         return pid, comm
 
     def get_pid_comm(self, pkt):
-        return self.linux_get_pid_comm_by_endpoint(pkt.ipver, pkt.proto_name,
+        return self.linux_get_pid_comm_by_endpoint(pkt.ipver, pkt.proto,
                                                    pkt.src_ip, pkt.sport)
 
     def linux_endpoint_owned_by_processes(self, ipver, proto_name, ip, port,

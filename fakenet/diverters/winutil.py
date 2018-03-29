@@ -714,8 +714,8 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
     def get_pid_comm(self, pkt):
         conn_pid, process_name = None, None
-        if pkt.proto_name and pkt.sport:
-            conn_pid = self.get_pid_port_tcp(pkt.sport) if (pkt.proto_name == 'TCP') else self.get_pid_port_udp(pkt.sport)
+        if pkt.proto and pkt.sport:
+            conn_pid = self.get_pid_port_tcp(pkt.sport) if (pkt.proto == 'TCP') else self.get_pid_port_udp(pkt.sport)
             process_name = self.get_process_image_filename(conn_pid) if conn_pid else None
         return conn_pid, process_name
 

@@ -64,7 +64,7 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
     @sport.setter
     def sport(self, new_sport):
         super(self.__class__, self.__class__).sport.fset(self, new_sport)
-        if self.proto_name:
+        if self.proto:
             self.wdpkt.src_port = new_sport
 
     # dport overrides
@@ -75,7 +75,7 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
     @dport.setter
     def dport(self, new_dport):
         super(self.__class__, self.__class__).dport.fset(self, new_dport)
-        if self.proto_name:
+        if self.proto:
             self.wdpkt.dst_port = new_dport
 
 
@@ -143,8 +143,8 @@ class Diverter(DiverterBase, WinUtilMixin):
             self.stop_service_helper('Dnscache') 
 
         self.logger.info('Diverting ports: ')
-        if self.diverted_ports.get('TCP'): self.logger.info('TCP: %s', ', '.join("%d" % port for port in self.diverted_ports['TCP']))
-        if self.diverted_ports.get('UDP'): self.logger.info('UDP: %s', ', '.join("%d" % port for port in self.diverted_ports['UDP']))
+        # if self.listener_ports.get('TCP'): self.logger.info('TCP: %s', ', '.join("%d" % port for port in self.listener_ports['TCP']))
+        # if self.listener_ports.get('UDP'): self.logger.info('UDP: %s', ', '.join("%d" % port for port in self.listener_ports['UDP']))
 
         self.flush_dns()
 
@@ -187,12 +187,12 @@ class Diverter(DiverterBase, WinUtilMixin):
 
                     protocol = 'Unknown'
 
-                    if pkt.proto_name:
-                        protocol = pkt.proto_name
+                    if pkt.proto:
+                        protocol = pkt.proto
                     elif pkt.is_icmp:
-                        protocol = 'ICMP'
+                        proto = 'ICMP'
 
-                    self.logger.error('ERROR: Failed to send %s %s %s packet', self.pktDirectionStr(pkt), self.pktInterfaceStr(pkt), protocol)
+                    self.logger.error('ERROR: Failed to send %s %s %s packet', self.pktDirectionStr(pkt), self.pktInterfaceStr(pkt), proto)
                     self.logger.error('  %s' % (pkt.hdrToStr()))
                     self.logger.error('  %s', e)
 

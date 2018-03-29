@@ -15,13 +15,13 @@ class PacketCtx(object):
     """
 
     @staticmethod
-    def gen_endpoint_key(proto_name, ip, port):
+    def gen_endpoint_key(proto, ip, port):
         """e.g. 192.168.19.132:tcp/3030
         
         Need static method because getOriginalDestPort (called by proxy
         listener) uses this.
         """
-        return str(ip) + ':' + str(proto_name) + '/' + str(port)
+        return str(ip) + ':' + str(proto) + '/' + str(port)
 
 
     def __init__(self, label, raw):
@@ -48,8 +48,8 @@ class PacketCtx(object):
         self.ipver = None
         self._ipcsum0 = None        # Initial checksum
         self._hdr = None
-        self.proto = None
-        self.proto_name = None      # Abused as flag: is L4 protocol handled?
+        self.proto_num = None
+        self.proto = None           # Abused as flag: is L4 protocol handled?
         self._src_ip0 = None        # Initial source IP address
         self._src_ip = None         # Cached in ASCII form
         self._dst_ip0 = None        # Initial destination IP address
@@ -110,7 +110,7 @@ class PacketCtx(object):
     def l4csum0(self): return self._tcpudpcsum0
 
     @property
-    def l4csum(self): return self._hdr.data.sum if self.proto_name else None
+    def l4csum(self): return self._hdr.data.sum if self.proto else None
 
     # src_ip
 
@@ -202,14 +202,14 @@ class PacketCtx(object):
 
     def fmtL4Csums(self):
         s = 'L4 csum N/A'
-        if self.proto_name:
+        if self.proto:
             csum0 = hex(self._tcpudpcsum0).rstrip('L')
             if self._mangled:
                 self._calcCsums()
                 csum = hex(self._hdr.data.sum).rstrip('L')
-                s = '%s csum %s->%s' % (self.proto_name, csum0, csum)
+                s = '%s csum %s->%s' % (self.proto, csum0, csum)
             else:
-                s = '%s csum %s' % (self.proto_name, csum0)
+                s = '%s csum %s' % (self.proto, csum0)
         return s
 
     def fmtCsumData(self, sep='/'):
@@ -224,8 +224,8 @@ class PacketCtx(object):
     def hdrToStr(self):
         s = 'No valid IP headers parsed'
         if self._is_ip:
-            if self.proto_name:
-                s = '%s %s:%d->%s:%d' % (self.proto_name, self._src_ip,
+            if self.proto:
+                s = '%s %s:%d->%s:%d' % (self.proto, self._src_ip,
                                          self._hdr.data.sport, self._dst_ip,
                                          self._hdr.data.dport)
             else:
@@ -238,8 +238,8 @@ class PacketCtx(object):
         if self._is_ip:
             self._src_ip0 = self._src_ip = socket.inet_ntoa(self._hdr.src)
             self._dst_ip0 = self._dst_ip = socket.inet_ntoa(self._hdr.dst)
-            self.proto_name = self.handled_protocols.get(self.proto)
-            if self.proto_name: # If this is a transport protocol we handle...
+            self.proto = self.handled_protocols.get(self.proto_num)
+            if self.proto: # If this is a transport protocol we handle...
                 self._tcpudpcsum0 = self._hdr.data.sum
                 self._sport0 = self._sport = self._hdr.data.sport
                 self._dport0 = self._dport = self._hdr.data.dport
@@ -247,10 +247,10 @@ class PacketCtx(object):
                 self.dkey = self._genEndpointKey(self._dst_ip, self._dport)
 
     def _genEndpointKey(self, ip, port):
-        return PacketCtx.gen_endpoint_key(self.proto_name, ip, port)
+        return PacketCtx.gen_endpoint_key(self.proto, ip, port)
 
     def _parseIcmp(self):
-        self._is_icmp = (self.proto == dpkt.ip.IP_PROTO_ICMP)
+        self._is_icmp = (self.proto_num == dpkt.ip.IP_PROTO_ICMP)
 
     def _parseIpv4(self):
         hdr = dpkt.ip.IP(self._raw)
@@ -258,14 +258,14 @@ class PacketCtx(object):
         if hdr.hl >= 5:
             self._is_ip = True
             self._hdr = hdr
-            self.proto = hdr.p
+            self.proto_num = hdr.p
             self._ipcsum0 = hdr.sum
         return bool(self._hdr)
 
     def _parseIpv6(self):
         self._is_ip = True
         self._hdr = dpkt.ip6.IP6(self._raw)
-        self.proto = self._hdr.nxt
+        self.proto_num = self._hdr.nxt
         return True
 
     def _calcCsums(self):

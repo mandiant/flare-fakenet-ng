@@ -48,7 +48,7 @@ class DivertParms(object):
         Returns:
             True if dport corresponds to hidden listener, else False
         """
-        return self.diverter.diverted_ports.get(self.pkt.dport) is True
+        return self.diverter.listener_ports.isHidden(self.pkt.proto, self.pkt.dport)
 
     @property
     def src_local(self):
@@ -66,8 +66,7 @@ class DivertParms(object):
         Returns:
             True if sport is bound by FakeNet-NG, else False
         """
-        return (self.pkt.sport in
-                self.diverter.diverted_ports.get(self.pkt.proto_name))
+        return self.diverter.listener_ports.isListener(self.pkt.proto, self.pkt.sport)
 
     @property
     def dport_bound(self):
@@ -76,8 +75,7 @@ class DivertParms(object):
         Returns:
             True if dport is bound by FakeNet-NG, else False
         """
-        return (self.pkt.dport in
-                self.diverter.diverted_ports.get(self.pkt.proto_name))
+        return self.diverter.listener_ports.isListener(self.pkt.proto, self.pkt.dport)
 
     @property
     def first_packet_new_session(self):
@@ -207,6 +205,223 @@ class DiverterPerOSDelegate(object):
         """
         pass
 
+class ListenerAlreadyBoundThere(Exception):
+    pass
+
+class ListenerBlackWhiteList(Exception):
+    pass
+
+class ListenerMeta(object):
+    """Info about each listener.
+    
+    Makes hidden listeners explicit. Organizes process and host black/white
+    lists and ExecuteCmd format strings
+
+    Mutators are here. Accessors are in ListenerPorts.
+    """
+    def __init__(self, proto, port, hidden=False):
+        self.proto = proto
+        self.port = port
+        self.hidden = hidden
+        self.proc_bl = None
+        self.proc_wl = None
+        self.host_bl = None
+        self.host_wl = None
+        self.cmd_template = None
+
+    def _splitBlackWhiteList(self, configtext):
+        """Return list from comma-separated config line."""
+        return [item.strip() for item in configtext.split(',')]
+
+    def _validateBlackWhite(self):
+        """Validate that only a black or a white list of either type (host or
+        process) is configured.
+
+        Side-effect:
+            Raises ListenerBlackWhiteList if invalid
+        """
+        msg = None
+        fmt = 'Cannot specify both %s blacklist and whitelist for port %d'
+        if self.proc_wl and self.proc_bl:
+            msg = fmt % ('process', self.port)
+            self.proc_wl = self.proc_bl = None
+        elif self.host_wl and self.host_bl:
+            msg = fmt % ('host', self.port)
+            self.host_wl = self.host_bl = None
+        if msg:
+            raise ListenerBlackWhiteList(msg)
+
+    def setProcessWhitelist(self, configtext):
+        self.proc_wl = self._splitBlackWhiteList(configtext)
+        self._validateBlackWhite()
+
+    def setProcessBlacklist(self, configtext):
+        self.proc_bl = self._splitBlackWhiteList(configtext)
+        self._validateBlackWhite()
+
+    def setHostWhitelist(self, configtext):
+        self.host_wl = self._splitBlackWhiteList(configtext)
+        self._validateBlackWhite()
+
+    def setHostBlacklist(self, configtext):
+        self.host_bl = self._splitBlackWhiteList(configtext)
+        self._validateBlackWhite()
+
+    def setExecuteCmd(self, configtext):
+        self.cmd_template = configtext
+
+class ListenerPorts(object):
+    """Collection of listeners with convenience accessors.
+    """
+
+    def __init__(self):
+        """Initialize dictionary of dictionaries:
+            protocol name => dict
+                portno => ListenerMeta
+        """
+        self.protos = {}
+
+    def addListener(self, listener):
+        """Add a ListenerMeta under the corresponding protocol and port."""
+        proto = listener.proto
+        port = listener.port
+
+        if not proto in self.protos:
+            self.protos[proto] = {}
+
+        if port in self.protos[proto]:
+            raise ListenerAlreadyBoundThere(
+                'Listener already bound to %s port %s' % (proto, port))
+
+        self.protos[proto][port] = listener
+
+    def getListenerMeta(self, proto, port):
+        if proto in self.protos:
+            return self.protos[proto].get(port)
+
+    def isListener(self, proto, port):
+        return bool(self.getListenerMeta(proto, port))
+
+    def isHidden(self, proto, port):
+        listener = self.getListenerMeta(proto, port)
+        return listener.hidden if listener else False
+
+    def getPorts(self, proto):
+        if proto in self.protos:
+            return self.protos[proto]
+        return []
+
+    def intersectsWithPorts(self, proto, ports):
+        """Check if ports intersect with bound listener ports.
+
+        Convenience method for checking whether source or destination port are
+        bound to a FakeNet-NG listener.
+        """
+        return set(ports).intersection(self.getPorts(proto))
+
+    def getExecuteCmd(self, proto, port):
+        listener = self.getListenerMeta(proto, port)
+        if listener:
+            return listener.cmd_template
+
+    def _isWhiteListMiss(self, thing, whitelist):
+        """Check if thing is NOT in whitelist.
+
+        Args:
+            thing: thing to check whitelist for
+            whitelist: list of entries
+
+        Returns:
+            True if thing is in whitelist
+            False otherwise, or if there is no whitelist
+        """
+        if not whitelist:
+            return False
+        return not (thing in whitelist)
+
+    def _isBlackListHit(self, thing, blacklist):
+        """Check if thing is in blacklist.
+
+        Args:
+            thing: thing to check blacklist for
+            blacklist: list of entries
+
+        Returns:
+            True if thing is in blacklist
+            False otherwise, or if there is no blacklist
+        """
+        if not blacklist:
+            return False
+        return (thing in blacklist)
+
+    def isProcessWhiteListMiss(self, proto, port, proc):
+        """Check if proc is OUTSIDE the process WHITElist for a port.
+
+        Args:
+            proto: The protocol name
+            port: The port number
+            proc: The process name
+
+        Returns:
+            False if no listener on this port
+            Return value of _isWhiteListMiss otherwise
+        """
+        listener = self.getListenerMeta(proto, port)
+        if not listener:
+            return False
+        return self._isWhiteListMiss(proc, listener.proc_wl)
+
+    def isProcessBlackListHit(self, proto, port, proc):
+        """Check if proc is IN the process BLACKlist for a port.
+
+        Args:
+            proto: The protocol name
+            port: The port number
+            proc: The process name
+
+        Returns:
+            False if no listener on this port
+            Return value of _isBlackListHit otherwise
+        """
+        listener = self.getListenerMeta(proto, port)
+        if not listener:
+            return False
+        return self._isBlackListHit(proc, listener.proc_bl)
+
+    def isHostWhiteListMiss(self, proto, port, host):
+        """Check if host is OUTSIDE the process WHITElist for a port.
+
+        Args:
+            proto: The protocol name
+            port: The port number
+            host: The process name
+
+        Returns:
+            False if no listener on this port
+            Return value of _isWhiteListMiss otherwise
+        """
+        listener = self.getListenerMeta(proto, port)
+        if not listener:
+            return False
+        return self._isWhiteListMiss(host, listener.host_wl)
+
+    def isHostBlackListHit(self, proto, port, host):
+        """Check if host is IN the process BLACKlist for a port.
+
+        Args:
+            proto: The protocol name
+            port: The port number
+            host: The process name
+
+        Returns:
+            False if no listener on this port
+            Return value of _isBlackListHit otherwise
+        """
+        listener = self.getListenerMeta(proto, port)
+        if not listener:
+            return False
+        return self._isBlackListHit(host, listener.host_bl)
+
 
 class DiverterBase(fnconfig.Config):
 
@@ -291,29 +506,8 @@ class DiverterBase(fnconfig.Config):
         self.ip_fwd_table = dict()
         self.ip_fwd_table_lock = threading.Lock()
 
-        #######################################################################
-        # Listener specific configuration
-        # NOTE: All of these definitions have protocol as the first key
-        #       followed by a list or another nested dict with the actual
-        #       definitions
-
-        # Diverted ports
-        # TODO: a more meaningful name might be BOUND ports indicating ports
-        # that FakeNet-NG has bound to with a listener
-        self.diverted_ports = dict()
-
-        # Listener Port Process filtering
-        # TODO: Allow PIDs
-        self.port_process_whitelist = dict()
-        self.port_process_blacklist = dict()
-
-        # Listener Port Host filtering
-        # TODO: Allow domain name resolution
-        self.port_host_whitelist = dict()
-        self.port_host_blacklist = dict()
-
-        # Execute command list
-        self.port_execute = dict()
+        # Ports bound by FakeNet-NG listeners
+        self.listener_ports = ListenerPorts()
 
         # Parse listener configurations
         self.parse_listeners_config(listeners_config)
@@ -489,14 +683,7 @@ class DiverterBase(fnconfig.Config):
                                       'listener %s', protocol, listener_name)
                     sys.exit(1)
 
-                if not protocol in self.diverted_ports:
-                    self.diverted_ports[protocol] = dict()
-
-                # diverted_ports[protocol][port] is True if the listener is
-                # configured as 'Hidden', which means it will not receive
-                # packets unless the ProxyListener determines that the protocol
-                # matches the listener
-                self.diverted_ports[protocol][port] = hidden
+                listener = ListenerMeta(protocol, port, hidden)
 
                 ###############################################################
                 # Process filtering configuration
@@ -509,32 +696,24 @@ class DiverterBase(fnconfig.Config):
 
                     self.logger.debug('Process whitelist:')
 
-                    if not protocol in self.port_process_whitelist:
-                        self.port_process_whitelist[protocol] = dict()
+                    whitelist = listener_config['processwhitelist']
+                    listener.setProcessWhitelist(whitelist)
 
-                    self.port_process_whitelist[protocol][port] = [
-                        process.strip() for process in
-                        listener_config['processwhitelist'].split(',')]
-
-                    for port in self.port_process_whitelist[protocol]:
-                        self.logger.debug(' Port: %d (%s) Processes: %s',
-                                          port, protocol, ', '.join(
-                            self.port_process_whitelist[protocol][port]))
+                    # for port in self.port_process_whitelist[protocol]:
+                    #     self.logger.debug(' Port: %d (%s) Processes: %s',
+                    #                       port, protocol, ', '.join(
+                    #         self.port_process_whitelist[protocol][port]))
 
                 elif 'processblacklist' in listener_config:
                     self.logger.debug('Process blacklist:')
 
-                    if not protocol in self.port_process_blacklist:
-                        self.port_process_blacklist[protocol] = dict()
+                    blacklist = listener_config['processblacklist']
+                    listener.setProcessBlacklist(blacklist)
 
-                    self.port_process_blacklist[protocol][port] = [
-                        process.strip() for process in
-                        listener_config['processblacklist'].split(',')]
-
-                    for port in self.port_process_blacklist[protocol]:
-                        self.logger.debug(' Port: %d (%s) Processes: %s',
-                                          port, protocol, ', '.join(
-                            self.port_process_blacklist[protocol][port]))
+                    # for port in self.port_process_blacklist[protocol]:
+                    #     self.logger.debug(' Port: %d (%s) Processes: %s',
+                    #                       port, protocol, ', '.join(
+                    #         self.port_process_blacklist[protocol][port]))
 
                 ###############################################################
                 # Host filtering configuration
@@ -544,35 +723,27 @@ class DiverterBase(fnconfig.Config):
                     sys.exit(1)
 
                 elif 'hostwhitelist' in listener_config:
-
                     self.logger.debug('Host whitelist:')
+                    host_whitelist = listener_config['hostwhitelist']
+                    listener.setHostWhitelist(host_whitelist)
 
-                    if not protocol in self.port_host_whitelist:
-                        self.port_host_whitelist[protocol] = dict()
-
-                    self.port_host_whitelist[protocol][port] = [host.strip()
-                        for host in
-                        listener_config['hostwhitelist'].split(',')]
-
-                    for port in self.port_host_whitelist[protocol]:
-                        self.logger.debug(' Port: %d (%s) Hosts: %s', port,
-                                          protocol, ', '.join(
-                            self.port_host_whitelist[protocol][port]))
+                    # for port in self.port_host_whitelist[protocol]:
+                    #     self.logger.debug(' Port: %d (%s) Hosts: %s', port,
+                    #                       protocol, ', '.join(
+                    #         self.port_host_whitelist[protocol][port]))
 
                 elif 'hostblacklist' in listener_config:
                     self.logger.debug('Host blacklist:')
+                    host_blacklist = listener_config['hostblacklist']
+                    listener.setHostBlacklist(host_blacklist)
 
-                    if not protocol in self.port_host_blacklist:
-                        self.port_host_blacklist[protocol] = dict()
+                    # for port in self.port_host_blacklist[protocol]:
+                    #     self.logger.debug(' Port: %d (%s) Hosts: %s', port,
+                    #                       protocol, ', '.join(
+                    #         self.port_host_blacklist[protocol][port]))
 
-                    self.port_host_blacklist[protocol][port] = [host.strip()
-                        for host in
-                        listener_config['hostblacklist'].split(',')]
-
-                    for port in self.port_host_blacklist[protocol]:
-                        self.logger.debug(' Port: %d (%s) Hosts: %s', port,
-                                          protocol, ', '.join(
-                            self.port_host_blacklist[protocol][port]))
+                # Listener metadata is now configured, add it to the dictionary
+                self.listener_ports.addListener(listener)
 
                 ###############################################################
                 # Execute command configuration
@@ -590,25 +761,28 @@ class DiverterBase(fnconfig.Config):
                                           'listener %s') % (listener_name))
                         sys.exit(1)
 
-                    if not protocol in self.port_execute:
-                        self.port_execute[protocol] = dict()
+                    listener.setExecuteCmd(template)
 
-                    self.port_execute[protocol][port] = template
                     self.logger.debug('Port %d (%s) ExecuteCmd: %s', port,
                                       protocol,
-                                      self.port_execute[protocol][port])
+                                      template)
 
     def build_cmd(self, pkt, pid, comm):
         """Retrieve the ExecuteCmd directive if applicable and build the
         command to execute.
 
+        Args:
+           pkt: An fnpacket.PacketCtx or derived object
+           pid: Process ID associated with the packet
+           comm: Process name (command) that sent the packet
+
+        Returns:
+            A str that is the resultant command to execute
         """
         cmd = None
 
-        if ((pkt.proto_name in self.port_execute) and
-                (pkt.dport in self.port_execute[pkt.proto_name])
-           ):
-            template = self.port_execute[pkt.proto_name][pkt.dport]
+        template = self.listener_ports.getExecuteCmd(pkt.proto, pkt.dport)
+        if template:
             cmd = self._build_cmd(template, pid, comm, pkt.src_ip, pkt.sport,
                                   pkt.dst_ip, pkt.dport)
 
@@ -618,11 +792,15 @@ class DiverterBase(fnconfig.Config):
         """Build a command based on the template specified in an ExecuteCmd
         config directive, applying the parameters as needed.
 
+        Accepts individual arguments instead of an fnpacket.PacketCtx so that
+        the Diverter can test any ExecuteCmd directives at configuration time
+        without having to synthesize a fnpacket.PacketCtx or construct a
+        NamedTuple to satisfy the requirement for such an argument.
+
         Args:
             tmpl: A str containing the body of the ExecuteCmd config directive
-            pid: An int that is the process ID of the process that sent the
-                packet
-            comm: The command (process name) that sent the packet
+            pid: Process ID associated with the packet
+            comm: Process name (command) that sent the packet
             src_ip: The source IP address that originated the packet
             sport: The source port that originated the packet
             dst_ip: The destination IP that the packet was directed at
@@ -648,14 +826,13 @@ class DiverterBase(fnconfig.Config):
 
         return cmd
 
-    ###########################################################################
-    # Execute process and detach
     def execute_detached(self, execute_cmd):
         """OS-agnostic asynchronous subprocess creation.
 
-        Executes the process via UNIXy methods unless Windows is specified.
-        Isolates the process from FakeNet-NG to prevent it from being
-        interrupted by termination of FakeNet-NG, Ctrl-C, etc.
+        Executes the process with the appropriate subprocess.Popen parameters
+        for UNIXy or Windows platforms to isolate the process from FakeNet-NG
+        to prevent it from being interrupted by termination of FakeNet-NG,
+        Ctrl-C, etc.
 
         Args:
             execute_cmd: A str that is the command to execute
@@ -664,7 +841,8 @@ class DiverterBase(fnconfig.Config):
             Creates the specified process.
 
         Returns:
-            An int that is the pid of the new process, else None
+            Success => an int that is the pid of the new process
+            Failure => None
         """
         DETACHED_PROCESS = 0x00000008
         cflags = DETACHED_PROCESS if self.running_on_windows else 0
@@ -677,8 +855,6 @@ class DiverterBase(fnconfig.Config):
             signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         preexec = None if self.running_on_windows else ign_sigint
-
-        self.logger.error('Preexec = %s' % (str(preexec)))
 
         try:
             pid = subprocess.Popen(execute_cmd, creationflags=cflags,
@@ -831,7 +1007,8 @@ class DiverterBase(fnconfig.Config):
     def handle_pkt(self, pkt, callbacks3, callbacks4):
         """Generic packet hook.
 
-        Applies FakeNet-NG decision making to packet.
+        Applies FakeNet-NG decision-making to packet, deferring as necessary to
+        callbacks.
 
         Args:
             pkt: A fnpacket.PacketCtx child class
@@ -867,7 +1044,7 @@ class DiverterBase(fnconfig.Config):
 
         no_further_processing = False
 
-        if (pkt._hdr, pkt.proto) == (None, None):
+        if pkt.ipver is None:
             self.logger.warning('%s: Failed to parse IP packet' % (pkt.label))
         else:
             self.pdebug(DGENPKT, '%s %s' % (pkt.label, pkt.hdrToStr()))
@@ -894,7 +1071,7 @@ class DiverterBase(fnconfig.Config):
 
                 self.pdebug(DCB, '%s finished' % (cb))
 
-            if pkt.proto_name:
+            if pkt.proto:
 
                 if len(callbacks4):
                     # Windows Diverter has always allowed loopback packets to
@@ -932,7 +1109,7 @@ class DiverterBase(fnconfig.Config):
 
         Args:
             pkt: A fnpacket.PacketCtx or derived object
-            pid: Process ID
+            pid: Process ID associated with the packet
             comm: Process executable name
 
         Returns:
@@ -940,11 +1117,11 @@ class DiverterBase(fnconfig.Config):
         """
         logline = ''
 
-        if pkt.proto_name == 'UDP':
+        if pkt.proto == 'UDP':
             fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
             logline = fmt.format(
                     label=pkt.label,
-                    proto=pkt.proto_name,
+                    proto=pkt.proto,
                     pid=pid,
                     comm=comm,
                     src=pkt.src_ip,
@@ -956,7 +1133,7 @@ class DiverterBase(fnconfig.Config):
                     seqack='',
                 )
 
-        elif pkt.proto_name == 'TCP':
+        elif pkt.proto == 'TCP':
             tcp = pkt._hdr.data
 
             sa = 'Seq=%d, Ack=%d' % (tcp.seq, tcp.ack)
@@ -976,7 +1153,7 @@ class DiverterBase(fnconfig.Config):
             fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
             logline = fmt.format(
                     label=pkt.label,
-                    proto=pkt.proto_name,
+                    proto=pkt.proto,
                     pid=pid,
                     comm=comm,
                     src=pkt.src_ip,
@@ -1012,7 +1189,7 @@ class DiverterBase(fnconfig.Config):
 
         Args:
             pkt: A fnpacket.PacketCtx or derived object
-            pid: Process ID
+            pid: Process ID associated with the packet
             comm: Process executable name
 
         Returns:
@@ -1026,7 +1203,7 @@ class DiverterBase(fnconfig.Config):
 
         if not self.is_set('redirectalltraffic'):
             self.pdebug(DIGN, 'Ignoring %s packet %s' %
-                        (pkt.proto_name, pkt.hdrToStr()))
+                        (pkt.proto, pkt.hdrToStr()))
             return True
 
         # SingleHost mode checks
@@ -1035,7 +1212,7 @@ class DiverterBase(fnconfig.Config):
                 # Check process blacklist
                 if comm in self.blacklist_processes:
                     self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
-                                'in the process blacklist.') % (pkt.proto_name,
+                                'in the process blacklist.') % (pkt.proto,
                                 comm))
                     self.pdebug(DIGN, '  %s' %
                                 (pkt.hdrToStr()))
@@ -1045,36 +1222,32 @@ class DiverterBase(fnconfig.Config):
                 elif (len(self.whitelist_processes) and (comm not in
                       self.whitelist_processes)):
                     self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
-                                'not in the process whitelist.') % (pkt.proto_name,
+                                'not in the process whitelist.') % (pkt.proto,
                                 comm))
                     self.pdebug(DIGN, '  %s' %
                                 (pkt.hdrToStr()))
                     return True
 
                 # Check per-listener blacklisted process list
-                elif ((pkt.proto_name in self.port_process_blacklist) and
-                        (dport in self.port_process_blacklist[pkt.proto_name])):
-                    # If program DOES match blacklist
-                    if comm in self.port_process_blacklist[pkt.proto_name][dport]:
-                        self.pdebug(DIGN, ('Ignoring %s request packet from ' +
-                                    'process %s in the listener process ' +
-                                    'blacklist.') % (pkt.proto_name, comm))
-                        self.pdebug(DIGN, '  %s' %
-                                    (pkt.hdrToStr()))
+                elif self.listener_ports.isProcessBlackListHit(
+                    pkt.proto, dport, comm):
+                    self.pdebug(DIGN, ('Ignoring %s request packet from ' +
+                                'process %s in the listener process ' +
+                                'blacklist.') % (pkt.proto, comm))
+                    self.pdebug(DIGN, '  %s' %
+                                (pkt.hdrToStr()))
 
                     return True
 
                 # Check per-listener whitelisted process list
-                elif ((pkt.proto_name in self.port_process_whitelist) and
-                        (dport in self.port_process_whitelist[pkt.proto_name])):
-                    # If program does NOT match whitelist
-                    if not comm in self.port_process_whitelist[pkt.proto_name][dport]:
-                        self.pdebug(DIGN, ('Ignoring %s request packet from ' +
-                                    'process %s not in the listener process ' +
-                                    'whitelist.') % (pkt.proto_name, comm))
-                        self.pdebug(DIGN, '  %s' %
-                                    (pkt.hdrToStr()))
-                        return True
+                elif self.listener_ports.isProcessWhiteListMiss(
+                    pkt.proto, dport, comm):
+                    self.pdebug(DIGN, ('Ignoring %s request packet from ' +
+                                'process %s not in the listener process ' +
+                                'whitelist.') % (pkt.proto, comm))
+                    self.pdebug(DIGN, '  %s' %
+                                (pkt.hdrToStr()))
+                    return True
 
         # MultiHost mode checks
         else:
@@ -1083,9 +1256,9 @@ class DiverterBase(fnconfig.Config):
         # Checks independent of mode
 
         # Forwarding blacklisted port
-        if set(self.blacklist_ports[pkt.proto_name]).intersection([sport, dport]):
+        if set(self.blacklist_ports[pkt.proto]).intersection([sport, dport]):
             self.pdebug(DIGN, 'Forwarding blacklisted port %s packet:' %
-                        (pkt.proto_name))
+                        (pkt.proto))
             self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
             return True
 
@@ -1093,30 +1266,24 @@ class DiverterBase(fnconfig.Config):
         global_host_blacklist = self.getconfigval('hostblacklist')
         if global_host_blacklist and dst_ip in global_host_blacklist:
             self.pdebug(DIGN, ('Ignoring %s packet to %s in the host ' +
-                        'blacklist.') % (pkt.proto_name, dst_ip))
+                        'blacklist.') % (pkt.proto, dst_ip))
             self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
             return True
 
         # Check the port host whitelist
-        if ((pkt.proto_name in self.port_host_whitelist) and
-                (dport in self.port_host_whitelist[pkt.proto_name])):
-            # If host does NOT match whitelist
-            if not dst_ip in self.port_host_whitelist[pkt.proto_name][dport]:
-                self.pdebug(DIGN, ('Ignoring %s request packet to %s not in ' +
-                            'the listener host whitelist.') % (pkt.proto_name,
-                            dst_ip))
-                self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
-                return True
+        if self.listener_ports.isHostWhiteListMiss(pkt.proto, dport, dst_ip):
+            self.pdebug(DIGN, ('Ignoring %s request packet to %s not in ' +
+                        'the listener host whitelist.') % (pkt.proto,
+                        dst_ip))
+            self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
+            return True
 
         # Check the port host blacklist
-        if ((pkt.proto_name in self.port_host_blacklist) and
-                (dport in self.port_host_blacklist[pkt.proto_name])):
-            # If host DOES match blacklist
-            if dst_ip in self.port_host_blacklist[pkt.proto_name][dport]:
-                self.pdebug(DIGN, ('Ignoring %s request packet to %s in the ' +
-                            'listener host blacklist.') % (pkt.proto_name, dst_ip))
-                self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
-                return True
+        if self.listener_ports.isHostBlackListHit(pkt.proto, dport, dst_ip):
+            self.pdebug(DIGN, ('Ignoring %s request packet to %s in the ' +
+                        'listener host blacklist.') % (pkt.proto, dst_ip))
+            self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
+            return True
 
         # Duplicated from diverters/windows.py:
         # HACK: FTP Passive Mode Handling
@@ -1132,14 +1299,14 @@ class DiverterBase(fnconfig.Config):
                 (not dst_ip.startswith('127.'))) and
                 ((src_ip in self.ip_addrs[pkt.ipver]) and
                 (not dst_ip.startswith('127.'))) and
-                (not set([sport, dport]).intersection(self.diverted_ports[pkt.proto_name]))
+                (not self.listener_ports.intersectsWithPorts(pkt.proto, [sport, dport]))
                 ):
 
                 self.pdebug(DIGN | DFTP, 'Listener initiated %s connection' %
-                            (pkt.proto_name))
+                            (pkt.proto))
                 self.pdebug(DIGN | DFTP, '  %s' % (pkt.hdrToStr()))
                 self.pdebug(DIGN | DFTP, '  Blacklisting port %d' % (sport))
-                self.blacklist_ports[pkt.proto_name].append(sport)
+                self.blacklist_ports[pkt.proto].append(sport)
 
             return True
 
@@ -1159,12 +1326,20 @@ class DiverterBase(fnconfig.Config):
             self.logger.info('ICMP type %d code %d %s' % (
                 pkt.icmp_type, pkt.icmp_code, pkt.hdrToStr()))
 
-        return None
-
     def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
         """Return original destination port, or None if it was not redirected.
 
-        Called by proxy listener.
+        The proxy listener uses this method to obtain and provide port
+        information to listeners in the taste() callback as an extra hint as to
+        whether the traffic may be appropriate for parsing by that listener.
+
+        Args:
+            orig_src_ip: A str that is the ASCII representation of the peer IP
+            orig_src_port: An int that is the source port of the peer
+
+        Returns:
+            The original destination port if the packet was redirected
+            None, otherwise
         """
 
         orig_src_key = fnpacket.PacketCtx.gen_endpoint_key(proto, orig_src_ip,
@@ -1179,14 +1354,24 @@ class DiverterBase(fnconfig.Config):
     def maybe_redir_ip(self, crit, pkt, pid, comm):
         """Conditionally redirect foreign destination IPs to localhost.
 
-        Used only under SingleHost mode.
+        On Linux, this is used only under SingleHost mode.
+
+        Args:
+            crit: DivertParms object
+            pkt: fnpacket.PacketCtx or derived object
+            pid: int process ID associated with the packet
+            comm: Process name (command) that sent the packet
+
+        Side-effects:
+            May mangle the packet by modifying the destination IP to point to a
+            loopback or external interface IP local to the system where
+            FakeNet-NG is running.
 
         Returns:
-            None - if unmodified
-            dpkt.ip.hdr - if modified
+            None
         """
         if self.check_should_ignore(pkt, pid, comm):
-            return None
+            return
 
         self.pdebug(DIPNAT, 'Condition 1 test')
         # Condition 1: If the remote IP address is foreign to this system,
@@ -1224,8 +1409,6 @@ class DiverterBase(fnconfig.Config):
             finally:
                 self.ip_fwd_table_lock.release()
 
-        return pkt.hdr if pkt.mangled else None
-
     def maybe_fixup_srcip(self, crit, pkt, pid, comm):
         """Conditionally fix up the source IP address if the remote endpoint
         had their connection IP-forwarded.
@@ -1233,9 +1416,18 @@ class DiverterBase(fnconfig.Config):
         Check is based on whether the remote endpoint corresponds to a key in
         the IP forwarding table.
 
+        Args:
+            crit: DivertParms object
+            pkt: fnpacket.PacketCtx or derived object
+            pid: int process ID associated with the packet
+            comm: Process name (command) that sent the packet
+
+        Side-effects:
+            May mangle the packet by modifying the source IP to reflect the
+            original destination IP that was overwritten by maybe_redir_ip.
+
         Returns:
-            None - if unmodified
-            dpkt.ip.hdr - if modified
+            None
         """
         # Condition 4: If the local endpoint (IP/port/proto) combo
         # corresponds to an endpoint that initiated a conversation with a
@@ -1257,22 +1449,19 @@ class DiverterBase(fnconfig.Config):
         finally:
             self.ip_fwd_table_lock.release()
 
-        return pkt.hdr if pkt.mangled else None
-
     def maybe_redir_port(self, crit, pkt, pid, comm):
-        # Get default listener port for this proto, or bail if none
-        default = self.default_listener.get(pkt.proto_name)
+        """Conditionally send packets to the default listener for this proto.
 
-        # A: Check: There is a default listener for this protocol
+        
+        """
+        # Pre-condition 1: there must be a default listener for this protocol
+        default = self.default_listener.get(pkt.proto)
         if not default:
-            return None
+            return
 
-        # Pre-condition 1: destination must not be present in port forwarding
+        # Pre-condition 2: destination must not be present in port forwarding
         # table (prevents masqueraded ports responding to unbound ports from
         # being mistaken as starting a conversation with an unbound port).
-
-        # C: Check: Destination was recorded as talking to a local port that
-        # was not bound and was consequently redirected to the default listener
         found = False
         self.port_fwd_table_lock.acquire()
         try:
@@ -1282,23 +1471,22 @@ class DiverterBase(fnconfig.Config):
             self.port_fwd_table_lock.release()
 
         if found:
-            return None
+            return
 
-        bound_ports = self.diverted_ports.get(pkt.proto_name, [])
+        # Now check if this packet was sent from a listener/diverter. If so,
+        # don't redir for 'Hidden' status because it is already being forwarded
+        # from proxy listener to bound/hidden listener Next, check if listener
+        # for this port is 'Hidden'. If so, we need to divert it to the proxy
+        # as per the Hidden config
 
-        # First, check if this packet is sent from a listener/diverter
-        # If so, don't redir for 'Hidden' status because it is already
-        # being forwarded from proxy listener to bound/hidden listener
-        # Next, check if listener for this port is 'Hidden'. If so, we need to
-        # divert it to the proxy as per the Hidden config
-
-        # D: Check: Proxy: dport is bound and listener is hidden
-        dport_hidden_listener = bound_ports.get(pkt.dport) is True
+        # Proxy-related check: is the dport bound by a listener that is hidden?
+        dport_hidden_listener = self.listener_ports.isHidden(pkt.proto, pkt.dport)
 
         # Condition 2: If the packet is destined for an unbound port, then
         # redirect it to a bound port and save the old destination IP in
         # the port forwarding table keyed by the source endpoint identity.
 
+        bound_ports = self.listener_ports.getPorts(pkt.proto)
         if dport_hidden_listener or self.decide_redir_port(pkt, bound_ports):
             self.pdebug(DDPFV, 'Condition 2 satisfied: Packet destined for unbound port or hidden listener')
 
@@ -1323,7 +1511,7 @@ class DiverterBase(fnconfig.Config):
                     # This is a reply (e.g. a TCP RST) from the
                     # non-port-forwarded server that the non-port-forwarded
                     # client was trying to talk to. Leave it alone.
-                    return None
+                    return
             finally:
                 self.ignore_table_lock.release()
 
@@ -1333,7 +1521,7 @@ class DiverterBase(fnconfig.Config):
                     self.ignore_table[pkt.skey] = pkt.dport
                 finally:
                     self.ignore_table_lock.release()
-                return None
+                return
 
             # Record the foreign endpoint and old destination port in the port
             # forwarding table
@@ -1365,8 +1553,6 @@ class DiverterBase(fnconfig.Config):
 
             # Execute command if applicable
             self.maybeExecuteCmd(pkt, pid, comm)
-
-        return pkt.hdr if pkt.mangled else None
 
     def maybe_fixup_sport(self, crit, pkt, pid, comm):
         """Conditionally fix up source port if the remote endpoint had their
@@ -1451,19 +1637,10 @@ class DiverterBase(fnconfig.Config):
         self.sessions[pkt.sport] = (pkt.dst_ip, pkt.dport)
 
     def maybeExecuteCmd(self, pkt, pid, comm):
-        execCmd = None
-
         if not pid:
             return
 
-        port_exec = self.port_execute.get(pkt.proto_name)
-        if not port_exec:
-            return
-
-        default = self.default_listener.get(pkt.proto_name)
-
-        if (pkt.dport in port_exec) or (default and default in port_exec):
-            execCmd = self.build_cmd(pkt, pid, comm)
+        execCmd = self.build_cmd(pkt, pid, comm)
         if execCmd:
             self.logger.info('Executing command: %s' % (execCmd))
             self.execute_detached(execCmd)
