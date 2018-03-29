@@ -394,7 +394,7 @@ class FakeNetTester(object):
         time.sleep(sec)
 
         logger.info('Stopping FakeNet-NG and waiting for it to complete')
-        responsive = self.stopFakenetAndWait(10, True)
+        responsive = self.stopFakenetAndWait(15, True)
 
         if responsive:
             logger.info('FakeNet-NG is stopped')
