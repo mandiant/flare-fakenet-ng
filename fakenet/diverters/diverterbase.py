@@ -18,12 +18,13 @@ from collections import OrderedDict
 class DivertParms(object):
     """Class to abstract all criteria possible out of the respective diverters.
 
+    These criteria largely derive from both the diverter state and the packet
+    contents. It seems more ideal to create this friend class for DiverterBase
+    than to load down the fnpacket.PacketCtx abstraction with extraneous
+    concepts.
+
     Many of these critera are only applicable if the transport layer has
     been parsed and validated.
-
-    These criteria largely derive from both the diverter state and the packet
-    contents. It seems more ideal to create a friend class for DiverterBase
-    than to load down the fnpacket abstraction with extraneous concepts.
     """
 
     def __init__(self, diverter, pkt):
@@ -41,24 +42,50 @@ class DivertParms(object):
 
     @property
     def dport_hidden_listener(self):
+        """Does the destination port for the packet correspond to a hidden
+        listener (i.e. should the packet be redirected to the proxy)?
+
+        Returns:
+            True if dport corresponds to hidden listener, else False
+        """
         return self.diverter.diverted_ports.get(self.pkt.dport) is True
 
     @property
     def src_local(self):
+        """Is the source address one of the local IPs of this system?
+
+        Returns:
+            True if local source IP, else False
+        """
         return self.pkt.src_ip in self.diverters.ip_addrs[self.pkt.ipver]
 
     @property
     def sport_bound(self):
+        """Is the source port bound by a FakeNet-NG listener?
+
+        Returns:
+            True if sport is bound by FakeNet-NG, else False
+        """
         return (self.pkt.sport in
                 self.diverter.diverted_ports.get(self.pkt.proto_name))
 
     @property
     def dport_bound(self):
+        """Is the destination port bound by a FakeNet-NG listener?
+
+        Returns:
+            True if dport is bound by FakeNet-NG, else False
+        """
         return (self.pkt.dport in
                 self.diverter.diverted_ports.get(self.pkt.proto_name))
 
     @property
     def first_packet_new_session(self):
+        """Is this the first datagram from this conversation?
+
+        Returns:
+            True if this pair of endpoints hasn't conversed before, else False
+        """
         return not (self.diverter.sessions.get(self.pkt.sport) ==
                     (self.pkt.dst_ip, self.pkt.dport))
 
@@ -66,23 +93,44 @@ class DivertParms(object):
 class DiverterPerOSDelegate(object):
     """Delegate class for OS-specific methods that FakeNet-NG implementors must
     override.
+
+    TODO: The following methods may need to be combined to ensure that there is
+    at least a single Ethernet interface with all valid settings (instead of,
+    say, several interfaces, each with only one of the components that are
+    needed to make the system work).
+        check_active_ethernet_adapters
+        check_ipaddresses
+        check_gateways (currently only a warning)
+        check_dns_servers (currently only a warning)
     """
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
     def check_active_ethernet_adapters(self):
-        """Check that there is at least one Ethernet interface."""
+        """Check that there is at least one Ethernet interface.
+        
+        Returns:
+            True if there is at least one interface, else False
+        """
         pass
 
     @abc.abstractmethod
     def check_ipaddresses(self):
         """Check that there is at least one non-null IP address associated with
-        at least one interface."""
+        at least one interface.
+        
+        Returns:
+            True if at least one IP address, else False
+        """
         pass
 
     @abc.abstractmethod
     def check_gateways(self):
-        """Check that at least one interface has a non-NULL gateway set."""
+        """Check that at least one interface has a non-NULL gateway set.
+        
+        Returns:
+            True if at least one gateway, else False
+        """
         pass
 
     @abc.abstractmethod
@@ -91,12 +139,19 @@ class DiverterPerOSDelegate(object):
         interfaces. If not, then locate a configured IP address and set a gw
         automatically. This is necessary for VMware's Host-Only DHCP server
         which leaves the default gateway empty.
+
+        Returns:
+            True if successful, else False
         """
         pass
 
     @abc.abstractmethod
     def check_dns_servers(self):
-        """Check that a DNS server is set."""
+        """Check that a DNS server is set.
+
+        Returns:
+            True if a DNS server is set, else False
+        """
         pass
 
     @abc.abstractmethod
@@ -104,6 +159,9 @@ class DiverterPerOSDelegate(object):
         """Check if there is a DNS server on any of the Ethernet interfaces. If
         not, then locate configured IP address and set a DNS server
         automatically.
+
+        Returns:
+            True if successful, else False
         """
         pass
 
@@ -111,7 +169,17 @@ class DiverterPerOSDelegate(object):
     def get_pid_comm(self, pkt):
         """Get the PID and process name by IP/port info.
 
-        comm is the Linux term for process name.
+        NOTE: the term "comm" is short for "command" and comes from the Linux
+        term for process name within task_struct and displayed in ps.
+
+        Args:
+            pkt: A fnpacket.PacketCtx or derived object
+
+        Returns:
+            Tuple of length 2, containing:
+                (pid, comm)
+            If the pid or comm cannot be discerned, the corresponding member of
+            the tuple will be None.
         """
         pass
 
@@ -119,13 +187,23 @@ class DiverterPerOSDelegate(object):
     def getNewDestinationIp(self, src_ip):
         """Get IP to redirect to after a redirection decision has been made.
 
+        This is OS-specific due to varying empirical results on Windows and
+        Linux, and may be subject to change.
+
         On Windows, and possibly other operating systems, simply redirecting
         external packets to the loopback address will cause the packets not to
         be routable, so it is necessary to choose an external interface IP in
         some cases.
 
-        On the contrary, the Linux FTP tests will fail if all redirections are
-        not routed to 127.0.0.1.
+        Contrarywise, the Linux FTP tests will fail if all redirections are not
+        routed to 127.0.0.1.
+
+        Args:
+            src_ip: A str of the source IP address represented in ASCII
+
+        Returns:
+            A str of the destination IP address represented in ASCII that the
+            packet should be redirected to.
         """
         pass
 
@@ -133,8 +211,22 @@ class DiverterPerOSDelegate(object):
 class DiverterBase(fnconfig.Config):
 
 
-    def init_base(self, diverter_config, listeners_config, ip_addrs,
+    def __init__(self, diverter_config, listeners_config, ip_addrs,
                   logging_level=logging.INFO):
+        """Initialize the DiverterBase.
+
+        Args:
+            diverter_config: Dictionary of [Diverter] config section
+            listeners_config: Dictionary of listener configuration sections
+            ip_addrs: dictionary keyed by integers 4 and 6, with each element
+                being a list and each list member being a str that is an ASCII
+                representation of an IP address that is associated with a local
+                interface on this system.
+            logging_level: Optional integer logging level such as logging.DEBUG
+
+        Returns:
+            None
+        """
         # For fine-grained control of subclass debug output. Does not control
         # debug output from DiverterBase. To see DiverterBase debug output,
         # pass logging.DEBUG as the logging_level argument to init_base.
@@ -527,6 +619,16 @@ class DiverterBase(fnconfig.Config):
         return cmd
 
     def parse_diverter_config(self):
+        """Parse [Diverter] config section.
+
+        Args: N/A
+
+        Side-effects:
+            Diverter members (whitelists, pcap, etc.) initialized.
+
+        Returns:
+            None
+        """
         # SingleHost vs MultiHost mode
         self.network_mode = 'SingleHost'  # Default
         self.single_host_mode = True
@@ -631,6 +733,17 @@ class DiverterBase(fnconfig.Config):
                     [str(p) for p in self.getconfigval('BlackListPortsUDP')]))
 
     def write_pcap(self, pkt):
+        """Writes a packet to the pcap.
+
+        Args:
+            pkt: A fnpacket.PacketCtx or derived object
+
+        Returns:
+            None
+
+        Side-effects:
+            Calls dpkt.pcap.Writer.writekpt to persist the octets
+        """
         if self.pcap and self.pcap_lock:
             self.pcap_lock.acquire()
             try:
@@ -644,12 +757,19 @@ class DiverterBase(fnconfig.Config):
     def handle_pkt(self, pkt, callbacks3, callbacks4):
         """Generic packet hook.
 
-        Does the following:
-        1.) Unconditionally Write unmangled packet to pcap
-        2.) Call layer 3 (network) callbacks...
-        3.) Call layer 4 (transport) callbacks...
-        4.) If the packet headers have been modified, double-write the mangled
-            packet to the pcap for SSL decoding purposes
+        Applies FakeNet-NG decision making to packet.
+
+        Args:
+            pkt: A fnpacket.PacketCtx child class
+            callbacks3: Layer 3 (network) callbacks
+            callbacks4: Layer 4 (network) callbacks
+
+        Side-effects:
+            1.) Unconditionally Write unmangled packet to pcap
+            2.) Call layer 3 (network) callbacks...
+            3.) Call layer 4 (transport) callbacks...
+            4.) If the packet headers have been modified, double-write the
+                mangled packet to the pcap for SSL decoding purposes
 
         The caller is responsible for checking if the packet was mangled,
         updating the contents of the datagram with the network hooking specific
@@ -663,6 +783,9 @@ class DiverterBase(fnconfig.Config):
 
         Side-effects:
             Mangles pkt as necessary
+
+        Returns:
+            None
         """
 
         # 1: Unconditionally write unmangled packet to pcap
@@ -731,6 +854,16 @@ class DiverterBase(fnconfig.Config):
             self.write_pcap(pkt)
 
     def formatPkt(self, pkt, pid, comm):
+        """Format a packet analysis log line for DGENPKTV.
+
+        Args:
+            pkt: A fnpacket.PacketCtx or derived object
+            pid: Process ID
+            comm: Process executable name
+
+        Returns:
+            A str containing the log line
+        """
         logline = ''
 
         if pkt.proto_name == 'UDP':
@@ -798,6 +931,19 @@ class DiverterBase(fnconfig.Config):
         return logline
 
     def check_should_ignore(self, pkt, pid, comm):
+        """Indicate whether a packet should be passed without mangling.
+
+        Checks whether the packet matches black and whitelists, or whether it
+        signifies an FTP Active Mode connection.
+
+        Args:
+            pkt: A fnpacket.PacketCtx or derived object
+            pid: Process ID
+            comm: Process executable name
+
+        Returns:
+            True if the packet should be left alone, else False.
+        """
 
         src_ip = pkt.src_ip0
         sport = pkt.sport0
@@ -926,6 +1072,15 @@ class DiverterBase(fnconfig.Config):
         return False
 
     def check_log_icmp(self, crit, pkt):
+        """Log an ICMP packet if the header was parsed as ICMP.
+
+        Args:
+            crit: A DivertParms object
+            pkt: An fnpacket.PacketCtx or derived object
+
+        Returns:
+            None
+        """
         if pkt.is_icmp:
             self.logger.info('ICMP type %d code %d %s' % (
                 pkt.icmp_type, pkt.icmp_code, pkt.hdrToStr()))
