@@ -1,4 +1,4 @@
-class Config:
+class Config(object):
     """Configuration primitives.
 
     Inherit from or instantiate this class and call configure() when you've got

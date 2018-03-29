@@ -31,7 +31,7 @@ from listeners import *
 # FakeNet
 ###############################################################################
 
-class Fakenet():
+class Fakenet(object):
 
     def __init__(self, logging_level = logging.INFO):
 

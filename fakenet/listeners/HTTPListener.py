@@ -29,7 +29,7 @@ MIME_FILE_RESPONSE = {
     'application/xml': 'FakeNet.html'
 }
 
-class HTTPListener():
+class HTTPListener(object):
 
     def taste(self, data, dport):
         

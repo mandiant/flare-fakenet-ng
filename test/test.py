@@ -7,13 +7,16 @@ import signal
 import socket
 import pyping
 import ftplib
+import poplib
 import hashlib
+import smtplib
 import logging
 import binascii
 import platform
 import requests
 import netifaces
 import subprocess
+import irc.client
 import ConfigParser
 from collections import OrderedDict
 
@@ -95,13 +98,106 @@ def get_external_ip():
         if not addr.startswith('127.'):
             return addr
 
+class IrcTester(object):
+    def __init__(self, hostname, port=6667):
+        self.hostname = hostname
+        self.port = port
+
+        self.nick = 'dr_evil'
+        self.join_chan = '#whatevs'
+        self.clouseau = 'inspector_clouseau'
+        self.safehouse = "I'm looking for a safe house."
+        self.pub_chan = '#evil_bartenders'
+        self.black_market = 'Black Market'
+
+    def _irc_evt_handler(self, srv, evt):
+        """Check for each case and set the corresponding success flag."""
+        if evt.type == 'join':
+            if evt.target.startswith(self.join_chan):
+                self.join_ok = True
+        elif evt.type == 'welcome':
+            if evt.arguments[0].startswith('Welcome to IRC'):
+                self.welcome_ok = True
+        elif evt.type == 'privmsg':
+            if (evt.arguments[0].startswith(self.safehouse) and
+                evt.source.startswith(self.clouseau)):
+                self.privmsg_ok = True
+        elif evt.type == 'pubmsg':
+            if (evt.arguments[0].startswith(self.black_market) and
+                evt.target == self.pub_chan):
+                self.pubmsg_ok = True
+
+    def _irc_script(self, srv):
+        """Callback manages individual test cases for IRC."""
+        # Clear success flags
+        self.welcome_ok = False
+        self.join_ok = False
+        self.privmsg_ok = False
+        self.pubmsg_ok = False
+
+        # This handler should set the success flags in success cases
+        srv.add_global_handler('join', self._irc_evt_handler)
+        srv.add_global_handler('welcome', self._irc_evt_handler)
+        srv.add_global_handler('privmsg', self._irc_evt_handler)
+        srv.add_global_handler('pubmsg', self._irc_evt_handler)
+
+        # Issue all commands, indirectly invoking the event handler for each
+        # flag
+
+        srv.join(self.join_chan)
+        srv.process_data()
+
+        srv.privmsg(self.pub_chan, self.black_market)
+        srv.process_data()
+
+        srv.privmsg(self.clouseau, self.safehouse)
+        srv.process_data()
+
+        srv.quit()
+        srv.process_data()
+
+        if not self.welcome_ok:
+            logger.error('Welcome test failed')
+            return False
+
+        if not self.join_ok:
+            logger.error('Join test failed')
+            return False
+
+        if not self.privmsg_ok:
+            logger.error('privmsg test failed')
+            return False
+
+        if not self.pubmsg_ok:
+            logger.error('pubmsg test failed')
+            return False
+
+        return all([
+            self.welcome_ok,
+            self.join_ok,
+            self.privmsg_ok,
+            self.pubmsg_ok
+           ])
+
+    def _run_irc_script(self, nm, callback):
+        """Connect to server and give control to callback."""
+        r = irc.client.Reactor()
+        srv = r.server()
+        srv.connect(self.hostname, self.port, self.nick)
+        retval = callback(srv)
+        srv.close()
+        return retval
+
+    def test_irc(self):
+        return self._run_irc_script('testnm', self._irc_script)
+
 class FakeNetTestException(Exception):
     """A recognizable exception type indicating a known failure state based on
     test criteria. HTTP test uses this, others may in the future, too.
     """
     pass
 
-class FakeNetTester:
+class FakeNetTester(object):
     """Controller for FakeNet-NG that runs test cases"""
 
     def __init__(self, settings):
@@ -235,7 +331,8 @@ class FakeNetTester:
         try:
             retval = callback(*args)
         except Exception as e:
-            logger.info('Uncaught exception in test %s: %s' % (desc, str(e)))
+            logger.info('Test %s: Uncaught exception of type %s: %s' %
+                        (desc, str(type(e)), str(e)))
 
         passed = (retval == expected)
 
@@ -351,6 +448,50 @@ class FakeNetTester:
 
     def _test_ns(self, hostname, expected):
        return (expected == socket.gethostbyname(hostname))
+
+    def _test_smtp_ssl(self, sender, recipient, msg, hostname, port=None, timeout=5):
+        smtpserver = smtplib.SMTP_SSL(hostname, port, 'fake.net', None, None, timeout)
+        server.sendmail(sender, recipient, msg)
+        smtpserver.quit()
+
+    def _test_smtp(self, sender, recipient, msg, hostname, port=None, timeout=5):
+        smtpserver = smtplib.SMTP(hostname, port, 'fake.net', timeout)
+        smtpserver.sendmail(sender, recipient, msg)
+        smtpserver.quit()
+
+        return True
+
+    def _test_pop(self, hostname, port=None, timeout=5):
+        pop3server = poplib.POP3(hostname, port, timeout)
+        pop3server.user('popuser')
+        pop3server.pass_('password')
+        msg = pop3server.retr(1)
+
+        response = msg[0]
+        lines = msg[1]
+        octets = msg[2]
+
+        if not response.startswith('+OK'):
+            logger.error('POP3 response does not start with "+OK"')
+            return False
+
+        if not 'Alice' in ''.join(lines):
+            logger.error('POP3 message did not contain expected string')
+            return False
+
+        return True
+        
+    def _util_irc(self, nm, hostname, port, nick, callback):
+        r = irc.client.Reactor()
+        srv = r.server()
+        srv.connect(hostname, port, nick)
+        retval = callback(srv)
+        srv.close()
+        return retval
+
+    def _test_irc(self, hostname, port=6667):
+        irc_tester = IrcTester(hostname, port)
+        return irc_tester.test_irc()
 
     def _test_http(self, hostname, port=None):
         """Test HTTP Listener"""
@@ -475,6 +616,10 @@ class FakeNetTester:
         localhost = self.settings.localhost
         dns_expected = self.settings.dns_expected
 
+        sender = self.settings.sender
+        recipient = self.settings.recipient
+        smtpmsg = self.settings.smtpmsg
+
         tcp = socket.SOCK_STREAM
         udp = socket.SOCK_DGRAM
 
@@ -507,6 +652,14 @@ class FakeNetTester:
         t['DNS listener test'] = (self._test_ns, (domain_dne, dns_expected), True)
         t['HTTP listener test'] = (self._test_http, (arbitrary,), True)
         t['FTP listener test'] = (self._test_ftp, (arbitrary,), True)
+        t['POP3 listener test'] = (self._test_pop, (arbitrary, 110), True)
+        t['SMTP listener test'] = (self._test_smtp, (sender, recipient, smtpmsg, arbitrary), True)
+
+        # Does not work, SSL error
+        t['SMTP SSL listener test'] = (self._test_smtp_ssl, (sender, recipient, smtpmsg, arbitrary), True)
+
+        # Works on Linux, not on Windows
+        t['IRC listener test'] = (self._test_irc, (arbitrary,), True)
 
         t['Proxy listener HTTP test'] = (self._test_http, (arbitrary, 10), True)
 
@@ -602,6 +755,9 @@ class FakeNetTestSettings:
         self.localhost = '127.0.0.1'
         self.dns_expected = '192.0.2.123'
         self.domain_dne = 'does-not-exist-amirite.fireeye.com'
+        self.sender = 'from-fakenet@example.org'
+        self.recipient = 'to-fakenet@example.org'
+        self.smtpmsg = 'FakeNet-NG SMTP test email'
 
         # Behaviors
         self.sleep_after_start = 4

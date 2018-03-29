@@ -17,7 +17,7 @@ import os
 BUF_SZ = 1024
 IP = '0.0.0.0'
 
-class ProxyListener():
+class ProxyListener(object):
 
 
     def __init__(

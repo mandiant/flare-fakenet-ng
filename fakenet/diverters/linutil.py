@@ -12,7 +12,7 @@ import diverterbase
 from debuglevels import *
 from collections import defaultdict
 
-class IptCmdTemplate:
+class IptCmdTemplate(object):
     """For managing insertion and removal of iptables rules.
 
     Construct and execute iptables command lines to add (-I or -A) and remove
@@ -35,7 +35,7 @@ class IptCmdTemplate:
     def remove(self): return subprocess.call(self._remcmd.split())
 
 
-class LinuxDiverterNfqueue:
+class LinuxDiverterNfqueue(object):
     """NetfilterQueue object wrapper.
 
     Handles iptables rule addition/removal, NetfilterQueue management,
@@ -153,7 +153,7 @@ class LinuxDiverterNfqueue:
             self._rule.remove()  # Shell out to iptables to remove the rule
 
 
-class ProcfsReader:
+class ProcfsReader(object):
     """Standard row/field reading for proc files."""
     def __init__(self, path, skip, cb):
         self.path = path

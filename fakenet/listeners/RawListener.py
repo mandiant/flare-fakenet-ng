@@ -11,7 +11,7 @@ import socket
 
 from . import *
 
-class RawListener():
+class RawListener(object):
 
     def taste(self, data, dport):
         return 1
