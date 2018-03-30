@@ -16,11 +16,11 @@ from collections import OrderedDict
 
 
 class DivertParms(object):
-    """Class to abstract all criteria possible out of the respective diverters.
+    """Class to abstract all criteria possible out of the Windows and Linux diverters.
 
     These criteria largely derive from both the diverter state and the packet
-    contents. It seems more ideal to create this friend class for DiverterBase
-    than to load down the fnpacket.PacketCtx abstraction with extraneous
+    contents. This class is sometimes passed around alongside the packet to
+    provide context wtihout loading down the fnpacket.PacketCtx with extraneous
     concepts.
 
     Many of these critera are only applicable if the transport layer has
@@ -215,9 +215,11 @@ class ListenerMeta(object):
     """Info about each listener.
     
     Makes hidden listeners explicit. Organizes process and host black/white
-    lists and ExecuteCmd format strings
+    lists and ExecuteCmd format strings.
 
-    Mutators are here. Accessors are in ListenerPorts.
+    Mutators are here for building listener metadata before adding it to the
+    group. Accessors are in ListenerPorts for querying the collection for
+    listeners and their attributes.
     """
     def __init__(self, proto, port, hidden=False):
         self.proto = proto
@@ -272,6 +274,18 @@ class ListenerMeta(object):
 
 class ListenerPorts(object):
     """Collection of listeners with convenience accessors.
+    
+    Previously, FakeNet-NG had several parallel dictionaries associated with
+    listener settings and lots of code like this:
+        1.) Does this dictionary have a 'TCP' key?
+        2.) Oh, yeah? Well, is this port in the dictionary under 'TCP'?
+        3.) Ah, great! Now I can ask my question. Is there an ExecuteCmd for
+            this port?
+
+    At a cost of having to add a bit of code and a few more comment lines, This
+    class takes care of the checks and turns queries like this into one-liners
+    like this one:
+        cmd = obj.getExecuteCmd('TCP', 80) # Returns None if not applicable
     """
 
     def __init__(self):
@@ -300,15 +314,17 @@ class ListenerPorts(object):
             return self.protos[proto].get(port)
 
     def isListener(self, proto, port):
+        """Is this port associated with a listener?"""
         return bool(self.getListenerMeta(proto, port))
 
     def isHidden(self, proto, port):
+        """Is this port associated with a listener that is hidden?"""
         listener = self.getListenerMeta(proto, port)
         return listener.hidden if listener else False
 
-    def getPorts(self, proto):
+    def getPortList(self, proto):
         if proto in self.protos:
-            return self.protos[proto]
+            return self.protos[proto].keys()
         return []
 
     def intersectsWithPorts(self, proto, ports):
@@ -317,9 +333,19 @@ class ListenerPorts(object):
         Convenience method for checking whether source or destination port are
         bound to a FakeNet-NG listener.
         """
-        return set(ports).intersection(self.getPorts(proto))
+        return set(ports).intersection(self.getPortList(proto))
 
     def getExecuteCmd(self, proto, port):
+        """Get the ExecuteCmd format string specified by the operator.
+
+        Args:
+            proto: The protocol name
+            port: The port number
+
+        Returns:
+            The format string if applicable
+            None, otherwise
+        """
         listener = self.getListenerMeta(proto, port)
         if listener:
             return listener.cmd_template
@@ -424,6 +450,12 @@ class ListenerPorts(object):
 
 
 class DiverterBase(fnconfig.Config):
+    """The beating heart.
+    
+    You must implement the following methods to ride:
+        startCallback()
+        stopCallback()
+    """
 
 
     def __init__(self, diverter_config, listeners_config, ip_addrs,
@@ -596,6 +628,46 @@ class DiverterBase(fnconfig.Config):
 
         # OS-specific Diverters must initialize e.g. WinDivert,
         # libnetfilter_queue, pf/alf, etc.
+
+    def start(self):
+        """This method currently only serves the purpose of codifying what must
+        be implemented on a given OS to bring FakeNet-NG to that OS.
+        
+        Further refactoring should be done to unify network interface checks,
+        gateway and DNS configuration, etc. into this method while calling out
+        to the already-defined (and potentially some yet-to-be-defined)
+        abstract methods that handle the real OS-specific stuff.
+        """
+        self.logger.info('Starting...')
+        return self.startCallback()
+
+    def stop(self):
+        self.logger.info('Stopping...')
+        return self.stopCallback()
+
+    @abc.abstractmethod
+    def startCallback(self):
+        """Initiate packet processing and return immediately.
+
+        Generally, install hooks/filters and start one or more threads to
+        siphon packet events.
+
+        Returns:
+            True if successful, else False
+        """
+        pass
+
+    @abc.abstractmethod
+    def stopCallback(self):
+        """Terminate packet processing.
+
+        Generally set a flag to tell the thread to stop, join with the thread,
+        and uninstall hooks.
+
+        Returns:
+            True if successful, else False
+        """
+        pass
 
     def set_debug_level(self, lvl, labels={}):
         """Enable debug output if necessary, set the debug output level, and
@@ -892,7 +964,7 @@ class DiverterBase(fnconfig.Config):
                                   (available_modes))
                 sys.exit(1)
 
-            # Adjust previously assumed mode if user specifies MultiHost
+            # Adjust previously assumed mode if operator specifies MultiHost
             if self.network_mode.lower() == 'multihost':
                 self.single_host_mode = False
 
@@ -1452,7 +1524,18 @@ class DiverterBase(fnconfig.Config):
     def maybe_redir_port(self, crit, pkt, pid, comm):
         """Conditionally send packets to the default listener for this proto.
 
-        
+        Args:
+            crit: DivertParms object
+            pkt: fnpacket.PacketCtx or derived object
+            pid: int process ID associated with the packet
+            comm: Process name (command) that sent the packet
+
+        Side-effects:
+            May mangle the packet by modifying the destination port to point to
+            the default listener.
+
+        Returns:
+            None
         """
         # Pre-condition 1: there must be a default listener for this protocol
         default = self.default_listener.get(pkt.proto)
@@ -1473,20 +1556,14 @@ class DiverterBase(fnconfig.Config):
         if found:
             return
 
-        # Now check if this packet was sent from a listener/diverter. If so,
-        # don't redir for 'Hidden' status because it is already being forwarded
-        # from proxy listener to bound/hidden listener Next, check if listener
-        # for this port is 'Hidden'. If so, we need to divert it to the proxy
-        # as per the Hidden config
-
         # Proxy-related check: is the dport bound by a listener that is hidden?
-        dport_hidden_listener = self.listener_ports.isHidden(pkt.proto, pkt.dport)
+        dport_hidden_listener = crit.dport_hidden_listener
 
         # Condition 2: If the packet is destined for an unbound port, then
         # redirect it to a bound port and save the old destination IP in
         # the port forwarding table keyed by the source endpoint identity.
 
-        bound_ports = self.listener_ports.getPorts(pkt.proto)
+        bound_ports = self.listener_ports.getPortList(pkt.proto)
         if dport_hidden_listener or self.decide_redir_port(pkt, bound_ports):
             self.pdebug(DDPFV, 'Condition 2 satisfied: Packet destined for unbound port or hidden listener')
 
@@ -1556,14 +1633,18 @@ class DiverterBase(fnconfig.Config):
 
     def maybe_fixup_sport(self, crit, pkt, pid, comm):
         """Conditionally fix up source port if the remote endpoint had their
-        connection port-forwarded.
+        connection port-forwarded to the default listener.
 
         Check is based on whether the remote endpoint corresponds to a key in
         the port forwarding table.
 
+        Side-effects:
+            May mangle the packet by modifying the source port to masquerade
+            traffic coming from the default listener to look as if it is coming
+            from the port that the client originally requested.
+
         Returns:
-            None - if unmodified
-            dpkt.ip.hdr - if modified
+            None
         """
         hdr_modified = None
 
@@ -1609,6 +1690,14 @@ class DiverterBase(fnconfig.Config):
 
         Optimized logic derived by truth table + k-map. See docs/internals.md
         for details.
+
+        Args:
+            pkt: fnpacket.PacketCtx or derived object
+            bound_ports: Set of ports that are bound for this protocol
+
+        Returns:
+            True if the packet must be redirected to the default listener
+            False otherwise
         """
         # A, B, C, D for easy manipulation; full names for readability only.
         a = src_local = (pkt.src_ip in self.ip_addrs[pkt.ipver])
@@ -1634,9 +1723,27 @@ class DiverterBase(fnconfig.Config):
         return (not a and not d) or (not c and not d)
 
     def addSession(self, pkt):
+        """Add a connection to the sessions hash table.
+
+        Args:
+            pkt: fnpacket.PacketCtx or derived object
+
+        Returns:
+            None
+        """
         self.sessions[pkt.sport] = (pkt.dst_ip, pkt.dport)
 
     def maybeExecuteCmd(self, pkt, pid, comm):
+        """Execute any ExecuteCmd associated with this port/listener.
+
+        Args:
+            pkt: fnpacket.PacketCtx or derived object
+            pid: int process ID associated with the packet
+            comm: Process name (command) that sent the packet
+
+        Returns:
+            None
+        """
         if not pid:
             return
 
@@ -1645,104 +1752,3 @@ class DiverterBase(fnconfig.Config):
             self.logger.info('Executing command: %s' % (execCmd))
             self.execute_detached(execCmd)
 
-def test_redir_logic(diverter_factory):
-    diverter_config = dict()
-    diverter_config['dumppackets'] = 'Yes'
-    diverter_config['dumppacketsfileprefix'] = 'packets'
-    diverter_config['modifylocaldns'] = 'No'
-    diverter_config['stopdnsservice'] = 'Yes'
-    diverter_config['redirectalltraffic'] = 'Yes'
-    diverter_config['defaulttcplistener'] = 'RawTCPListener'
-    diverter_config['defaultudplistener'] = 'RawUDPListener'
-    diverter_config['blacklistportstcp'] = '139'
-    diverter_config['blacklistportsudp'] = '67, 68, 137, 138, 1900, 5355'
-
-    listeners_config = OrderedDict()
-
-    listeners_config['dummytcp'] = dict()
-    listeners_config['dummytcp']['enabled'] = 'True'
-    listeners_config['dummytcp']['port'] = '65535'
-    listeners_config['dummytcp']['protocol'] = 'TCP'
-    listeners_config['dummytcp']['listener'] = 'RawListener'
-    listeners_config['dummytcp']['usessl'] = 'No'
-    listeners_config['dummytcp']['timeout'] = '10'
-
-    listeners_config['rawtcplistener'] = dict()
-    listeners_config['rawtcplistener']['enabled'] = 'True'
-    listeners_config['rawtcplistener']['port'] = '1337'
-    listeners_config['rawtcplistener']['protocol'] = 'TCP'
-    listeners_config['rawtcplistener']['listener'] = 'RawListener'
-    listeners_config['rawtcplistener']['usessl'] = 'No'
-    listeners_config['rawtcplistener']['timeout'] = '10'
-
-    listeners_config['dummyudp'] = dict()
-    listeners_config['dummyudp']['enabled'] = 'True'
-    listeners_config['dummyudp']['port'] = '65535'
-    listeners_config['dummyudp']['protocol'] = 'UDP'
-    listeners_config['dummyudp']['listener'] = 'RawListener'
-    listeners_config['dummyudp']['usessl'] = 'No'
-    listeners_config['dummyudp']['timeout'] = '10'
-
-    listeners_config['rawudplistener'] = dict()
-    listeners_config['rawudplistener']['enabled'] = 'True'
-    listeners_config['rawudplistener']['port'] = '1337'
-    listeners_config['rawudplistener']['protocol'] = 'UDP'
-    listeners_config['rawudplistener']['listener'] = 'RawListener'
-    listeners_config['rawudplistener']['usessl'] = 'No'
-    listeners_config['rawudplistener']['timeout'] = '10'
-
-    listeners_config['httplistener80'] = dict()
-    listeners_config['httplistener80']['enabled'] = 'True'
-    listeners_config['httplistener80']['port'] = '80'
-    listeners_config['httplistener80']['protocol'] = 'TCP'
-    listeners_config['httplistener80']['listener'] = 'HTTPListener'
-    listeners_config['httplistener80']['usessl'] = 'No'
-    listeners_config['httplistener80']['webroot'] = 'defaultFiles/'
-    listeners_config['httplistener80']['timeout'] = '10'
-    listeners_config['httplistener80']['dumphttpposts'] = 'Yes'
-    listeners_config['httplistener80']['dumphttppostsfileprefix'] = 'http'
-
-    ip_addrs = dict()
-    ip_addrs[4] = ['192.168.19.222', '127.0.0.1']
-    ip_addrs[6] = []
-
-    div = diverter_factory(diverter_config, listeners_config, ip_addrs)
-    testcase = namedtuple(
-        'testcase', ['src', 'sport', 'dst', 'dport', 'expect'])
-
-    foreign = '192.168.19.132'
-    LOCAL = '192.168.19.222'
-    LOOPBACK = '127.0.0.1'
-    unbound = 33333
-    BOUND = 80
-
-    bound_ports = []
-    for k, v in listeners_config.iteritems():
-        bound_ports.append(int(v['port'], 10))
-
-    testcases = [
-        testcase(foreign, unbound, LOCAL, unbound, True),
-        testcase(foreign, unbound, LOCAL, BOUND, False),
-        testcase(foreign, BOUND, LOCAL, unbound, True),
-        testcase(foreign, BOUND, LOCAL, BOUND, False),
-
-        testcase(LOCAL, unbound, foreign, unbound, True),
-        testcase(LOCAL, unbound, foreign, BOUND, False),
-        testcase(LOCAL, BOUND, foreign, unbound, False),
-        testcase(LOCAL, BOUND, foreign, BOUND, False),
-
-        testcase(LOOPBACK, unbound, LOOPBACK, unbound, True),
-        testcase(LOOPBACK, unbound, LOOPBACK, BOUND, False),
-        testcase(LOOPBACK, BOUND, LOOPBACK, unbound, False),
-        testcase(LOOPBACK, BOUND, LOOPBACK, BOUND, False),
-    ]
-
-    for tc in testcases:
-        r = div.decide_redir_port(4, 'TCP', 1337, bound_ports, tc.src,
-                                  tc.sport, tc.dst, tc.dport)
-        if r != tc.expect:
-            print('TEST CASE FAILED: %s:%d -> %s:%d expected %d got %d' %
-                  (tc.src, tc.sport, tc.dst, tc.dport, tc.expect, r))
-        else:
-            print('Test case passed: %s:%d -> %s:%d expected %d got %d' %
-                  (tc.src, tc.sport, tc.dst, tc.dport, tc.expect, r))

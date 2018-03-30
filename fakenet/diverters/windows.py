@@ -131,9 +131,7 @@ class Diverter(DiverterBase, WinUtilMixin):
     ###########################################################################
     # Diverter controller functions
 
-    def start(self):
-        self.logger.info('Starting...')
-
+    def startCallback(self):
         # Set local DNS server IP address
         if self.is_set('modifylocaldns'):
             self.set_dns_server(self.external_ip)
@@ -152,6 +150,8 @@ class Diverter(DiverterBase, WinUtilMixin):
         self.diverter_thread.daemon = True
 
         self.diverter_thread.start()
+
+        return True
 
     def divert_thread(self):
         try:
@@ -202,8 +202,7 @@ class Diverter(DiverterBase, WinUtilMixin):
             else:
                 raise
 
-    def stop(self):
-        self.logger.info('Stopping...')
+    def stopCallback(self):
         if self.pcap:
             self.pcap.close()
 
@@ -246,6 +245,8 @@ class Diverter(DiverterBase, WinUtilMixin):
             self.start_service_helper('Dnscache')  
 
         self.flush_dns()
+
+        return True
 
     def pktInterfaceStr(self, pkt):
         """WinDivert provides is_loopback which Windows Diverter uses to

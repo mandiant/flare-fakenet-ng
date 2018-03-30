@@ -383,6 +383,44 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         return fixed
 
+    def get_pid_comm(self, pkt):
+        conn_pid, process_name = None, None
+        if pkt.proto and pkt.sport:
+            conn_pid = self._get_pid_port_tcp(pkt.sport) if (pkt.proto == 'TCP') else self._get_pid_port_udp(pkt.sport)
+            process_name = self.get_process_image_filename(conn_pid) if conn_pid else None
+        return conn_pid, process_name
+
+    def check_gateways(self):
+
+        for adapter in self.get_adapters_info():
+            for gateway in self.get_gateways(adapter):
+                if gateway != '0.0.0.0':
+                    return True
+        else:
+            return False
+
+    def check_ipaddresses(self):
+
+        for adapter in self.get_adapters_info():
+            if self.check_ipaddresses_interface(adapter):
+                return True
+        else:
+            return False
+
+    def check_dns_servers(self):
+
+        FixedInfo = self.get_network_params()
+
+        if not FixedInfo:
+            return
+
+        ip_addr_string = FixedInfo.DnsServerList
+
+        if ip_addr_string and ip_addr_string.IpAddress.String:
+            return True
+
+        else:
+            return False 
 
 
     ###########################################################################
@@ -680,9 +718,6 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         self.close_service_handle(service_handle)
         self.close_service_handle(sc_handle)
 
-
-     
-
     ###########################################################################
     # Process related functions
     ###########################################################################
@@ -712,14 +747,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         for item in TcpTable.table[:TcpTable.dwNumEntries]:
             yield item
 
-    def get_pid_comm(self, pkt):
-        conn_pid, process_name = None, None
-        if pkt.proto and pkt.sport:
-            conn_pid = self.get_pid_port_tcp(pkt.sport) if (pkt.proto == 'TCP') else self.get_pid_port_udp(pkt.sport)
-            process_name = self.get_process_image_filename(conn_pid) if conn_pid else None
-        return conn_pid, process_name
-
-    def get_pid_port_tcp(self, port):
+    def _get_pid_port_tcp(self, port):
 
         for item in self.get_extended_tcp_table():
 
@@ -757,7 +785,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         for item in UdpTable.table[:UdpTable.dwNumEntries]:
             yield item
 
-    def get_pid_port_udp(self, port):
+    def _get_pid_port_udp(self, port):
 
         for item in self.get_extended_udp_table():
 
@@ -943,15 +971,6 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             if adapter.Index == index:
                 return self.get_ipaddresses(adapter)
 
-    def check_gateways(self):
-
-        for adapter in self.get_adapters_info():
-            for gateway in self.get_gateways(adapter):
-                if gateway != '0.0.0.0':
-                    return True
-        else:
-            return False
-
     def get_ip_with_gateway(self):
 
         for adapter in self.get_adapters_info():
@@ -966,14 +985,6 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         for ipaddress in self.get_ipaddresses(adapter):
             if ipaddress != '0.0.0.0':
-                return True
-        else:
-            return False
-
-    def check_ipaddresses(self):
-
-        for adapter in self.get_adapters_info():
-            if self.check_ipaddresses_interface(adapter):
                 return True
         else:
             return False
@@ -1009,22 +1020,6 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
             yield ip_addr_string.IpAddress.String
             ip_addr_string = ip_addr_string.Next
-
-    def check_dns_servers(self):
-
-        FixedInfo = self.get_network_params()
-
-        if not FixedInfo:
-            return
-
-        ip_addr_string = FixedInfo.DnsServerList
-
-        if ip_addr_string and ip_addr_string.IpAddress.String:
-            return True
-
-        else:
-            return False 
-
 
     ###########################################################################
     # The GetBestInterface function retrieves the index of the interface that has the best route to the specified IPv4 address.
@@ -1199,26 +1194,6 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             else:
                 self.logger.error('Failed to restore DNS server %s on the adapter: %s', dns_server, adapter_friendlyname)
 
-    ###########################################################################
-    # Check if user is an Administrator
-    def is_user_an_admin(self):
-        return ctypes.windll.shell32.IsUserAnAdmin()
-
-    ###########################################################################
-    # Execute process and detach
-    def execute_detached(self, execute_cmd):
-        DETACHED_PROCESS = 0x00000008
-
-        # import pdb
-        # pdb.set_trace()
-        try:
-            pid = subprocess.Popen(execute_cmd.split(), creationflags=DETACHED_PROCESS).pid
-        except Exception, e:
-            self.logger.error('Error: Failed to execute command: %s', execute_cmd)
-            self.logger.error('       %s', e)
-        else:
-            return pid
-
 def test_process_list():
 
     class Test(WinUtilMixin):
@@ -1227,24 +1202,24 @@ def test_process_list():
 
     self = Test()
 
-    pid = self.get_pid_port_tcp(135)
+    pid = self._get_pid_port_tcp(135)
     if pid:
         self.logger.info('pid: %d name: %s', pid, self.get_process_image_filename(pid))
     else:
         self.logger.error('failed to get pid for tcp port 135')
 
 
-    pid = self.get_pid_port_udp(123)
+    pid = self._get_pid_port_udp(123)
     if pid:
         self.logger.info('pid: %d name: %s', pid, self.get_process_image_filename(pid)) 
     else:
         self.logger.error('failed to get pid for udp port 123')
 
-    pid = self.get_pid_port_tcp(1234)
+    pid = self._get_pid_port_tcp(1234)
     if not pid:
         self.logger.info('successfully returned None for unknown tcp port 1234')
 
-    pid = self.get_pid_port_udp(1234)
+    pid = self._get_pid_port_udp(1234)
     if not pid:
         self.logger.info('successfully returned None for unknown udp port 1234')
 

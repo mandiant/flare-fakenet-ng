@@ -94,9 +94,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         if self.single_host_mode:
             self.outgoing_trans_cbs.append(self.maybe_redir_ip)
 
-    def start(self):
-        self.logger.info('Starting Linux Diverter...')
-
+    def startCallback(self):
         if not self.check_privileged():
             self.logger.error('The Linux Diverter requires administrative ' +
                               'privileges')
@@ -194,9 +192,9 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         self.rules_added.append(rule)
 
-    def stop(self):
-        self.logger.info('Stopping Linux Diverter...')
+        return True
 
+    def stopCallback(self):
         self.pdebug(DNFQUEUE, 'Notifying NFQUEUE objects of imminent stop')
         for q in self.nfqueues:
             q.stop_nonblocking()
@@ -219,6 +217,8 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.linux_restore_local_dns()
 
         self.linux_restore_iptables()
+
+        return True
 
     def handle_nonlocal(self, nfqpkt):
         """Handle comms sent to IP addresses that are not bound to any adapter.
