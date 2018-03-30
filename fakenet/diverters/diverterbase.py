@@ -662,7 +662,7 @@ class DiverterBase(fnconfig.Config):
         """Terminate packet processing.
 
         Generally set a flag to tell the thread to stop, join with the thread,
-        and uninstall hooks.
+        uninstall hooks, and change network settings back to normal.
 
         Returns:
             True if successful, else False
@@ -824,7 +824,8 @@ class DiverterBase(fnconfig.Config):
 
                     # Would prefer not to get into the middle of a debug
                     # session and learn that a typo has ruined the day, so we
-                    # test beforehand by
+                    # test beforehand to make sure all the user-specified
+                    # insertion strings are valid.
                     test = self._build_cmd(template, 0, 'test', '1.2.3.4',
                                            12345, '4.3.2.1', port)
                     if not test:
@@ -1067,14 +1068,11 @@ class DiverterBase(fnconfig.Config):
             Calls dpkt.pcap.Writer.writekpt to persist the octets
         """
         if self.pcap and self.pcap_lock:
-            self.pcap_lock.acquire()
-            try:
+            with self.pcap_lock:
                 mangled = 'mangled' if pkt.mangled else 'initial'
                 self.pdebug(DPCAP, 'Writing %s packet %s' %
                             (mangled, pkt.hdrToStr2()))
                 self.pcap.writepkt(pkt.octets)
-            finally:
-                self.pcap_lock.release()
 
     def handle_pkt(self, pkt, callbacks3, callbacks4):
         """Generic packet hook.
@@ -1416,12 +1414,8 @@ class DiverterBase(fnconfig.Config):
 
         orig_src_key = fnpacket.PacketCtx.gen_endpoint_key(proto, orig_src_ip,
                                                   orig_src_port)
-        self.port_fwd_table_lock.acquire()
-
-        try:
+        with self.port_fwd_table_lock:
             return self.port_fwd_table.get(orig_src_key)
-        finally:
-            self.port_fwd_table_lock.release()
 
     def maybe_redir_ip(self, crit, pkt, pid, comm):
         """Conditionally redirect foreign destination IPs to localhost.
@@ -1450,12 +1444,8 @@ class DiverterBase(fnconfig.Config):
         # then redirect it to a local IP address.
         if self.single_host_mode and (pkt.dst_ip not in self.ip_addrs[pkt.ipver]):
             self.pdebug(DIPNAT, 'Condition 1 satisfied')
-            self.ip_fwd_table_lock.acquire()
-            try:
+            with self.ip_fwd_table_lock:
                 self.ip_fwd_table[pkt.skey] = pkt.dst_ip
-
-            finally:
-                self.ip_fwd_table_lock.release()
 
             newdst = self.getNewDestinationIp(pkt.src_ip)
 
@@ -1473,13 +1463,10 @@ class DiverterBase(fnconfig.Config):
             # the host is reusing the port number to connect to an IP
             # address that is local to the FakeNet system.
 
-            self.ip_fwd_table_lock.acquire()
-            try:
+            with self.ip_fwd_table_lock:
                 if pkt.skey in self.ip_fwd_table:
                     self.pdebug(DIPNAT, ' - DELETING ipfwd key entry: ' + pkt.skey)
                     del self.ip_fwd_table[pkt.skey]
-            finally:
-                self.ip_fwd_table_lock.release()
 
     def maybe_fixup_srcip(self, crit, pkt, pid, comm):
         """Conditionally fix up the source IP address if the remote endpoint
@@ -1507,8 +1494,7 @@ class DiverterBase(fnconfig.Config):
         # incoming packet with the last destination IP that was requested
         # by the endpoint.
         self.pdebug(DIPNAT, "Condition 4 test: was remote endpoint IP fwd'd?")
-        self.ip_fwd_table_lock.acquire()
-        try:
+        with self.ip_fwd_table_lock:
             if self.single_host_mode and (pkt.dkey in self.ip_fwd_table):
                 self.pdebug(DIPNAT, 'Condition 4 satisfied')
                 self.pdebug(DIPNAT, ' = FOUND ipfwd key entry: ' + pkt.dkey)
@@ -1518,8 +1504,6 @@ class DiverterBase(fnconfig.Config):
                 pkt.src_ip = new_srcip
             else:
                 self.pdebug(DIPNAT, ' ! NO SUCH ipfwd key entry: ' + pkt.dkey)
-        finally:
-            self.ip_fwd_table_lock.release()
 
     def maybe_redir_port(self, crit, pkt, pid, comm):
         """Conditionally send packets to the default listener for this proto.
@@ -1545,16 +1529,10 @@ class DiverterBase(fnconfig.Config):
         # Pre-condition 2: destination must not be present in port forwarding
         # table (prevents masqueraded ports responding to unbound ports from
         # being mistaken as starting a conversation with an unbound port).
-        found = False
-        self.port_fwd_table_lock.acquire()
-        try:
+        with self.port_fwd_table_lock:
             # Uses dkey to cross-reference
-            found = pkt.dkey in self.port_fwd_table
-        finally:
-            self.port_fwd_table_lock.release()
-
-        if found:
-            return
+            if pkt.dkey in self.port_fwd_table:
+                return
 
         # Proxy-related check: is the dport bound by a listener that is hidden?
         dport_hidden_listener = crit.dport_hidden_listener
@@ -1582,32 +1560,23 @@ class DiverterBase(fnconfig.Config):
             #     appear when packets would otherwise have been redirected.
 
             # Is this conversation already being ignored for DPF purposes?
-            self.ignore_table_lock.acquire()
-            try:
+            with self.ignore_table_lock:
                 if pkt.dkey in self.ignore_table and self.ignore_table[pkt.dkey] == pkt.sport:
                     # This is a reply (e.g. a TCP RST) from the
                     # non-port-forwarded server that the non-port-forwarded
                     # client was trying to talk to. Leave it alone.
                     return
-            finally:
-                self.ignore_table_lock.release()
 
             if self.check_should_ignore(pkt, pid, comm):
-                self.ignore_table_lock.acquire()
-                try:
+                with self.ignore_table_lock:
                     self.ignore_table[pkt.skey] = pkt.dport
-                finally:
-                    self.ignore_table_lock.release()
                 return
 
             # Record the foreign endpoint and old destination port in the port
             # forwarding table
             self.pdebug(DDPFV, ' + ADDING portfwd key entry: ' + pkt.skey)
-            self.port_fwd_table_lock.acquire()
-            try:
+            with self.port_fwd_table_lock:
                 self.port_fwd_table[pkt.skey] = pkt.dport
-            finally:
-                self.port_fwd_table_lock.release()
 
             self.pdebug(DDPF, 'Redirecting %s to go to port %d' %
                         (pkt.hdrToStr(), default))
@@ -1658,11 +1627,8 @@ class DiverterBase(fnconfig.Config):
         new_sport = None
         self.pdebug(DDPFV, "Condition 3 test: was remote endpoint port fwd'd?")
 
-        self.port_fwd_table_lock.acquire()
-        try:
+        with self.port_fwd_table_lock:
             new_sport = self.port_fwd_table.get(pkt.dkey)
-        finally:
-            self.port_fwd_table_lock.release()
 
         if new_sport:
             self.pdebug(DDPFV, 'Condition 3 satisfied: must fix up ' +
@@ -1677,13 +1643,10 @@ class DiverterBase(fnconfig.Config):
         return pkt.hdr if pkt.mangled else None
 
     def delete_stale_port_fwd_key(self, skey):
-        self.port_fwd_table_lock.acquire()
-        try:
+        with self.port_fwd_table_lock:
             if skey in self.port_fwd_table:
                 self.pdebug(DDPFV, ' - DELETING portfwd key entry: ' + skey)
                 del self.port_fwd_table[skey]
-        finally:
-            self.port_fwd_table_lock.release()
 
     def decide_redir_port(self, pkt, bound_ports):
         """Decide whether to redirect a port.
