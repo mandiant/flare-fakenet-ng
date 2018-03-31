@@ -45,8 +45,6 @@ def execute_detached(execute_cmd, winders=False):
 
     preexec = None if winders else ign_sigint
 
-    # import pdb
-    # pdb.set_trace()
     try:
         pid = subprocess.Popen(execute_cmd, creationflags=cflags,
                                shell=shl,
@@ -157,20 +155,16 @@ class IrcTester(object):
         srv.process_data()
 
         if not self.welcome_ok:
-            logger.error('Welcome test failed')
-            return False
+            raise FakeNetTestException('Welcome test failed')
 
         if not self.join_ok:
-            logger.error('Join test failed')
-            return False
+            raise FakeNetTestException('Join test failed')
 
         if not self.privmsg_ok:
-            logger.error('privmsg test failed')
-            return False
+            raise FakeNetTestException('privmsg test failed')
 
         if not self.pubmsg_ok:
-            logger.error('pubmsg test failed')
-            return False
+            raise FakeNetTestException('pubmsg test failed')
 
         return all([
             self.welcome_ok,
@@ -354,7 +348,7 @@ class FakeNetTester(object):
 
         return matching
 
-    def _testGeneric(self, config, tests, matchspec=[]):
+    def _testGeneric(self, label, config, tests, matchspec=[]):
         matching = self._getMatchingTests(tests, matchspec)
         if not len(matching):
             logger.info('No matching tests')
@@ -362,21 +356,41 @@ class FakeNetTester(object):
         
         self.writeConfig(config)
 
-        if not self.executeFakenet():
-            self.delConfig()
-            return False
+        if self.settings.singlehost:
+            if not self.executeFakenet():
+                self.delConfig()
+                return False
 
-        sec = self.settings.sleep_after_start
-        logger.info('Sleeping %d seconds before commencing' % (sec))
-        time.sleep(sec)
+            sec = self.settings.sleep_after_start
+            logger.info('Sleeping %d seconds before commencing' % (sec))
+            time.sleep(sec)
+        else:
+            logger.info('Waiting for you to transition the remote FakeNet-NG')
+            logger.info('system to run the %s test suite' % (label))
+            logger.info('Config is at: %s' % (self.settings.configpath))
+            logger.info('')
+            while True:
+                logger.info('Type \'ok\' to continue, or \'exit\' to stop')
+                try:
+                    ok = raw_input()
+                except EOFError:
+                    ok = 'exit'
+
+                if ok.lower() in ['exit', 'quit', 'stop', 'n', 'no']:
+                    sys.exit(0)
+                elif ok.lower() in ['ok', 'okay', 'go', 'y', 'yes']:
+                    break
 
         logger.info('-' * 79)
         logger.info('Testing')
         logger.info('-' * 79)
 
+        # Do each test
         for desc, (callback, args, expected) in matching.iteritems():
             logger.debug('Testing: %s' % (desc))
             passed = self._tryTest(desc, callback, args, expected)
+
+            # Retry in case of transient error e.g. timeout
             if not passed:
                 logger.debug('Retrying: %s' % (desc))
                 passed = self._tryTest(desc, callback, args, expected)
@@ -436,7 +450,8 @@ class FakeNetTester(object):
             retval = (recvd == teststring)
 
         except socket.error as e:
-            logger.error('Socket error: %s' % (str(e)))
+            logger.error('Socket error: %s (%s %s:%d)' %
+                         (str(e), proto, host, port))
         except Exception as e:
             logger.error('Non-socket Exception received: %s' % (str(e)))
 
@@ -472,11 +487,13 @@ class FakeNetTester(object):
         octets = msg[2]
 
         if not response.startswith('+OK'):
-            logger.error('POP3 response does not start with "+OK"')
+            msg = 'POP3 response does not start with "+OK"'
+            logger.error(msg)
             return False
 
         if not 'Alice' in ''.join(lines):
-            logger.error('POP3 message did not contain expected string')
+            msg = 'POP3 message did not contain expected string'
+            raise FakeNetTestException(msg)
             return False
 
         return True
@@ -560,8 +577,8 @@ class FakeNetTester(object):
 
         t = OrderedDict() # The tests
 
-        t['RedirectAllTraffic disabled local external IP @ bound'] = (self._test_sk, (tcp, ext_ip, 1337), True)
-        t['RedirectAllTraffic disabled local external IP @ unbound'] = (self._test_sk, (tcp, ext_ip, 9999), False)
+        t['RedirectAllTraffic disabled external IP @ bound'] = (self._test_sk, (tcp, ext_ip, 1337), True)
+        t['RedirectAllTraffic disabled external IP @ unbound'] = (self._test_sk, (tcp, ext_ip, 9999), False)
 
         t['RedirectAllTraffic disabled arbitrary host @ bound'] = (self._test_sk, (tcp, arbitrary, 1337), False)
         t['RedirectAllTraffic disabled arbitrary host @ unbound'] = (self._test_sk, (tcp, arbitrary, 9999), False)
@@ -569,10 +586,11 @@ class FakeNetTester(object):
         t['RedirectAllTraffic disabled named host @ bound'] = (self._test_sk, (tcp, domain_dne, 1337), False)
         t['RedirectAllTraffic disabled named host @ unbound'] = (self._test_sk, (tcp, domain_dne, 9999), False)
 
-        t['RedirectAllTraffic disabled localhost @ bound'] = (self._test_sk, (tcp, localhost, 1337), True)
-        t['RedirectAllTraffic disabled localhost @ unbound'] = (self._test_sk, (tcp, localhost, 9999), False)
+        if self.settings.singlehost:
+            t['RedirectAllTraffic disabled localhost @ bound'] = (self._test_sk, (tcp, localhost, 1337), True)
+            t['RedirectAllTraffic disabled localhost @ unbound'] = (self._test_sk, (tcp, localhost, 9999), False)
 
-        return self._testGeneric(config, t, matchspec)
+        return self._testGeneric('No Redirect', config, t, matchspec)
 
     def testBlacklistProcess(self, matchspec=[]):
         config = self.makeConfig()
@@ -585,9 +603,10 @@ class FakeNetTester(object):
 
         t = OrderedDict() # The tests
 
-        t['Global blacklisted process test'] = (self._test_sk, (tcp, arbitrary, 9999), False)
+        if self.settings.singlehost:
+            t['Global blacklisted process test'] = (self._test_sk, (tcp, arbitrary, 9999), False)
 
-        return self._testGeneric(config, t, matchspec)
+        return self._testGeneric('Global process blacklist', config, t, matchspec)
 
     def testWhitelistProcess(self, matchspec=[]):
         config = self.makeConfig()
@@ -600,9 +619,10 @@ class FakeNetTester(object):
 
         t = OrderedDict() # The tests
 
-        t['Global whitelisted process test'] = (self._test_sk, (tcp, arbitrary, 9999), True)
+        if self.settings.singlehost:
+            t['Global whitelisted process test'] = (self._test_sk, (tcp, arbitrary, 9999), True)
 
-        return self._testGeneric(config, t, matchspec)
+        return self._testGeneric('Global process whitelist', config, t, matchspec)
 
     def testGeneral(self, matchspec=[]):
         config = self.makeConfig()
@@ -615,6 +635,8 @@ class FakeNetTester(object):
         blacklistedudp = self.settings.blacklistedudp
         localhost = self.settings.localhost
         dns_expected = self.settings.dns_expected
+        hidden_tcp = self.settings.hidden_tcp
+        no_service = self.settings.no_service
 
         sender = self.settings.sender
         recipient = self.settings.recipient
@@ -625,27 +647,27 @@ class FakeNetTester(object):
 
         t = OrderedDict() # The tests
 
-        t['TCP local external IP @ bound'] = (self._test_sk, (tcp, ext_ip, 1337), True)
-        t['TCP local external IP @ unbound'] = (self._test_sk, (tcp, ext_ip, 9999), True)
+        t['TCP external IP @ bound'] = (self._test_sk, (tcp, ext_ip, 1337), True)
+        t['TCP external IP @ unbound'] = (self._test_sk, (tcp, ext_ip, 9999), True)
         t['TCP arbitrary @ bound'] = (self._test_sk, (tcp, arbitrary, 1337), True)
         t['TCP arbitrary @ unbound'] = (self._test_sk, (tcp, arbitrary, 9999), True)
         t['TCP domainname @ bound'] = (self._test_sk, (tcp, domain_dne, 1337), True)
         t['TCP domainname @ unbound'] = (self._test_sk, (tcp, domain_dne, 9999), True)
-        t['TCP localhost @ bound'] = (self._test_sk, (tcp, localhost, 1337), True)
+        if self.settings.singlehost:
+            t['TCP localhost @ bound'] = (self._test_sk, (tcp, localhost, 1337), True)
+            t['TCP localhost @ unbound'] = (self._test_sk, (tcp, localhost, 9999), False)
 
-        t['TCP localhost @ unbound'] = (self._test_sk, (tcp, localhost, 9999), False)
-
-        t['UDP local external IP @ bound'] = (self._test_sk, (udp, ext_ip, 1337), True)
-        t['UDP local external IP @ unbound'] = (self._test_sk, (udp, ext_ip, 9999), True)
+        t['UDP external IP @ bound'] = (self._test_sk, (udp, ext_ip, 1337), True)
+        t['UDP external IP @ unbound'] = (self._test_sk, (udp, ext_ip, 9999), True)
         t['UDP arbitrary @ bound'] = (self._test_sk, (udp, arbitrary, 1337), True)
         t['UDP arbitrary @ unbound'] = (self._test_sk, (udp, arbitrary, 9999), True)
         t['UDP domainname @ bound'] = (self._test_sk, (udp, domain_dne, 1337), True)
         t['UDP domainname @ unbound'] = (self._test_sk, (udp, domain_dne, 9999), True)
-        t['UDP localhost @ bound'] = (self._test_sk, (udp, localhost, 1337), True)
+        if self.settings.singlehost:
+            t['UDP localhost @ bound'] = (self._test_sk, (udp, localhost, 1337), True)
+            t['UDP localhost @ unbound'] = (self._test_sk, (udp, localhost, 9999), False)
 
-        t['UDP localhost @ unbound'] = (self._test_sk, (udp, localhost, 9999), False)
-
-        t['ICMP local external IP'] = (self._test_icmp, (ext_ip,), True)
+        t['ICMP external IP'] = (self._test_icmp, (ext_ip,), True)
         t['ICMP arbitrary host'] = (self._test_icmp, (arbitrary,), True)
         t['ICMP domainname'] = (self._test_icmp, (domain_dne,), True)
 
@@ -661,18 +683,20 @@ class FakeNetTester(object):
         # Works on Linux, not on Windows
         t['IRC listener test'] = (self._test_irc, (arbitrary,), True)
 
-        t['Proxy listener HTTP test'] = (self._test_http, (arbitrary, 10), True)
+        t['Proxy listener HTTP test'] = (self._test_http, (arbitrary, no_service), True)
+        t['Proxy listener hidden test'] = (self._test_http, (arbitrary, hidden_tcp), True)
 
         t['TCP blacklisted host @ unbound'] = (self._test_sk, (tcp, blacklistedhost, 9999), False)
         t['TCP arbitrary @ blacklisted unbound'] = (self._test_sk, (tcp, arbitrary, blacklistedtcp), False)
         t['UDP arbitrary @ blacklisted unbound'] = (self._test_sk, (udp, arbitrary, blacklistedudp), False)
 
-        t['Listener process blacklist'] = (self._test_http, (arbitrary, self.settings.listener_proc_black), False)
-        t['Listener process whitelist'] = (self._test_http, (arbitrary, self.settings.listener_proc_white), True)
-        t['Listener host blacklist'] = (self._test_http, (arbitrary, self.settings.listener_host_black), True)
-        t['Listener host whitelist'] = (self._test_http, (arbitrary, self.settings.listener_host_black), True)
+        if self.settings.singlehost:
+            t['Listener process blacklist'] = (self._test_http, (arbitrary, self.settings.listener_proc_black), False)
+            t['Listener process whitelist'] = (self._test_http, (arbitrary, self.settings.listener_proc_white), True)
+            t['Listener host blacklist'] = (self._test_http, (arbitrary, self.settings.listener_host_black), True)
+            t['Listener host whitelist'] = (self._test_http, (arbitrary, self.settings.listener_host_black), True)
 
-        return self._testGeneric(config, t, matchspec)
+        return self._testGeneric('General', config, t, matchspec)
 
     def makeConfig(self, singlehostmode=True, proxied=True, redirectall=True):
         template = self.settings.configtemplate
@@ -723,7 +747,8 @@ class FakeNetConfig:
 class FakeNetTestSettings:
     """Test constants/literals, some of which may vary per OS, etc."""
 
-    def __init__(self, startingpath):
+    def __init__(self, startingpath, singlehost=True):
+        self.singlehost = singlehost
         self.startingpath = startingpath
         self.configtemplate = os.path.join(startingpath, 'template.ini')
 
@@ -748,6 +773,8 @@ class FakeNetTestSettings:
         self.blacklistedhost = '6.6.6.6'
         self.blacklistedtcp = 139
         self.blacklistedudp = 67
+        self.hidden_tcp =  12345
+        self.no_service = 10
         self.listener_proc_black = 8080 # HTTP listener with process blacklist
         self.listener_proc_white = 8081 # HTTP listener with process whitelists
         self.listener_host_black = 8082 # HTTP listener with host blacklist
@@ -773,13 +800,37 @@ class FakeNetTestSettings:
         return ('%s -f %s -l %s -c %s' %
                 (self.fakenet, self.stopflag, self.logpath, self.configpath))
 
+def is_ip(s):
+    pat = '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'
+    return bool(re.match(pat, s))
+
 def main():
     if not is_admin():
-        logger.info('Not an admin, exiting...')
+        logger.error('Not an admin, exiting...')
+        sys.exit(1)
+
+    if len(sys.argv) < 2:
+        logger.error('Usage: test.py <where> [matchspec1 [matchspec2 [...] ] ]')
+        logger.error('')
+        logger.error('Valid where:')
+        logger.error('  here')
+        logger.error('  Any dot-decimal IP address')
+        logger.error('')
+        logger.error('Each match specification will be compared against test')
+        logger.error('names, and any matches will be included.')
+        sys.exit(1)
+
+    # Validate where
+    where = sys.argv[1]
+
+    singlehost = (where.lower() == 'singlehost')
+
+    if not singlehost and not is_ip(where):
+        logger.error('Invalid where: %s' % (where))
         sys.exit(1)
 
     # Will execute only tests matching *match_spec if specified
-    match_spec = sys.argv[1:]
+    match_spec = sys.argv[2:]
 
     if len(match_spec):
         logger.info('Only running tests that match the following ' +
@@ -787,12 +838,13 @@ def main():
         for spec in match_spec:
             logger.info('  %s' % (spec))
 
+    # Doit
     startingpath = os.getcwd()
-    settings = FakeNetTestSettings(startingpath)
+    settings = FakeNetTestSettings(startingpath, singlehost)
+    if not singlehost: # <where> was an IP, so record it
+        settings.ext_ip = where
     tester = FakeNetTester(settings)
-
     logger.info('Running with privileges on %s' % (settings.platform_name))
-
     tester.doTests(match_spec)
 
 if __name__ == '__main__':
