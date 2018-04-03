@@ -17,6 +17,7 @@ from _winreg import *
 import subprocess
 
 NO_ERROR                  = 0
+ERROR_BUFFER_OVERFLOW     = 111
 
 AF_INET                   = 2
 AF_INET6                  = 23
@@ -873,7 +874,29 @@ class WinUtilMixin():
         OutBufLen = ULONG(sizeof(FIXED_INFO))
         FixedInfo = FIXED_INFO()
 
-        if not windll.iphlpapi.GetNetworkParams(byref(FixedInfo), byref(OutBufLen)) == NO_ERROR:
+        ret = windll.iphlpapi.GetNetworkParams(byref(FixedInfo), byref(OutBufLen))
+
+        if ERROR_BUFFER_OVERFLOW == ret:
+            # Not enough space in FixedInfo - there are likely multiple DNS
+            # servers configured for this system, and the IP_ADDR_STRING
+            # structures for all but the first will get placed at the end
+            # of the buffer we pass in.  To handle this, first figure out
+            # how much additional space is needed (the size needed is in
+            # OutBufLen now.)
+
+            AdditionalDataLen = OutBufLen.value - sizeof(FIXED_INFO)
+
+            # Make a new ctype struct that accommodates this and try again
+            NewFixedInfoType = type("FIXED_INFO_PLUS_%d" % AdditionalDataLen, \
+                                    (Structure,), \
+                                    {"_fields_": FIXED_INFO._fields_ + [("_data", BYTE * AdditionalDataLen)]})
+
+            OutBufLen.value = sizeof(NewFixedInfoType)
+            FixedInfo = NewFixedInfoType()
+
+            ret = windll.iphlpapi.GetNetworkParams(byref(FixedInfo), byref(OutBufLen))
+
+        if not ret == NO_ERROR:
             self.logger.error('Failed calling GetNetworkParams')
             return None
 
