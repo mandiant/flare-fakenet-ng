@@ -113,7 +113,7 @@ class DNSHandler():
 
                     # msftncsi does request ipv6 but we only support v4 for now
                     #TODO integrate into randomized/custom responses. Keep it simple for now.
-                    if 'msftncsi.com' in qname:
+                    if 'dns.msftncsi.com' in qname:
                         fake_record = '131.107.255.225'
 
                     # Using socket.gethostbyname(socket.gethostname()) will return
