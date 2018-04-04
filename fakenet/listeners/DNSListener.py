@@ -111,6 +111,11 @@ class DNSHandler():
                     # Get fake record from the configuration or use the external address
                     fake_record = self.server.config.get('responsea', None)
 
+                    # msftncsi does request ipv6 but we only support v4 for now
+                    #TODO integrate into randomized/custom responses. Keep it simple for now.
+                    if 'msftncsi.com' in qname:
+                        fake_record = '131.107.255.225'
+
                     # Using socket.gethostbyname(socket.gethostname()) will return
                     # 127.0.1.1 on Ubuntu systems that automatically add this entry
                     # to /etc/hosts at install time or at other times. To produce a
