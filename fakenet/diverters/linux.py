@@ -27,7 +27,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def __init__(self, diverter_config, listeners_config, ip_addrs,
                  logging_level=logging.INFO):
-        super(Diverter, self).__init__(diverter_config, listeners_config, ip_addrs, logging_level)
+        super(Diverter, self).__init__(diverter_config, listeners_config,
+                                       ip_addrs, logging_level)
 
         self.init_linux_mixin()
         self.init_diverter_linux()
@@ -37,7 +38,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # String list configuration item that is specific to the Linux
         # Diverter, will not be parsed by DiverterBase, and needs to be
         # accessed as an array in the future.
-        slists = ['linuxredirectnonlocal',]
+        slists = ['linuxredirectnonlocal', ]
         self.reconfigure(portlists=[], stringlists=slists)
 
         self.logger.info('Running in %s mode' % (self.network_mode))
@@ -159,12 +160,13 @@ class Diverter(DiverterBase, LinUtilMixin):
         if self.single_host_mode and self.is_set('modifylocaldns'):
             self.linux_modifylocaldns_ephemeral()
 
-        if self.is_configured('linuxflushdnscommand') and self.single_host_mode:
+        if (self.is_configured('linuxflushdnscommand') and
+                self.single_host_mode):
             cmd = self.getconfigval('linuxflushdnscommand')
             ret = subprocess.call(cmd.split())
             if ret != 0:
-                self.logger.error(
-                'Failed to flush DNS cache. Local machine may use cached DNS results.')
+                self.logger.error('Failed to flush DNS cache. Local machine '
+                                  'may use cached DNS results.')
 
         if self.is_configured('linuxredirectnonlocal'):
             self.pdebug(DMISC, 'Processing LinuxRedirectNonlocal')
@@ -198,7 +200,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         for q in self.nfqueues:
             q.stop_nonblocking()
 
-        self.pdebug(DIPTBLS, 'Removing iptables rules not associated with any ' +
+        self.pdebug(DIPTBLS, 'Removing iptables rules not associated with any '
                     'NFQUEUE object')
         self.linux_remove_iptables_rules(self.rules_added)
 
@@ -240,7 +242,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.logger.error('Exception: %s' % (traceback.format_exc()))
             raise
 
-        nfqpkt.accept() # NF_ACCEPT
+        nfqpkt.accept()
 
     def handle_incoming(self, nfqpkt):
         """Incoming packet hook.
@@ -257,14 +259,14 @@ class Diverter(DiverterBase, LinUtilMixin):
         try:
             pkt = LinuxPacketCtx('handle_incoming', nfqpkt)
             self.handle_pkt(pkt, self.incoming_net_cbs,
-                                     self.incoming_trans_cbs)
+                            self.incoming_trans_cbs)
             if pkt.mangled:
                 nfqpkt.set_payload(pkt.octets)
         except Exception:
             self.logger.error('Exception: %s' % (traceback.format_exc()))
             raise
 
-        nfqpkt.accept() # NF_ACCEPT
+        nfqpkt.accept()
 
     def handle_outgoing(self, nfqpkt):
         """Outgoing packet hook.
@@ -284,14 +286,14 @@ class Diverter(DiverterBase, LinUtilMixin):
         try:
             pkt = LinuxPacketCtx('handle_outgoing', nfqpkt)
             self.handle_pkt(pkt, self.outgoing_net_cbs,
-                                     self.outgoing_trans_cbs)
+                            self.outgoing_trans_cbs)
             if pkt.mangled:
                 nfqpkt.set_payload(pkt.octets)
         except Exception:
             self.logger.error('Exception: %s' % (traceback.format_exc()))
             raise
 
-        nfqpkt.accept() # NF_ACCEPT
+        nfqpkt.accept()
 
     def check_log_nonlocal(self, crit, pkt):
         """Conditionally log packets having a foreign destination.
