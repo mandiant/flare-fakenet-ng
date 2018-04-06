@@ -16,7 +16,8 @@ from collections import OrderedDict
 
 
 class DivertParms(object):
-    """Class to abstract all criteria possible out of the Windows and Linux diverters.
+    """Class to abstract all criteria possible out of the Windows and Linux
+    diverters.
 
     These criteria largely derive from both the diverter state and the packet
     contents. This class is sometimes passed around alongside the packet to
@@ -48,7 +49,8 @@ class DivertParms(object):
         Returns:
             True if dport corresponds to hidden listener, else False
         """
-        return self.diverter.listener_ports.isHidden(self.pkt.proto, self.pkt.dport)
+        return self.diverter.listener_ports.isHidden(self.pkt.proto,
+                                                     self.pkt.dport)
 
     @property
     def src_local(self):
@@ -66,7 +68,8 @@ class DivertParms(object):
         Returns:
             True if sport is bound by FakeNet-NG, else False
         """
-        return self.diverter.listener_ports.isListener(self.pkt.proto, self.pkt.sport)
+        return self.diverter.listener_ports.isListener(self.pkt.proto,
+                                                       self.pkt.sport)
 
     @property
     def dport_bound(self):
@@ -75,7 +78,8 @@ class DivertParms(object):
         Returns:
             True if dport is bound by FakeNet-NG, else False
         """
-        return self.diverter.listener_ports.isListener(self.pkt.proto, self.pkt.dport)
+        return self.diverter.listener_ports.isListener(self.pkt.proto,
+                                                       self.pkt.dport)
 
     @property
     def first_packet_new_session(self):
@@ -106,7 +110,7 @@ class DiverterPerOSDelegate(object):
     @abc.abstractmethod
     def check_active_ethernet_adapters(self):
         """Check that there is at least one Ethernet interface.
-        
+
         Returns:
             True if there is at least one interface, else False
         """
@@ -116,7 +120,7 @@ class DiverterPerOSDelegate(object):
     def check_ipaddresses(self):
         """Check that there is at least one non-null IP address associated with
         at least one interface.
-        
+
         Returns:
             True if at least one IP address, else False
         """
@@ -125,7 +129,7 @@ class DiverterPerOSDelegate(object):
     @abc.abstractmethod
     def check_gateways(self):
         """Check that at least one interface has a non-NULL gateway set.
-        
+
         Returns:
             True if at least one gateway, else False
         """
@@ -205,15 +209,18 @@ class DiverterPerOSDelegate(object):
         """
         pass
 
+
 class ListenerAlreadyBoundThere(Exception):
     pass
+
 
 class ListenerBlackWhiteList(Exception):
     pass
 
+
 class ListenerMeta(object):
     """Info about each listener.
-    
+
     Makes hidden listeners explicit. Organizes process and host black/white
     lists and ExecuteCmd format strings.
 
@@ -272,9 +279,10 @@ class ListenerMeta(object):
     def setExecuteCmd(self, configtext):
         self.cmd_template = configtext
 
+
 class ListenerPorts(object):
     """Collection of listeners with convenience accessors.
-    
+
     Previously, FakeNet-NG had several parallel dictionaries associated with
     listener settings and lots of code like this:
         1.) Does this dictionary have a 'TCP' key?
@@ -451,15 +459,14 @@ class ListenerPorts(object):
 
 class DiverterBase(fnconfig.Config):
     """The beating heart.
-    
+
     You must implement the following methods to ride:
         startCallback()
         stopCallback()
     """
 
-
     def __init__(self, diverter_config, listeners_config, ip_addrs,
-                  logging_level=logging.INFO):
+                 logging_level=logging.INFO):
         """Initialize the DiverterBase.
 
         TODO: Replace the sys.exit() calls from this function with exceptions
@@ -486,7 +493,8 @@ class DiverterBase(fnconfig.Config):
         self.pdebug_level = 0
         self.pdebug_labels = dict()
 
-        self.running_on_windows = False # Override in Windows implementation
+        # Override in Windows implementation
+        self.running_on_windows = False
 
         self.pid = os.getpid()
 
@@ -565,7 +573,7 @@ class DiverterBase(fnconfig.Config):
         # Parse diverter config
         self.parse_diverter_config()
 
-        slists = ['DebugLevel',]
+        slists = ['DebugLevel', ]
         self.reconfigure(portlists=[], stringlists=slists)
 
         dbg_lvl = 0
@@ -586,15 +594,17 @@ class DiverterBase(fnconfig.Config):
 
         # Check active interfaces
         if not self.check_active_ethernet_adapters():
-            self.logger.warning('WARNING: No active ethernet interfaces ' +
+            self.logger.warning('WARNING: No active ethernet interfaces '
                                 'detected!')
             self.logger.warning('         Please enable a network interface.')
             sys.exit(1)
 
         # Check configured ip addresses
         if not self.check_ipaddresses():
-            self.logger.warning('ERROR: No interface had IP address configured!')
-            self.logger.warning('         Please configure an IP address on a network interface.')
+            self.logger.warning('ERROR: No interface had IP address '
+                                'configured!')
+            self.logger.warning('         Please configure an IP address on a '
+                                'network interface.')
             sys.exit(1)
 
         # Check configured gateways
@@ -632,7 +642,7 @@ class DiverterBase(fnconfig.Config):
     def start(self):
         """This method currently only serves the purpose of codifying what must
         be implemented on a given OS to bring FakeNet-NG to that OS.
-        
+
         Further refactoring should be done to unify network interface checks,
         gateway and DNS configuration, etc. into this method while calling out
         to the already-defined (and potentially some yet-to-be-defined)
@@ -673,7 +683,7 @@ class DiverterBase(fnconfig.Config):
         """Enable debug output if necessary, set the debug output level, and
         maintain a reference to the dictionary of labels to print when a given
         logging level is encountered.
-        
+
         Args:
             lvl: An int mask of all debug logging levels
             labels: A dict of int => str assigning names to each debug level
@@ -759,7 +769,8 @@ class DiverterBase(fnconfig.Config):
 
                 ###############################################################
                 # Process filtering configuration
-                if 'processwhitelist' in listener_config and 'processblacklist' in listener_config:
+                if ('processwhitelist' in listener_config and
+                        'processblacklist' in listener_config):
                     self.logger.error('ERROR: Listener can\'t have both ' +
                                       'process whitelist and blacklist.')
                     sys.exit(1)
@@ -789,7 +800,8 @@ class DiverterBase(fnconfig.Config):
 
                 ###############################################################
                 # Host filtering configuration
-                if 'hostwhitelist' in listener_config and 'hostblacklist' in listener_config:
+                if ('hostwhitelist' in listener_config and
+                        'hostblacklist' in listener_config):
                     self.logger.error('ERROR: Listener can\'t have both ' +
                                       'host whitelist and blacklist.')
                     sys.exit(1)
@@ -886,12 +898,12 @@ class DiverterBase(fnconfig.Config):
 
         try:
             cmd = tmpl.format(
-                pid = str(pid),
-                procname = str(comm),
-                src_addr = str(src_ip),
-                src_port = str(sport),
-                dst_addr = str(dst_ip),
-                dst_port = str(dport))
+                pid=str(pid),
+                procname=str(comm),
+                src_addr=str(src_ip),
+                src_port=str(sport),
+                dst_addr=str(dst_ip),
+                dst_port=str(dport))
         except KeyError as e:
             self.logger.error(('Failed to build ExecuteCmd for port %d due ' +
                               'to erroneous format key: %s') %
@@ -932,11 +944,12 @@ class DiverterBase(fnconfig.Config):
         try:
             pid = subprocess.Popen(execute_cmd, creationflags=cflags,
                                    shell=shl,
-                                   close_fds = cfds,
-                                   preexec_fn = preexec).pid
+                                   close_fds=cfds,
+                                   preexec_fn=preexec).pid
         except Exception as e:
             self.logger.error('Exception of type %s' % (str(type(e))))
-            self.logger.error('Error: Failed to execute command: %s', execute_cmd)
+            self.logger.error('Error: Failed to execute command: %s',
+                              execute_cmd)
             self.logger.error('       %s', e)
         else:
             return pid
@@ -969,7 +982,8 @@ class DiverterBase(fnconfig.Config):
             if self.network_mode.lower() == 'multihost':
                 self.single_host_mode = False
 
-        if self.getconfigval('processwhitelist') and self.getconfigval('processblacklist'):
+        if (self.getconfigval('processwhitelist') and
+                self.getconfigval('processblacklist')):
             self.logger.error('ERROR: Diverter can\'t have both process ' +
                               'whitelist and blacklist.')
             sys.exit(1)
@@ -980,7 +994,7 @@ class DiverterBase(fnconfig.Config):
                 time.strftime('%Y%m%d_%H%M%S'))
             self.logger.info('Capturing traffic to %s', self.pcap_filename)
             self.pcap = dpkt.pcap.Writer(open(self.pcap_filename, 'wb'),
-                linktype=dpkt.pcap.DLT_RAW)
+                                         linktype=dpkt.pcap.DLT_RAW)
             self.pcap_lock = threading.Lock()
 
         # Do not redirect blacklisted processes
@@ -1016,28 +1030,34 @@ class DiverterBase(fnconfig.Config):
                                   'in the configuration.')
                 sys.exit(1)
 
-            elif not self.getconfigval('defaulttcplistener').lower() in self.listeners_config:
+            elif not (self.getconfigval('defaulttcplistener').lower() in
+                      self.listeners_config):
                 self.logger.error('ERROR: No configuration exists for ' +
-                                  'default TCP listener %s', self.getconfigval(
-                    'defaulttcplistener'))
+                                  'default TCP listener %s',
+                                  self.getconfigval('defaulttcplistener'))
                 sys.exit(1)
 
-            elif not self.getconfigval('defaultudplistener').lower() in self.listeners_config:
+            elif not (self.getconfigval('defaultudplistener').lower() in
+                      self.listeners_config):
                 self.logger.error('ERROR: No configuration exists for ' +
-                                  'default UDP listener %s', self.getconfigval(
-                                  'defaultudplistener'))
+                                  'default UDP listener %s',
+                                  self.getconfigval('defaultudplistener'))
                 sys.exit(1)
 
             else:
-                self.default_listener['TCP'] = int(
-                    self.listeners_config[self.getconfigval('defaulttcplistener').lower()]['port'])
-                self.logger.error('Using default listener %s on port %d', self.getconfigval(
-                    'defaulttcplistener').lower(), self.default_listener['TCP'])
+                default_listener = self.getconfigval('defaulttcplistener').lower()
+                default_port = self.listeners_config[default_listener]['port']
+                self.default_listener['TCP'] = int(default_port)
+                self.logger.error('Using default listener %s on port %d',
+                                  self.getconfigval('defaulttcplistener').lower(),
+                                  self.default_listener['TCP'])
 
-                self.default_listener['UDP'] = int(
-                    self.listeners_config[self.getconfigval('defaultudplistener').lower()]['port'])
-                self.logger.error('Using default listener %s on port %d', self.getconfigval(
-                    'defaultudplistener').lower(), self.default_listener['UDP'])
+                default_listener = self.getconfigval('defaultudplistener').lower()
+                default_port = self.listeners_config[default_listener]['port']
+                self.default_listener['UDP'] = int(default_port)
+                self.logger.error('Using default listener %s on port %d',
+                                  self.getconfigval('defaultudplistener').lower(),
+                                  self.default_listener['UDP'])
 
             # Re-marshall these into a readily usable form...
 
@@ -1149,7 +1169,8 @@ class DiverterBase(fnconfig.Config):
                     # Diverters.
                     if crit.is_loopback:
                         self.logger.debug('Ignoring loopback packet')
-                        self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
+                        self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip,
+                                          pkt.sport, pkt.dst_ip, pkt.dport)
                         no_further_processing = True
 
                     # 3: Layer 4 (Transport layer) callbacks
@@ -1190,17 +1211,17 @@ class DiverterBase(fnconfig.Config):
         if pkt.proto == 'UDP':
             fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
             logline = fmt.format(
-                    label=pkt.label,
-                    proto=pkt.proto,
-                    pid=pid,
-                    comm=comm,
-                    src=pkt.src_ip,
-                    sport=pkt.sport,
-                    dst=pkt.dst_ip,
-                    dport=pkt.dport,
-                    length=len(pkt),
-                    flags='',
-                    seqack='',
+                label=pkt.label,
+                proto=pkt.proto,
+                pid=pid,
+                comm=comm,
+                src=pkt.src_ip,
+                sport=pkt.sport,
+                dst=pkt.dst_ip,
+                dport=pkt.dport,
+                length=len(pkt),
+                flags='',
+                seqack='',
                 )
 
         elif pkt.proto == 'TCP':
@@ -1222,32 +1243,32 @@ class DiverterBase(fnconfig.Config):
 
             fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
             logline = fmt.format(
-                    label=pkt.label,
-                    proto=pkt.proto,
-                    pid=pid,
-                    comm=comm,
-                    src=pkt.src_ip,
-                    sport=pkt.sport,
-                    dst=pkt.dst_ip,
-                    dport=pkt.dport,
-                    length=len(pkt),
-                    flags=','.join(f),
-                    seqack=sa,
+                label=pkt.label,
+                proto=pkt.proto,
+                pid=pid,
+                comm=comm,
+                src=pkt.src_ip,
+                sport=pkt.sport,
+                dst=pkt.dst_ip,
+                dport=pkt.dport,
+                length=len(pkt),
+                flags=','.join(f),
+                seqack=sa,
                 )
         else:
             fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
             logline = fmt.format(
-                    label = pkt.label,
-                    proto = 'UNK',
-                    pid = pid,
-                    comm = comm,
-                    src = str(pkt.src_ip),
-                    sport = str(pkt.sport),
-                    dst = str(pkt.dst_ip),
-                    dport = str(pkt.dport),
-                    length = len(pkt),
-                    flags = '',
-                    seqack = '',
+                label=pkt.label,
+                proto='UNK',
+                pid=pid,
+                comm=comm,
+                src=str(pkt.src_ip),
+                sport=str(pkt.sport),
+                dst=str(pkt.dst_ip),
+                dport=str(pkt.dport),
+                length=len(pkt),
+                flags='',
+                seqack='',
                 )
         return logline
 
@@ -1300,7 +1321,7 @@ class DiverterBase(fnconfig.Config):
 
                 # Check per-listener blacklisted process list
                 elif self.listener_ports.isProcessBlackListHit(
-                    pkt.proto, dport, comm):
+                        pkt.proto, dport, comm):
                     self.pdebug(DIGN, ('Ignoring %s request packet from ' +
                                 'process %s in the listener process ' +
                                 'blacklist.') % (pkt.proto, comm))
@@ -1310,7 +1331,7 @@ class DiverterBase(fnconfig.Config):
 
                 # Check per-listener whitelisted process list
                 elif self.listener_ports.isProcessWhiteListMiss(
-                    pkt.proto, dport, comm):
+                        pkt.proto, dport, comm):
                     self.pdebug(DIGN, ('Ignoring %s request packet from ' +
                                 'process %s not in the listener process ' +
                                 'whitelist.') % (pkt.proto, comm))
@@ -1414,7 +1435,7 @@ class DiverterBase(fnconfig.Config):
         """
 
         orig_src_key = fnpacket.PacketCtx.gen_endpoint_key(proto, orig_src_ip,
-                                                  orig_src_port)
+                                                           orig_src_port)
         with self.port_fwd_table_lock:
             return self.port_fwd_table.get(orig_src_key)
 
@@ -1466,7 +1487,8 @@ class DiverterBase(fnconfig.Config):
 
             with self.ip_fwd_table_lock:
                 if pkt.skey in self.ip_fwd_table:
-                    self.pdebug(DIPNAT, ' - DELETING ipfwd key entry: ' + pkt.skey)
+                    self.pdebug(DIPNAT, ' - DELETING ipfwd key entry: %s' %
+                                (pkt.skey))
                     del self.ip_fwd_table[pkt.skey]
 
     def maybe_fixup_srcip(self, crit, pkt, pid, comm):
@@ -1544,7 +1566,8 @@ class DiverterBase(fnconfig.Config):
 
         bound_ports = self.listener_ports.getPortList(pkt.proto)
         if dport_hidden_listener or self.decide_redir_port(pkt, bound_ports):
-            self.pdebug(DDPFV, 'Condition 2 satisfied: Packet destined for unbound port or hidden listener')
+            self.pdebug(DDPFV, 'Condition 2 satisfied: Packet destined for '
+                        'unbound port or hidden listener')
 
             # Post-condition 1: General ignore conditions are not met, or this
             # is part of a conversation that is already being ignored.
@@ -1562,7 +1585,8 @@ class DiverterBase(fnconfig.Config):
 
             # Is this conversation already being ignored for DPF purposes?
             with self.ignore_table_lock:
-                if pkt.dkey in self.ignore_table and self.ignore_table[pkt.dkey] == pkt.sport:
+                if ((pkt.dkey in self.ignore_table) and
+                        (self.ignore_table[pkt.dkey] == pkt.sport)):
                     # This is a reply (e.g. a TCP RST) from the
                     # non-port-forwarded server that the non-port-forwarded
                     # client was trying to talk to. Leave it alone.
@@ -1681,7 +1705,10 @@ class DiverterBase(fnconfig.Config):
             self.pdebug(DDPFV, 'dport %s (%sbound)' %
                         (str(pkt.dport), ['un', ''][d]))
 
-            def bn(x): return '1' if x else '0'  # Bool -> binary
+            # Convenience function: binary representation of a bool
+            def bn(x):
+                return '1' if x else '0'  # Bool -> binary
+
             self.pdebug(DDPFV, 'abcd = ' + bn(a) + bn(b) + bn(c) + bn(d))
 
         return (not a and not d) or (not c and not d)
