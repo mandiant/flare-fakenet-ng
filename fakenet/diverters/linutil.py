@@ -8,9 +8,9 @@ import binascii
 import threading
 import subprocess
 import netfilterqueue
-import diverterbase
 from debuglevels import *
 from collections import defaultdict
+from . import diverterbase
 
 class IptCmdTemplate(object):
     """For managing insertion and removal of iptables rules.

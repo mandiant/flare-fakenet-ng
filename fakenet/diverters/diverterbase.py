@@ -6,10 +6,10 @@ import dpkt
 import signal
 import socket
 import logging
-import fnconfig
-import fnpacket
 import threading
 import subprocess
+from . import fnpacket
+from . import fnconfig
 from debuglevels import *
 from collections import namedtuple
 from collections import OrderedDict
@@ -1306,7 +1306,6 @@ class DiverterBase(fnconfig.Config):
                                 'blacklist.') % (pkt.proto, comm))
                     self.pdebug(DIGN, '  %s' %
                                 (pkt.hdrToStr()))
-
                     return True
 
                 # Check per-listener whitelisted process list
@@ -1326,18 +1325,20 @@ class DiverterBase(fnconfig.Config):
         # Checks independent of mode
 
         # Forwarding blacklisted port
-        if set(self.blacklist_ports[pkt.proto]).intersection([sport, dport]):
-            self.pdebug(DIGN, 'Forwarding blacklisted port %s packet:' %
-                        (pkt.proto))
-            self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
-            return True
+        if pkt.proto:
+            if set(self.blacklist_ports[pkt.proto]).intersection([sport, dport]):
+                self.pdebug(DIGN, 'Forwarding blacklisted port %s packet:' %
+                            (pkt.proto))
+                self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
+                return True
 
         # Check host blacklist
         global_host_blacklist = self.getconfigval('hostblacklist')
         if global_host_blacklist and dst_ip in global_host_blacklist:
             self.pdebug(DIGN, ('Ignoring %s packet to %s in the host ' +
-                        'blacklist.') % (pkt.proto, dst_ip))
+                        'blacklist.') % (str(pkt.proto), dst_ip))
             self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
+            self.logger.error('IGN: host blacklist match')
             return True
 
         # Check the port host whitelist
@@ -1378,7 +1379,7 @@ class DiverterBase(fnconfig.Config):
                 self.pdebug(DIGN | DFTP, '  Blacklisting port %d' % (sport))
                 self.blacklist_ports[pkt.proto].append(sport)
 
-            return True
+                return True
 
         return False
 

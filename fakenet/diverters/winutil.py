@@ -10,7 +10,7 @@ import os
 import sys
 import socket
 import struct
-import diverterbase
+from . import diverterbase
 
 import time
 

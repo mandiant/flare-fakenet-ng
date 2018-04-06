@@ -3,13 +3,12 @@ import dpkt
 import time
 import socket
 import logging
-import fnpacket
 import traceback
 import threading
 import subprocess
-import diverterbase
 import netfilterqueue
 from linutil import *
+from . import fnpacket
 from debuglevels import *
 from diverterbase import *
 from collections import namedtuple
@@ -208,7 +207,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             q.stop()
 
         if self.pcap:
-            self.pdebug(DMISC, 'Closing pcap file %s' % (self.pcap_filename))
+            self.pdebug(DPCAP, 'Closing pcap file %s' % (self.pcap_filename))
             self.pcap.close()  # Only after all queues are stopped
 
         self.logger.info('Stopped Linux Diverter')
@@ -318,5 +317,4 @@ class Diverter(DiverterBase, LinUtilMixin):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(format='%(message)s')
-    diverterbase.test_redir_logic(Diverter)
+    raise NotImplementedError

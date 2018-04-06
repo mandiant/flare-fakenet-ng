@@ -332,28 +332,66 @@ class FakeNetTester(object):
 
         return passed
 
-    def _getMatchingTests(self, t, matchspec):
-        matching = t        # All tests match by default absent any matchspec
+    def _filterMatchingTests(self, tests, matchspec):
+        """Remove tests that match negative specifications (regexes preceded by
+        a minus sign) or do not match positive specifications (regexes not
+        preceded by a minus sign).
+
+        Modifies the contents of the tests dictionary.
+        """
+        negatives = []
+        positives = []
 
         if len(matchspec):
-            matching = {}   # Else, we pick and choose...
+            # If the user specifies a minus sign before a regular expression,
+            # match negatively (exclude any matching tests)
+            for spec in matchspec:
+                if spec.startswith('-'):
+                    negatives.append(spec[1:])
+                else:
+                    positives.append(spec)
 
             # Iterating over tests first, match specifications second to
             # preserve the order of the selected tests. Less efficient to
             # compile every regex several times, but less confusing.
-            for testname, test in t.items():
-                for spec in matchspec:
-                    if bool(re.search(spec, testname)):
-                        matching[testname] = test
+            for testname, test in tests.items():
 
-        return matching
+                # First determine if it is to be excluded, in which case,
+                # remove it and do not evaluate further match specifications.
+                exclude = False
+                for spec in negatives:
+                    if bool(re.search(spec, testname)):
+                        exclude = True
+                if exclude:
+                    tests.pop(testname)
+                    continue
+
+                # If the user ONLY specified negative match specifications,
+                # then admit all tests
+                if not len(positives):
+                    continue
+
+                # Otherwise, only admit if it matches a positive spec
+                include = True
+                for spec in positives:
+                    if bool(re.search(spec, testname)):
+                        include = True
+                        break
+                if not include:
+                    tests.pop(testname)
+
+        return
 
     def _testGeneric(self, label, config, tests, matchspec=[]):
-        matching = self._getMatchingTests(tests, matchspec)
-        if not len(matching):
+        self._filterMatchingTests(tests, matchspec)
+        if not len(tests):
             logger.info('No matching tests')
             return False
         
+        # If doing a multi-host test, then toggle the network mode
+        if not self.settings.singlehost:
+            config.multiHostMode()
+
         self.writeConfig(config)
 
         if self.settings.singlehost:
@@ -367,7 +405,7 @@ class FakeNetTester(object):
         else:
             logger.info('Waiting for you to transition the remote FakeNet-NG')
             logger.info('system to run the %s test suite' % (label))
-            logger.info('Config is at: %s' % (self.settings.configpath))
+            logger.info('(Copy this config: %s)' % (self.settings.configpath))
             logger.info('')
             while True:
                 logger.info('Type \'ok\' to continue, or \'exit\' to stop')
@@ -386,7 +424,7 @@ class FakeNetTester(object):
         logger.info('-' * 79)
 
         # Do each test
-        for desc, (callback, args, expected) in matching.iteritems():
+        for desc, (callback, args, expected) in tests.iteritems():
             logger.debug('Testing: %s' % (desc))
             passed = self._tryTest(desc, callback, args, expected)
 
@@ -403,19 +441,20 @@ class FakeNetTester(object):
         logger.info('Tests complete')
         logger.info('-' * 79)
 
-        sec = self.settings.sleep_before_stop
-        logger.info('Sleeping %d seconds before transitioning' % (sec))
-        time.sleep(sec)
+        if self.settings.singlehost:
+            sec = self.settings.sleep_before_stop
+            logger.info('Sleeping %d seconds before transitioning' % (sec))
+            time.sleep(sec)
 
-        logger.info('Stopping FakeNet-NG and waiting for it to complete')
-        responsive = self.stopFakenetAndWait(15, True)
+            logger.info('Stopping FakeNet-NG and waiting for it to complete')
+            responsive = self.stopFakenetAndWait(15, True)
 
-        if responsive:
-            logger.info('FakeNet-NG is stopped')
-        else:
-            logger.info('FakeNet-NG was no longer running or was stopped forcibly')
+            if responsive:
+                logger.info('FakeNet-NG is stopped')
+            else:
+                logger.info('FakeNet-NG was no longer running or was stopped forcibly')
 
-        time.sleep(1)
+            time.sleep(1)
 
         self.delConfig()
 
@@ -816,14 +855,19 @@ def main():
         logger.error('  here')
         logger.error('  Any dot-decimal IP address')
         logger.error('')
-        logger.error('Each match specification will be compared against test')
-        logger.error('names, and any matches will be included.')
+        logger.error('Each match specification is a regular expression that')
+        logger.error('will be compared against test names, and any matches')
+        logger.error('will be included. Because regular expression negative')
+        logger.error('matching is complicated to use, you can just prefix')
+        logger.error('a match specification with a minus sign to indicate')
+        logger.error('that you would like to include only tests that do NOT')
+        logger.error('match the expression.')
         sys.exit(1)
 
     # Validate where
     where = sys.argv[1]
 
-    singlehost = (where.lower() == 'singlehost')
+    singlehost = (where.lower() == 'here')
 
     if not singlehost and not is_ip(where):
         logger.error('Invalid where: %s' % (where))

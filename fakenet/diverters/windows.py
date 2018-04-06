@@ -8,7 +8,7 @@ import socket
 
 import os
 import dpkt
-import fnpacket
+from . import fnpacket
 
 import time
 import threading
@@ -83,6 +83,11 @@ class Diverter(DiverterBase, WinUtilMixin):
 
     def __init__(self, diverter_config, listeners_config, ip_addrs, logging_level = logging.INFO):
 
+        # Populated by winutil and used to restore modified Interfaces back to
+        # DHCP
+        self.adapters_dhcp_restore = list()
+        self.adapters_dns_restore = list()
+
         super(Diverter, self).__init__(diverter_config, listeners_config, ip_addrs, logging_level)
 
         self.running_on_windows = True
@@ -93,11 +98,6 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         # Used (by winutil) for caching of DNS server names prior to changing
         self.adapters_dns_server_backup = dict()
-
-        # Populated by winutil and used to restore modified Interfaces back to
-        # DHCP
-        self.adapters_dhcp_restore = list()
-        self.adapters_dns_restore = list()
 
         # Configure external and loopback IP addresses
         self.external_ip = self.get_best_ipaddress() or self.get_ip_with_gateway() or socket.gethostbyname(socket.gethostname())
