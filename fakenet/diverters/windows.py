@@ -39,7 +39,8 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
     # src_ip overrides
 
     @property
-    def src_ip(self): return self._src_ip
+    def src_ip(self):
+        return self._src_ip
 
     @src_ip.setter
     def src_ip(self, new_srcip):
@@ -49,7 +50,8 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
     # dst_ip overrides
 
     @property
-    def dst_ip(self): return self._dst_ip
+    def dst_ip(self):
+        return self._dst_ip
 
     @dst_ip.setter
     def dst_ip(self, new_dstip):
@@ -59,7 +61,8 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
     # sport overrides
 
     @property
-    def sport(self): return self._sport
+    def sport(self):
+        return self._sport
 
     @sport.setter
     def sport(self, new_sport):
@@ -70,7 +73,8 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
     # dport overrides
 
     @property
-    def dport(self): return self._dport
+    def dport(self):
+        return self._dport
 
     @dport.setter
     def dport(self, new_dport):
@@ -81,28 +85,36 @@ class WindowsPacketCtx(fnpacket.PacketCtx):
 
 class Diverter(DiverterBase, WinUtilMixin):
 
-    def __init__(self, diverter_config, listeners_config, ip_addrs, logging_level = logging.INFO):
+    def __init__(self, diverter_config, listeners_config, ip_addrs,
+                 logging_level=logging.INFO):
 
         # Populated by winutil and used to restore modified Interfaces back to
         # DHCP
         self.adapters_dhcp_restore = list()
         self.adapters_dns_restore = list()
 
-        super(Diverter, self).__init__(diverter_config, listeners_config, ip_addrs, logging_level)
+        super(Diverter, self).__init__(diverter_config, listeners_config,
+                                       ip_addrs, logging_level)
 
         self.running_on_windows = True
 
         if not self.single_host_mode:
-            self.logger.error('Windows diverter currently only supports SingleHost mode')
+            self.logger.error('Windows diverter currently only supports '
+                              'SingleHost mode')
             sys.exit(1)
 
         # Used (by winutil) for caching of DNS server names prior to changing
         self.adapters_dns_server_backup = dict()
 
         # Configure external and loopback IP addresses
-        self.external_ip = self.get_best_ipaddress() or self.get_ip_with_gateway() or socket.gethostbyname(socket.gethostname())
+        self.external_ip = self.get_best_ipaddress()
+        if not self.external_ip:
+            self.external_ip = self.get_ip_with_gateway()
+        if not self.external_ip:
+            self.external_ip = socket.gethostbyname(socket.gethostname())
 
-        self.logger.info("External IP: %s Loopback IP: %s" % (self.external_ip, self.loopback_ip))
+        self.logger.info('External IP: %s Loopback IP: %s' %
+                         (self.external_ip, self.loopback_ip))
 
         #######################################################################
         # Initialize filter and WinDivert driver
@@ -110,22 +122,27 @@ class Diverter(DiverterBase, WinUtilMixin):
         # Interpose on all IP datagrams so they appear in the pcap, let
         # DiverterBase decide whether they're actually forwarded etc.
         self.filter = 'outbound and ip'
-        
+
         # Initialize WinDivert
         try:
             self.handle = WinDivert(filter=self.filter)
             self.handle.open()
         except WindowsError, e:
             if e.winerror == 5:
-                self.logger.error('ERROR: Insufficient privileges to run windows diverter.')
-                self.logger.error('       Please restart with Administrator privileges.')
+                self.logger.error('ERROR: Insufficient privileges to run '
+                                  'windows diverter.')
+                self.logger.error('       Please restart with Administrator '
+                                  'privileges.')
                 sys.exit(1)
             elif e.winerror == 3:
-                self.logger.error('ERROR: Could not locate WinDivert DLL or one of its components.')
-                self.logger.error('       Please make sure you have copied FakeNet-NG to the C: drive.')
+                self.logger.error('ERROR: Could not locate WinDivert DLL or '
+                                  'one of its components.')
+                self.logger.error('       Please make sure you have copied '
+                                  'FakeNet-NG to the C: drive.')
                 sys.exit(1)
             else:
-                self.logger.error('ERROR: Failed to open a handle to the WinDivert driver: %s', e)
+                self.logger.error('ERROR: Failed to open a handle to the '
+                                  'WinDivert driver: %s', e)
                 sys.exit(1)
 
     ###########################################################################
@@ -138,11 +155,9 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         # Stop DNS service
         if self.is_set('stopdnsservice'):
-            self.stop_service_helper('Dnscache') 
+            self.stop_service_helper('Dnscache')
 
         self.logger.info('Diverting ports: ')
-        # if self.listener_ports.get('TCP'): self.logger.info('TCP: %s', ', '.join("%d" % port for port in self.listener_ports['TCP']))
-        # if self.listener_ports.get('UDP'): self.logger.info('UDP: %s', ', '.join("%d" % port for port in self.listener_ports['UDP']))
 
         self.flush_dns()
 
@@ -158,7 +173,7 @@ class Diverter(DiverterBase, WinUtilMixin):
             while True:
                 wdpkt = self.handle.recv()
 
-                if wdpkt == None:
+                if wdpkt is None:
                     self.logger.error('ERROR: Can\'t handle packet.')
                     continue
 
@@ -167,20 +182,18 @@ class Diverter(DiverterBase, WinUtilMixin):
                 cb3 = [
                     self.check_log_icmp,
                     self.redirIcmpIpUnconditionally
-                   ]
+                    ]
                 cb4 = [
                     self.maybe_redir_port,
                     self.maybe_fixup_sport,
                     self.maybe_redir_ip,
                     self.maybe_fixup_srcip,
-                   ]
+                    ]
 
                 self.handle_pkt(pkt, cb3, cb4)
 
-                #######################################################################
                 # Attempt to send the processed packet
-
-                self.setLastErrorNull() # WinDivert/LastError workaround
+                self.setLastErrorNull()  # WinDivert/LastError workaround
                 try:
                     self.handle.send(pkt.wdpkt)
                 except Exception, e:
@@ -192,7 +205,9 @@ class Diverter(DiverterBase, WinUtilMixin):
                     elif pkt.is_icmp:
                         proto = 'ICMP'
 
-                    self.logger.error('ERROR: Failed to send %s %s %s packet', self.pktDirectionStr(pkt), self.pktInterfaceStr(pkt), proto)
+                    self.logger.error('ERROR: Failed to send %s %s %s packet',
+                                      self.pktDirectionStr(pkt),
+                                      self.pktInterfaceStr(pkt), proto)
                     self.logger.error('  %s' % (pkt.hdrToStr()))
                     self.logger.error('  %s', e)
 
@@ -211,30 +226,43 @@ class Diverter(DiverterBase, WinUtilMixin):
         # Restore DHCP adapter settings
         for interface_name in self.adapters_dhcp_restore:
 
-            cmd_set_dhcp = "netsh interface ip set address name=\"%s\" dhcp" % interface_name
+            cmd_set_dhcp = ('netsh interface ip set address name="%s" dhcp' %
+                            interface_name)
 
             # Restore DHCP on interface
             try:
-                subprocess.check_call(cmd_set_dhcp, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.check_call(cmd_set_dhcp, shell=True,
+                                      stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
-                self.logger.error("Failed to restore DHCP on interface %s." % interface_name)
+                self.logger.error('Failed to restore DHCP on interface %s.' %
+                                  interface_name)
             else:
-                self.logger.info("Restored DHCP on interface %s" % interface_name)
+                self.logger.info('Restored DHCP on interface %s' %
+                                 interface_name)
 
         # Restore DHCP adapter settings
         for interface_name in self.adapters_dns_restore:
 
-            cmd_del_dns = "netsh interface ip delete dns name=\"%s\" all" % interface_name
-            cmd_set_dns_dhcp = "netsh interface ip set dns \"%s\" dhcp" % interface_name
+            cmd_del_dns = ('netsh interface ip delete dns name="%s" all' %
+                           interface_name)
+            cmd_set_dns_dhcp = ('netsh interface ip set dns "%s" dhcp' %
+                                interface_name)
 
             # Restore DNS on interface
             try:
-                subprocess.check_call(cmd_del_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                subprocess.check_call(cmd_set_dns_dhcp, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.check_call(cmd_del_dns, shell=True,
+                                      stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE)
+                subprocess.check_call(cmd_set_dns_dhcp, shell=True,
+                                      stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
-                self.logger.error("Failed to restore DNS on interface %s." % interface_name)
+                self.logger.error("Failed to restore DNS on interface %s." %
+                                  interface_name)
             else:
-                self.logger.info("Restored DNS on interface %s" % interface_name)
+                self.logger.info("Restored DNS on interface %s" %
+                                 interface_name)
 
         # Restore DNS server
         if self.is_set('modifylocaldns'):
@@ -242,7 +270,7 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         # Restart DNS service
         if self.is_set('stopdnsservice'):
-            self.start_service_helper('Dnscache')  
+            self.start_service_helper('Dnscache')
 
         self.flush_dns()
 
@@ -268,7 +296,8 @@ class Diverter(DiverterBase, WinUtilMixin):
         On Windows, we can't conveniently use an iptables REDIRECT rule to get
         ICMP packets sent back home for free, so here is some code.
         """
-        if pkt.is_icmp and pkt.dst_ip not in [self.loopback_ip, self.external_ip]:
+        if (pkt.is_icmp and
+                pkt.dst_ip not in [self.loopback_ip, self.external_ip]):
             self.logger.info('Modifying ICMP packet (type %d, code %d):' %
                              (pkt.icmp_type, pkt.icmp_code))
             self.logger.info('  from: %s' % (pkt.hdrToStr()))
@@ -277,9 +306,12 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         return pkt
 
+
 def main():
 
-    diverter_config = {'redirectalltraffic': 'no', 'defaultlistener': 'DefaultListener', 'dumppackets': 'no'}
+    diverter_config = {'redirectalltraffic': 'no',
+                       'defaultlistener': 'DefaultListener',
+                       'dumppackets': 'no'}
     listeners_config = {'DefaultListener': {'port': '1337', 'protocol': 'TCP'}}
 
     diverter = Diverter(diverter_config, listeners_config)
