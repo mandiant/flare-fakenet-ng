@@ -12,6 +12,7 @@ from debuglevels import *
 from collections import defaultdict
 from . import diverterbase
 
+
 class IptCmdTemplate(object):
     """For managing insertion and removal of iptables rules.
 
@@ -26,13 +27,17 @@ class IptCmdTemplate(object):
         self._addcmd = fmt % tuple(args[0:add_idx] + [add] + args[add_idx:])
         self._remcmd = fmt % tuple(args[0:add_idx] + [rem] + args[rem_idx:])
 
-    def gen_add_cmd(self): return self._addcmd
+    def gen_add_cmd(self):
+        return self._addcmd
 
-    def gen_remove_cmd(self): return self._remcmd
+    def gen_remove_cmd(self):
+        return self._remcmd
 
-    def add(self): return subprocess.call(self._addcmd.split())
+    def add(self):
+        return subprocess.call(self._addcmd.split())
 
-    def remove(self): return subprocess.call(self._remcmd.split())
+    def remove(self):
+        return subprocess.call(self._remcmd.split())
 
 
 class LinuxDiverterNfqueue(object):
@@ -183,7 +188,8 @@ class ProcfsReader(object):
 
                     # Insufficient columns => ValueError
                     if max_col and (len(line) < max_col):
-                        raise ValueError('Line %d in %s has less than %d columns' %
+                        raise ValueError(('Line %d in %s has less than %d '
+                                          'columns') %
                                          (n, self.path, max_col))
                     # Skip header lines
                     if self.skip:
@@ -331,10 +337,10 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                     str(queue_nr) + ' per ') + procfs_path)
                         qnos.append(queue_nr)
         except IOError as e:
-            self.logger.debug(('Failed to open %s to enumerate netfilter ' +
-                                 'netlink queues, caller may proceed as if ' +
-                                 'none are in use: %s') %
-                                (procfs_path, e.message))
+            self.logger.debug(('Failed to open %s to enumerate netfilter '
+                               'netlink queues, caller may proceed as if '
+                               'none are in use: %s') %
+                              (procfs_path, e.message))
 
         return qnos
 
@@ -469,8 +475,8 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                   e.message))
 
     def linux_find_processes(self, names):
-        """Yeah great, but what if a blacklisted process spawns after we call
-        this? We'd have to call this every time we do anything - expensive! Then again,
+        """But what if a blacklisted process spawns after we call
+        this? We'd have to call this every time we do anything.
         """
         pids = []
 
@@ -515,7 +521,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
             return None
 
     def _linux_find_sock_by_endpoint_unsafe(self, ipver, proto_name, ip, port,
-                                    local=True):
+                                            local=True):
         """Search /proc/net/tcp for a socket whose local (field 1, zero-based)
         or remote (field 2) address matches ip:port and return the
         corresponding inode (field 9).
@@ -525,7 +531,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         Example contents of /proc/net/tcp (wrapped and double-spaced)
 
           sl  local_address rem_address   st tx_queue rx_queue tr tm->when
-            retrnsmt   uid  timeout inode      
+            retrnsmt   uid  timeout inode
 
            0: 0100007F:0277 00000000:0000 0A 00000000:00000000 00:00000000
             00000000     0        0 53320 1 0000000000000000 100 0 0 10 0
@@ -733,3 +739,4 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
                         (ip, port, t))
 
         return False
+
