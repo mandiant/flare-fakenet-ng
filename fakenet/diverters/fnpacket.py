@@ -6,7 +6,7 @@ import debuglevels
 
 class PacketCtx(object):
     """Library-agnostic representation of packet and metadata.
-    
+
     Attempt to abstract the following out of FakeNet-NG code:
     * OS-specific metadata
     * Packet display
@@ -17,12 +17,11 @@ class PacketCtx(object):
     @staticmethod
     def gen_endpoint_key(proto, ip, port):
         """e.g. 192.168.19.132:tcp/3030
-        
+
         Need static method because getOriginalDestPort (called by proxy
         listener) uses this.
         """
         return str(ip) + ':' + str(proto) + '/' + str(port)
-
 
     def __init__(self, label, raw):
         self.logger = logging.getLogger('Diverter')
@@ -82,7 +81,8 @@ class PacketCtx(object):
     # Data
 
     @property
-    def mangled(self): return self._mangled
+    def mangled(self):
+        return self._mangled
 
     @property
     def hdr(self):
@@ -101,24 +101,34 @@ class PacketCtx(object):
     # csums (NOTE: IPv6 has no csum, will return None)
 
     @property
-    def l3csum0(self): return self._ipcsum0
+    def l3csum0(self):
+        return self._ipcsum0
 
     @property
-    def l3csum(self): return self._hdr.sum if (self.ipver == 4) else None
+    def l3csum(self):
+        if self.ipver == 4:
+            return self._hdr.sum
+        return None
 
     @property
-    def l4csum0(self): return self._tcpudpcsum0
+    def l4csum0(self):
+        return self._tcpudpcsum0
 
     @property
-    def l4csum(self): return self._hdr.data.sum if self.proto else None
+    def l4csum(self):
+        if self.proto:
+            return self._hdr.data.sum
+        return None
 
     # src_ip
 
     @property
-    def src_ip0(self): return self._src_ip0
+    def src_ip0(self):
+        return self._src_ip0
 
     @property
-    def src_ip(self): return self._src_ip
+    def src_ip(self):
+        return self._src_ip
 
     @src_ip.setter
     def src_ip(self, new_srcip):
@@ -130,10 +140,12 @@ class PacketCtx(object):
     # dst_ip
 
     @property
-    def dst_ip0(self): return self._dst_ip0
+    def dst_ip0(self):
+        return self._dst_ip0
 
     @property
-    def dst_ip(self): return self._dst_ip
+    def dst_ip(self):
+        return self._dst_ip
 
     @dst_ip.setter
     def dst_ip(self, new_dstip):
@@ -145,10 +157,12 @@ class PacketCtx(object):
     # sport
 
     @property
-    def sport0(self): return self._sport0
+    def sport0(self):
+        return self._sport0
 
     @property
-    def sport(self): return self._sport
+    def sport(self):
+        return self._sport
 
     @sport.setter
     def sport(self, new_sport):
@@ -160,10 +174,12 @@ class PacketCtx(object):
     # dport
 
     @property
-    def dport0(self): return self._dport0
+    def dport0(self):
+        return self._dport0
 
     @property
-    def dport(self): return self._dport
+    def dport(self):
+        return self._dport
 
     @dport.setter
     def dport(self, new_dport):
@@ -175,15 +191,20 @@ class PacketCtx(object):
     # ICMP
 
     @property
-    def is_icmp(self): return self._is_icmp
+    def is_icmp(self):
+        return self._is_icmp
 
     @property
     def icmp_type(self):
-        return self._hdr.data.type if self._is_icmp else None
+        if self._is_icmp:
+            return self._hdr.data.type
+        return None
 
     @property
     def icmp_code(self):
-        return self._hdr.data.code if self._is_icmp else None
+        if self._is_icmp:
+            return self._hdr.data.code
+        return None
 
     def fmtL3Csums(self):
         s = 'IP csum N/A'
@@ -239,7 +260,9 @@ class PacketCtx(object):
             self._src_ip0 = self._src_ip = socket.inet_ntoa(self._hdr.src)
             self._dst_ip0 = self._dst_ip = socket.inet_ntoa(self._hdr.dst)
             self.proto = self.handled_protocols.get(self.proto_num)
-            if self.proto: # If this is a transport protocol we handle...
+
+            # If this is a transport protocol we handle...
+            if self.proto:
                 self._tcpudpcsum0 = self._hdr.data.sum
                 self._sport0 = self._sport = self._hdr.data.sport
                 self._dport0 = self._dport = self._hdr.data.dport
@@ -278,4 +301,5 @@ class PacketCtx(object):
     def _updateRaw(self):
         self._calcCsums()
         self._raw = self._hdr.pack()
+
 
