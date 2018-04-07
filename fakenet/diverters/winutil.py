@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import logging
-logging.basicConfig(format='%(asctime)s [%(name)18s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
+logging.basicConfig(format='%(asctime)s [%(name)18s] %(message)s',
+                    datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
 
 import ctypes
 from ctypes import *
@@ -18,10 +19,10 @@ from _winreg import *
 
 import subprocess
 
-NO_ERROR                  = 0
+NO_ERROR = 0
 
-AF_INET                   = 2
-AF_INET6                  = 23
+AF_INET = 2
+AF_INET6 = 23
 
 ULONG64 = c_uint64
 
@@ -30,34 +31,35 @@ ULONG64 = c_uint64
 # Services related functions
 ##############################################################################
 
-SC_MANAGER_ALL_ACCESS        = 0xF003F
+SC_MANAGER_ALL_ACCESS = 0xF003F
 
-SERVICE_ALL_ACCESS           = 0xF01FF
-SERVICE_STOP                 = 0x0020
-SERVICE_QUERY_STATUS         = 0x0004
+SERVICE_ALL_ACCESS = 0xF01FF
+SERVICE_STOP = 0x0020
+SERVICE_QUERY_STATUS = 0x0004
 SERVICE_ENUMERATE_DEPENDENTS = 0x0008
 
-SC_STATUS_PROCESS_INFO       = 0x0
+SC_STATUS_PROCESS_INFO = 0x0
 
-SERVICE_STOPPED              = 0x1
-SERVICE_START_PENDING        = 0x2
-SERVICE_STOP_PENDING         = 0x3
-SERVICE_RUNNING              = 0x4
-SERVICE_CONTINUE_PENDING     = 0x5
-SERVICE_PAUSE_PENDING        = 0x6
-SERVICE_PAUSED               = 0x7
+SERVICE_STOPPED = 0x1
+SERVICE_START_PENDING = 0x2
+SERVICE_STOP_PENDING = 0x3
+SERVICE_RUNNING = 0x4
+SERVICE_CONTINUE_PENDING = 0x5
+SERVICE_PAUSE_PENDING = 0x6
+SERVICE_PAUSED = 0x7
 
-SERVICE_CONTROL_STOP         = 0x1
-SERVICE_CONTROL_PAUSE        = 0x2
-SERVICE_CONTROL_CONTINUE     = 0x3
+SERVICE_CONTROL_STOP = 0x1
+SERVICE_CONTROL_PAUSE = 0x2
+SERVICE_CONTROL_CONTINUE = 0x3
 
-SERVICE_NO_CHANGE            = 0xffffffff
+SERVICE_NO_CHANGE = 0xffffffff
 
-SERVICE_AUTO_START           = 0x2
-SERVICE_BOOT_START           = 0x0
-SERVICE_DEMAND_START         = 0x3
-SERVICE_DISABLED             = 0x4
-SERVICE_SYSTEM_START         = 0x1
+SERVICE_AUTO_START = 0x2
+SERVICE_BOOT_START = 0x0
+SERVICE_DEMAND_START = 0x3
+SERVICE_DISABLED = 0x4
+SERVICE_SYSTEM_START = 0x1
+
 
 class SERVICE_STATUS_PROCESS(Structure):
     _fields_ = [
@@ -69,7 +71,7 @@ class SERVICE_STATUS_PROCESS(Structure):
         ("dwCheckPoint",              DWORD),
         ("dwWaitHint",                DWORD),
         ("dwProcessId",               DWORD),
-        ("dwServiceFlags",            DWORD),        
+        ("dwServiceFlags",            DWORD),
     ]
 
 ##############################################################################
@@ -79,7 +81,9 @@ class SERVICE_STATUS_PROCESS(Structure):
 ##############################################################################
 # GetExtendedTcpTable constants and structures
 
-TCP_TABLE_OWNER_PID_ALL   = 5
+
+TCP_TABLE_OWNER_PID_ALL = 5
+
 
 class MIB_TCPROW_OWNER_PID(Structure):
     _fields_ = [
@@ -91,6 +95,7 @@ class MIB_TCPROW_OWNER_PID(Structure):
         ("dwOwningPid",  DWORD)
     ]
 
+
 class MIB_TCPTABLE_OWNER_PID(Structure):
     _fields_ = [
         ("dwNumEntries", DWORD),
@@ -100,7 +105,9 @@ class MIB_TCPTABLE_OWNER_PID(Structure):
 ##############################################################################
 # GetExtendedUdpTable constants and structures
 
-UDP_TABLE_OWNER_PID       = 1
+
+UDP_TABLE_OWNER_PID = 1
+
 
 class MIB_UDPROW_OWNER_PID(Structure):
     _fields_ = [
@@ -108,6 +115,7 @@ class MIB_UDPROW_OWNER_PID(Structure):
         ("dwLocalPort", DWORD),
         ("dwOwningPid", DWORD)
     ]
+
 
 class MIB_UDPTABLE_OWNER_PID(Structure):
     _fields_ = [
@@ -117,6 +125,7 @@ class MIB_UDPTABLE_OWNER_PID(Structure):
 
 ###############################################################################
 # GetProcessImageFileName constants and structures
+
 
 MAX_PATH = 260
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
@@ -128,15 +137,16 @@ PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
 MIB_IF_TYPE_ETHERNET = 6
 MIB_IF_TYPE_LOOPBACK = 28
-IF_TYPE_IEEE80211    = 71
+IF_TYPE_IEEE80211 = 71
 
 ###############################################################################
 # GetAdaptersAddresses constants and structures
 
 MAX_ADAPTER_ADDRESS_LENGTH = 8
-MAX_DHCPV6_DUID_LENGTH     = 130
+MAX_DHCPV6_DUID_LENGTH = 130
 
-IFOPERSTATUSUP             = 1
+IFOPERSTATUSUP = 1
+
 
 class SOCKADDR(Structure):
     _fields_ = [
@@ -144,33 +154,40 @@ class SOCKADDR(Structure):
         ("sa_data",             c_char * 14),
     ]
 
+
 class SOCKET_ADDRESS(Structure):
     _fields_ = [
         ("Sockaddr",            POINTER(SOCKADDR)),
         ("SockaddrLength",      INT),
     ]
 
+
 class IP_ADAPTER_PREFIX(Structure):
     pass
+
+
 IP_ADAPTER_PREFIX._fields_ = [
-        ("Length",              ULONG),
-        ("Flags",               DWORD),
-        ("Next",                POINTER(IP_ADAPTER_PREFIX)),
-        ("Address",             SOCKET_ADDRESS),
-        ("PrefixLength",        ULONG),
-    ]
+    ("Length",              ULONG),
+    ("Flags",               DWORD),
+    ("Next",                POINTER(IP_ADAPTER_PREFIX)),
+    ("Address",             SOCKET_ADDRESS),
+    ("PrefixLength",        ULONG),
+]
+
 
 class IP_ADAPTER_ADDRESSES(Structure):
     pass
+
+
 IP_ADAPTER_ADDRESSES._fields_ = [
     ("Length",                  ULONG),
     ("IfIndex",                 DWORD),
     ("Next",                    POINTER(IP_ADAPTER_ADDRESSES)),
     ("AdapterName",             LPSTR),
-    ("FirstUnicastAddress",     c_void_p), # Not used
-    ("FirstAnycastAddress",     c_void_p), # Not used
-    ("FirstMulticastAddress",   c_void_p), # Not used
-    ("FirstDnsServerAddress",   c_void_p), # Not used
+    ("FirstUnicastAddress",     c_void_p),  # Not used
+    ("FirstAnycastAddress",     c_void_p),  # Not used
+    ("FirstMulticastAddress",   c_void_p),  # Not used
+    ("FirstDnsServerAddress",   c_void_p),  # Not used
     ("DnsSuffix",               LPWSTR),
     ("Description",             LPWSTR),
     ("FriendlyName",            LPWSTR),
@@ -185,8 +202,8 @@ IP_ADAPTER_ADDRESSES._fields_ = [
     ("FirstPrefix",             POINTER(IP_ADAPTER_PREFIX)),
     ("TransmitLinkSpeed",       ULONG64),
     ("ReceiveLinkSpeed",        ULONG64),
-    ("FirstWinsServerAddress",  c_void_p), # Not used
-    ("FirstGatewayAddress",     c_void_p), # Not used
+    ("FirstWinsServerAddress",  c_void_p),  # Not used
+    ("FirstGatewayAddress",     c_void_p),  # Not used
     ("Ipv4Metric",              ULONG),
     ("Ipv6Metric",              ULONG),
     ("Luid",                    ULONG64),
@@ -199,7 +216,7 @@ IP_ADAPTER_ADDRESSES._fields_ = [
     ("Dhcpv6ClientDuid",        BYTE * MAX_DHCPV6_DUID_LENGTH),
     ("Dhcpv6ClientDuidLength",  ULONG),
     ("Dhcpv6Iaid",              ULONG),
-    ("FirstDnsSuffix",          c_void_p), # Not used
+    ("FirstDnsSuffix",          c_void_p),  # Not used
 ]
 
 ###############################################################################
@@ -211,50 +228,58 @@ MAX_ADAPTER_LENGTH = 8
 
 MIB_IF_TYPE_ETHERNET = 6
 MIB_IF_TYPE_LOOPBACK = 28
-IF_TYPE_IEEE80211    = 71
+IF_TYPE_IEEE80211 = 71
+
 
 class IP_ADDRESS_STRING(Structure):
     _fields_ = [
         ("String",               c_char * 16),
     ]
 
+
 class IP_MASK_STRING(Structure):
     _fields_ = [
         ("String",               c_char * 16),
     ]
 
+
 class IP_ADDR_STRING(Structure):
     pass
+
+
 IP_ADDR_STRING._fields_ = [
-        ("Next",                POINTER(IP_ADDR_STRING)),
-        ("IpAddress",           IP_ADDRESS_STRING),
-        ("IpMask",              IP_MASK_STRING),
-        ("Context",             DWORD),
-    ]
+    ("Next",                POINTER(IP_ADDR_STRING)),
+    ("IpAddress",           IP_ADDRESS_STRING),
+    ("IpMask",              IP_MASK_STRING),
+    ("Context",             DWORD),
+]
+
 
 class IP_ADAPTER_INFO(Structure):
     pass
-IP_ADAPTER_INFO._fields_ = [
-        ("Next",                POINTER(IP_ADAPTER_INFO)),
-        ("ComboIndex",          DWORD),
-        ("AdapterName",         c_char * (MAX_ADAPTER_NAME_LENGTH + 4)),
-        ("Description",         c_char * (MAX_ADAPTER_DESCRIPTION_LENGTH + 4)),
-        ("AddressLength",       UINT),
-        ("Address",             BYTE * MAX_ADAPTER_LENGTH),
-        ("Index",               DWORD),
-        ("Type",                UINT),
-        ("DhcpEnabled",         UINT),
-        ("CurrentIpAddress",    c_void_p), # Not used
-        ("IpAddressList",       IP_ADDR_STRING),
-        ("GatewayList",         IP_ADDR_STRING),
-        ("DhcpServer",          IP_ADDR_STRING),
-        ("HaveWins",            BOOL),
-        ("PrimaryWinsServer",   IP_ADDR_STRING),
-        ("SecondaryWinsServer", IP_ADDR_STRING),
-        ("LeaseObtained",       c_ulong),
-        ("LeaseExpires",        c_ulong),
 
-    ]
+
+IP_ADAPTER_INFO._fields_ = [
+    ("Next",                POINTER(IP_ADAPTER_INFO)),
+    ("ComboIndex",          DWORD),
+    ("AdapterName",         c_char * (MAX_ADAPTER_NAME_LENGTH + 4)),
+    ("Description",         c_char * (MAX_ADAPTER_DESCRIPTION_LENGTH + 4)),
+    ("AddressLength",       UINT),
+    ("Address",             BYTE * MAX_ADAPTER_LENGTH),
+    ("Index",               DWORD),
+    ("Type",                UINT),
+    ("DhcpEnabled",         UINT),
+    ("CurrentIpAddress",    c_void_p),  # Not used
+    ("IpAddressList",       IP_ADDR_STRING),
+    ("GatewayList",         IP_ADDR_STRING),
+    ("DhcpServer",          IP_ADDR_STRING),
+    ("HaveWins",            BOOL),
+    ("PrimaryWinsServer",   IP_ADDR_STRING),
+    ("SecondaryWinsServer", IP_ADDR_STRING),
+    ("LeaseObtained",       c_ulong),
+    ("LeaseExpires",        c_ulong),
+
+]
 
 ###############################################################################
 # GetNetworkParams constants and structures
@@ -268,30 +293,36 @@ MAX_SCOPE_ID_LEN = 256
 
 NDIS_IF_MAX_STRING_SIZE = 256
 
+
 class IP_ADDRESS_STRING(Structure):
     _fields_ = [
         ("String",               c_char * 16),
     ]
+
 
 class IP_MASK_STRING(Structure):
     _fields_ = [
         ("String",               c_char * 16),
     ]
 
+
 class IP_ADDR_STRING(Structure):
     pass
+
+
 IP_ADDR_STRING._fields_ = [
-        ("Next",                POINTER(IP_ADDR_STRING)),
-        ("IpAddress",           IP_ADDRESS_STRING),
-        ("IpMask",              IP_MASK_STRING),
-        ("Context",             DWORD),
-    ]
+    ("Next",                POINTER(IP_ADDR_STRING)),
+    ("IpAddress",           IP_ADDRESS_STRING),
+    ("IpMask",              IP_MASK_STRING),
+    ("Context",             DWORD),
+]
+
 
 class FIXED_INFO(Structure):
     _fields_ = [
         ("HostName",            c_char * (MAX_HOSTNAME_LEN + 4)),
         ("DomainName",          c_char * (MAX_DOMAIN_NAME_LEN + 4)),
-        ("CurrentDnsServer",    c_void_p), # Not used
+        ("CurrentDnsServer",    c_void_p),  # Not used
         ("DnsServerList",       IP_ADDR_STRING),
         ("NodeType",            UINT),
         ("ScopeId",             c_char * (MAX_SCOPE_ID_LEN + 4)),
@@ -299,6 +330,7 @@ class FIXED_INFO(Structure):
         ("EnableProxy",         UINT),
         ("EnableDns",           UINT),
     ]
+
 
 class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
     def getNewDestinationIp(self, src_ip):
@@ -323,28 +355,36 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         for adapter in self.get_adapters_info():
 
-            # Look for a DHCP interface with a set IP address but no gateway (Host-Only)
+            # Look for a DHCP interface with a set IP address but no gateway
+            # (Host-Only)
             if self.check_ipaddresses_interface(adapter) and adapter.DhcpEnabled:
 
-                (ip_address, netmask) = next(self.get_ipaddresses_netmask(adapter))
-                gw_address =  ip_address[:ip_address.rfind('.')]+'.254'
+                (ip_address, netmask) = next(
+                    self.get_ipaddresses_netmask(adapter))
+                gw_address = ip_address[:ip_address.rfind('.')] + '.254'
 
                 interface_name = self.get_adapter_friendlyname(adapter.Index)
 
-                # Don't set gateway on loopback interfaces (e.g. Npcap Loopback Adapter)
+                # Don't set gateway on loopback interfaces (e.g. Npcap Loopback
+                # Adapter)
                 if not "loopback" in interface_name.lower():
 
                     self.adapters_dhcp_restore.append(interface_name)
 
-                    cmd_set_gw = "netsh interface ip set address name=\"%s\" static %s %s %s" % (interface_name, ip_address, netmask, gw_address)
+                    cmd_set_gw = "netsh interface ip set address name=\"%s\" static %s %s %s" % (
+                        interface_name, ip_address, netmask, gw_address)
 
                     # Configure gateway
                     try:
-                        subprocess.check_call(cmd_set_gw, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        subprocess.check_call(cmd_set_gw, shell=True,
+                                              stdout=subprocess.PIPE,
+                                              stderr=subprocess.PIPE)
                     except subprocess.CalledProcessError, e:
-                        self.logger.error("         Failed to set gateway %s on interface %s." % (gw_address, interface_name))
+                        self.logger.error("         Failed to set gateway %s on interface %s." % (
+                            gw_address, interface_name))
                     else:
-                        self.logger.info("         Setting gateway %s on interface %s" % (gw_address, interface_name))
+                        self.logger.info("         Setting gateway %s on interface %s" % (
+                            gw_address, interface_name))
                         fixed = True
 
         return fixed
@@ -365,20 +405,27 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
                 interface_name = self.get_adapter_friendlyname(adapter.Index)
 
-                # Don't set DNS on loopback interfaces (e.g. Npcap Loopback Adapter)
+                # Don't set DNS on loopback interfaces (e.g. Npcap Loopback
+                # Adapter)
                 if not "loopback" in interface_name.lower():
 
                     self.adapters_dns_restore.append(interface_name)
 
-                    cmd_set_dns = "netsh interface ip set dns name=\"%s\" static %s" % (interface_name, dns_address)
+                    cmd_set_dns = "netsh interface ip set dns name=\"%s\" static %s" % (
+                        interface_name, dns_address)
 
                     # Configure DNS server
                     try:
-                        subprocess.check_call(cmd_set_dns, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        subprocess.check_call(cmd_set_dns,
+                                              shell=True,
+                                              stdout=subprocess.PIPE,
+                                              stderr=subprocess.PIPE)
                     except subprocess.CalledProcessError, e:
-                        self.logger.error("         Failed to set DNS %s on interface %s." % (dns_address, interface_name))
+                        self.logger.error("         Failed to set DNS %s on interface %s." % (
+                            dns_address, interface_name))
                     else:
-                        self.logger.info("         Setting DNS %s on interface %s" % (dns_address, interface_name))
+                        self.logger.info("         Setting DNS %s on interface %s" % (
+                            dns_address, interface_name))
                         fixed = True
 
         return fixed
@@ -386,8 +433,13 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
     def get_pid_comm(self, pkt):
         conn_pid, process_name = None, None
         if pkt.proto and pkt.sport:
-            conn_pid = self._get_pid_port_tcp(pkt.sport) if (pkt.proto == 'TCP') else self._get_pid_port_udp(pkt.sport)
-            process_name = self.get_process_image_filename(conn_pid) if conn_pid else None
+            if pkt.proto == 'TCP':
+                conn_pid = self._get_pid_port_tcp(pkt.sport)
+            elif pkt.proto == 'UDP':
+                conn_pid = self._get_pid_port_udp(pkt.sport)
+
+            if conn_pid:
+                process_name = self.get_process_image_filename(conn_pid)
         return conn_pid, process_name
 
     def check_gateways(self):
@@ -420,8 +472,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             return True
 
         else:
-            return False 
-
+            return False
 
     ###########################################################################
     # Service related functions
@@ -460,8 +511,6 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         return True
 
-
-
     ###########################################################################
     # Opens an existing service.
     #
@@ -471,12 +520,14 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
     #   _In_ DWORD     dwDesiredAccess
     # );
 
-    def open_service(self, sc_handle, service_name, dwDesiredAccess = SERVICE_ALL_ACCESS):
+    def open_service(self, sc_handle, service_name,
+                     dwDesiredAccess=SERVICE_ALL_ACCESS):
 
         if not sc_handle:
             return
 
-        service_handle = windll.advapi32.OpenServiceA(sc_handle, service_name, dwDesiredAccess)
+        service_handle = windll.advapi32.OpenServiceA(sc_handle, service_name,
+                                                      dwDesiredAccess)
 
         if service_handle == 0:
             self.logger.error('Failed to call OpenService')
@@ -493,7 +544,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
     #   _Out_opt_ LPBYTE         lpBuffer,
     #   _In_      DWORD          cbBufSize,
     #   _Out_     LPDWORD        pcbBytesNeeded
-    # );    
+    # );
 
     def query_service_status_ex(self, service_handle):
 
@@ -561,7 +612,8 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
     #   _In_opt_  LPCTSTR   lpDisplayName
     # );
 
-    def change_service_config(self, service_handle, dwStartType = SERVICE_DISABLED):
+    def change_service_config(self, service_handle,
+                              dwStartType=SERVICE_DISABLED):
 
         if windll.advapi32.ChangeServiceConfigA(service_handle, SERVICE_NO_CHANGE, dwStartType, SERVICE_NO_CHANGE, 0, 0, 0, 0, 0, 0, 0) == 0:
             self.logger.error('Failed to call ChangeServiceConfig')
@@ -571,13 +623,12 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         else:
             return True
 
+    def start_service_helper(self, service_name='Dnscache'):
 
-    def start_service_helper(self, service_name = 'Dnscache'):
+        sc_handle = None
+        service_handle = None
 
-        sc_handle       = None
-        service_handle  = None
-
-        timeout         = 5    
+        timeout = 5
 
         sc_handle = self.open_sc_manager()
 
@@ -595,64 +646,76 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
             # Backup enable the service
             try:
-                subprocess.check_call("sc config %s start= auto" % service_name, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.check_call("sc config %s start= auto" %
+                                      service_name, shell=True,
+                                      stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
-                self.logger.error('Failed to enable the service %s. (sc config)', service_name)
+                self.logger.error(
+                    'Failed to enable the service %s. (sc config)', service_name)
             else:
-                self.logger.info('Successfully enabled the service %s. (sc config)', service_name) 
+                self.logger.info(
+                    'Successfully enabled the service %s. (sc config)', service_name)
 
         else:
-            self.logger.info('Successfully enabled the service %s.', service_name)
+            self.logger.info('Successfully enabled the service %s.',
+                             service_name)
 
         service_status = self.query_service_status_ex(service_handle)
 
         if service_status:
 
-                if not service_status.dwCurrentState in [SERVICE_RUNNING, SERVICE_START_PENDING]:
+            if not service_status.dwCurrentState in [SERVICE_RUNNING, SERVICE_START_PENDING]:
 
                     # Start service
-                    if self.start_service(service_handle):
+                if self.start_service(service_handle):
 
                         # Wait for the service to start
-                        while timeout:
-                            timeout -= 1
-                            time.sleep(1)
+                    while timeout:
+                        timeout -= 1
+                        time.sleep(1)
 
-                            service_status = self.query_service_status_ex(service_handle)
-                            if service_status.dwCurrentState == SERVICE_RUNNING:
-                                self.logger.info('Successfully started the service %s.', service_name)
-                                break
-                        else:
-                            self.logger.error('Timed out while trying to start the service %s.', service_name)
+                        service_status = self.query_service_status_ex(
+                            service_handle)
+                        if service_status.dwCurrentState == SERVICE_RUNNING:
+                            self.logger.info(
+                                'Successfully started the service %s.', service_name)
+                            break
                     else:
-                        self.logger.error('Failed to start the service %s.', service_name)
+                        self.logger.error(
+                            'Timed out while trying to start the service %s.', service_name)
                 else:
-                    self.logger.error('Service %s is already running.', service_name)
+                    self.logger.error(
+                        'Failed to start the service %s.', service_name)
+            else:
+                self.logger.error(
+                    'Service %s is already running.', service_name)
 
         # As a backup call net stop
         if service_status.dwCurrentState != SERVICE_RUNNING:
 
             try:
-                subprocess.check_call("net start %s" % service_name, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.check_call("net start %s" % service_name,
+                                      shell=True, stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
-                self.logger.error('Failed to start the service %s. (net stop)', service_name)
+                self.logger.error(
+                    'Failed to start the service %s. (net stop)', service_name)
             else:
-                self.logger.info('Successfully started the service %s.', service_name) 
-
-
-
+                self.logger.info('Successfully started the service %s.',
+                                 service_name)
 
         self.close_service_handle(service_handle)
         self.close_service_handle(sc_handle)
 
-    def stop_service_helper(self, service_name = 'Dnscache'):
+    def stop_service_helper(self, service_name='Dnscache'):
 
-        sc_handle       = None
-        service_handle  = None
+        sc_handle = None
+        service_handle = None
 
-        Control         = SERVICE_CONTROL_STOP
-        dwControl       = DWORD(Control)
-        timeout         = 5
+        Control = SERVICE_CONTROL_STOP
+        dwControl = DWORD(Control)
+        timeout = 5
 
         sc_handle = self.open_sc_manager()
 
@@ -670,50 +733,65 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
             # Backup disable the service
             try:
-                subprocess.check_call("sc config %s start= disabled" % service_name, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.check_call("sc config %s start= disabled" %
+                                      service_name, shell=True,
+                                      stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
-                self.logger.error('Failed to disable the service %s. (sc config)', service_name)
+                self.logger.error(
+                    'Failed to disable the service %s. (sc config)', service_name)
             else:
-                self.logger.info('Successfully disabled the service %s. (sc config)', service_name) 
+                self.logger.info(
+                    'Successfully disabled the service %s. (sc config)', service_name)
 
         else:
-            self.logger.info('Successfully disabled the service %s.', service_name)
+            self.logger.info(
+                'Successfully disabled the service %s.', service_name)
 
         service_status = self.query_service_status_ex(service_handle)
 
         if service_status:
 
-                if service_status.dwCurrentState != SERVICE_STOPPED:
+            if service_status.dwCurrentState != SERVICE_STOPPED:
 
-                    # Send a stop code to the service
-                    if self.control_service(service_handle, dwControl):
+                # Send a stop code to the service
+                if self.control_service(service_handle, dwControl):
 
-                        # Wait for the service to stop
-                        while timeout:
-                            timeout -= 1
-                            time.sleep(1)
+                    # Wait for the service to stop
+                    while timeout:
+                        timeout -= 1
+                        time.sleep(1)
 
-                            service_status = self.query_service_status_ex(service_handle)
-                            if service_status.dwCurrentState == SERVICE_STOPPED:
-                                self.logger.info('Successfully stopped the service %s.', service_name)
-                                break
+                        service_status = self.query_service_status_ex(
+                            service_handle)
+                        if service_status.dwCurrentState == SERVICE_STOPPED:
+                            self.logger.info(
+                                'Successfully stopped the service %s.', service_name)
+                            break
 
-                        else:
-                            self.logger.error('Timed out while trying to stop the service %s.', service_name)
                     else:
-                        self.logger.error('Failed to stop the service %s.', service_name)
+                        self.logger.error(
+                            'Timed out while trying to stop the service %s.', service_name)
                 else:
-                    self.logger.error('Service %s is already stopped.', service_name)
+                    self.logger.error(
+                        'Failed to stop the service %s.', service_name)
+            else:
+                self.logger.error(
+                    'Service %s is already stopped.', service_name)
 
         # As a backup call net stop
         if service_status.dwCurrentState != SERVICE_STOPPED:
 
             try:
-                subprocess.check_call("net stop %s" % service_name, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.check_call("net stop %s" % service_name,
+                                      shell=True, stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
-                self.logger.error('Failed to stop the service %s. (net stop)', service_name)
+                self.logger.error(
+                    'Failed to stop the service %s. (net stop)', service_name)
             else:
-                self.logger.info('Successfully stopped the service %s.', service_name) 
+                self.logger.info(
+                    'Successfully stopped the service %s.', service_name)
 
         self.close_service_handle(service_handle)
         self.close_service_handle(sc_handle)
@@ -753,14 +831,14 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
             lPort = socket.ntohs(item.dwLocalPort)
             lAddr = socket.inet_ntoa(struct.pack('L', item.dwLocalAddr))
-            pid   = item.dwOwningPid
+            pid = item.dwOwningPid
 
             if lPort == port:
                 return pid
         else:
             return None
 
-    #################################################################################
+    ##########################################################################
     # The GetExtendedUdpTable function retrieves a table that contains a list of UDP endpoints available to the application.
     #
     # DWORD GetExtendedUdpTable(
@@ -791,14 +869,14 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
             lPort = socket.ntohs(item.dwLocalPort)
             lAddr = socket.inet_ntoa(struct.pack('L', item.dwLocalAddr))
-            pid   = item.dwOwningPid
+            pid = item.dwOwningPid
 
             if lPort == port:
                 return pid
         else:
             return None
 
-    ###############################################################################
+    ##########################################################################
     # Retrieves the name of the executable file for the specified process.
     #
     # DWORD WINAPI GetProcessImageFileName(
@@ -815,7 +893,8 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             # Skip the inevitable errno 87, invalid parameter
             process_name = 'System'
         elif pid:
-            hProcess = windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            hProcess = windll.kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
             if hProcess:
 
                 lpImageFileName = create_string_buffer(MAX_PATH)
@@ -852,8 +931,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         """
         ctypes.windll.kernel32.SetLastError(0)
 
-
-    ###############################################################################
+    ##########################################################################
     # The GetAdaptersAddresses function retrieves the addresses associated with the adapters on the local computer.
     #
     # ULONG WINAPI GetAdaptersAddresses(
@@ -868,10 +946,12 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         Size = ULONG(0)
 
-        windll.iphlpapi.GetAdaptersAddresses(AF_INET, 0, None, None, byref(Size))
+        windll.iphlpapi.GetAdaptersAddresses(AF_INET, 0, None, None,
+                                             byref(Size))
 
         AdapterAddresses = create_string_buffer(Size.value)
-        pAdapterAddresses = cast(AdapterAddresses, POINTER(IP_ADAPTER_ADDRESSES))
+        pAdapterAddresses = cast(AdapterAddresses,
+                                 POINTER(IP_ADAPTER_ADDRESSES))
 
         if not windll.iphlpapi.GetAdaptersAddresses(AF_INET, 0, None, pAdapterAddresses, byref(Size)) == NO_ERROR:
             self.logger.error('Failed calling GetAdaptersAddresses')
@@ -907,7 +987,6 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         else:
             return None
-
 
     ###########################################################################
     # The GetAdaptersInfo function retrieves adapter information for the local computer.
@@ -980,7 +1059,6 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         else:
             return None
 
-
     def check_ipaddresses_interface(self, adapter):
 
         for ipaddress in self.get_ipaddresses(adapter):
@@ -1027,7 +1105,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
     # DWORD GetBestInterface(
     #   _In_  IPAddr dwDestAddr,
     #   _Out_ PDWORD pdwBestIfIndex
-    # );    
+    # );
 
     def get_best_interface(self, ip='8.8.8.8'):
         BestIfIndex = DWORD()
@@ -1046,7 +1124,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         if not windll.iphlpapi.GetBestInterface(DestAddr, byref(BestIfIndex)) == NO_ERROR:
             return False
 
-        return True        
+        return True
 
     # Return the best local IP address to reach defined IP address
     def get_best_ipaddress(self, ip='8.8.8.8'):
@@ -1068,7 +1146,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
     # NETIO_STATUS WINAPI ConvertInterfaceIndexToLuid(
     #   _In_  NET_IFINDEX InterfaceIndex,
     #   _Out_ PNET_LUID   InterfaceLuid
-    # );    
+    # );
     #
     # NETIO_STATUS WINAPI ConvertInterfaceLuidToNameA(
     #   _In_  const NET_LUID *InterfaceLuid,
@@ -1107,23 +1185,26 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
     def notify_ip_change(self, adapter_name):
 
         if windll.dhcpcsvc.DhcpNotifyConfigChange(0, adapter_name, 0, 0, 0, 0, 0) == NO_ERROR:
-            self.logger.debug('Successfully performed adapter change notification on %s', adapter_name)
+            self.logger.debug(
+                'Successfully performed adapter change notification on %s', adapter_name)
         else:
-            self.logger.error('Failed to notify adapter change on %s', adapter_name)
+            self.logger.error('Failed to notify adapter change on %s',
+                              adapter_name)
 
     ###########################################################################
     # DnsFlushResolverCache
     def flush_dns(self):
- 
+
         try:
-            subprocess.check_call('ipconfig /flushdns', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.check_call(
+                'ipconfig /flushdns', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except subprocess.CalledProcessError, e:
-            self.logger.error(
-            "Failed to flush DNS cache. Local machine may use cached DNS results.")
+            self.logger.error("Failed to flush DNS cache. Local machine may "
+                              "use cached DNS results.")
         else:
             self.logger.info('Flushed DNS cache.')
 
-    def get_reg_value(self, key, sub_key, value, sam = KEY_READ):
+    def get_reg_value(self, key, sub_key, value, sam=KEY_READ):
 
         try:
             handle = OpenKey(key, sub_key, 0, sam)
@@ -1138,7 +1219,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             self.logger.error('Failed getting registry value %s.', value)
             return None
 
-    def set_reg_value(self, key, sub_key, value, data, type = REG_SZ, sam = KEY_WRITE):
+    def set_reg_value(self, key, sub_key, value, data, type=REG_SZ, sam=KEY_WRITE):
 
         try:
             handle = CreateKeyEx(key, sub_key, 0, sam)
@@ -1154,29 +1235,35 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
     ###########################################################################
     # Set DNS Server
 
-    def set_dns_server(self, dns_server = '127.0.0.1'):
+    def set_dns_server(self, dns_server='127.0.0.1'):
 
         key = HKEY_LOCAL_MACHINE
         sub_key = "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\%s"
         value = 'NameServer'
 
-        for adapter in self.get_active_ethernet_adapters():            
+        for adapter in self.get_active_ethernet_adapters():
 
             # Preserve existing setting
-            dns_server_backup = self.get_reg_value(key, sub_key % adapter.AdapterName, value)
+            dns_server_backup = self.get_reg_value(key, sub_key %
+                                                   adapter.AdapterName, value)
 
-            # Restore previous value or a blank string if the key was not present
+            # Restore previous value or a blank string if the key was not
+            # present
             if dns_server_backup:
-                self.adapters_dns_server_backup[adapter.AdapterName] = (dns_server_backup, adapter.FriendlyName)
+                self.adapters_dns_server_backup[adapter.AdapterName] = (
+                    dns_server_backup, adapter.FriendlyName)
             else:
-                self.adapters_dns_server_backup[adapter.AdapterName] = ('', adapter.FriendlyName)
+                self.adapters_dns_server_backup[adapter.AdapterName] = (
+                    '', adapter.FriendlyName)
 
             # Set new dns server value
             if self.set_reg_value(key, sub_key % adapter.AdapterName, value, dns_server):
-                self.logger.info('Set DNS server %s on the adapter: %s', dns_server, adapter.FriendlyName)
+                self.logger.info('Set DNS server %s on the adapter: %s',
+                                 dns_server, adapter.FriendlyName)
                 self.notify_ip_change(adapter.AdapterName)
             else:
-                self.logger.error('Failed to set DNS server %s on the adapter: %s', dns_server, adapter.FriendlyName)
+                self.logger.error(
+                    'Failed to set DNS server %s on the adapter: %s', dns_server, adapter.FriendlyName)
 
     def restore_dns_server(self):
 
@@ -1186,55 +1273,61 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         for adapter_name in self.adapters_dns_server_backup:
 
-            (dns_server, adapter_friendlyname) = self.adapters_dns_server_backup[adapter_name]
+            (dns_server,
+             adapter_friendlyname) = self.adapters_dns_server_backup[adapter_name]
 
             # Restore dns server value
             if self.set_reg_value(key, sub_key % adapter_name, value, dns_server):
-                self.logger.info('Restored DNS server %s on the adapter: %s', dns_server, adapter_friendlyname)
+                self.logger.info('Restored DNS server %s on the adapter: %s',
+                                 dns_server, adapter_friendlyname)
             else:
-                self.logger.error('Failed to restore DNS server %s on the adapter: %s', dns_server, adapter_friendlyname)
+                self.logger.error(
+                    'Failed to restore DNS server %s on the adapter: %s', dns_server, adapter_friendlyname)
+
 
 def test_process_list():
 
     class Test(WinUtilMixin):
-        def __init__(self, name = 'WinUtil'):
+        def __init__(self, name='WinUtil'):
             self.logger = logging.getLogger(name)
 
     self = Test()
 
     pid = self._get_pid_port_tcp(135)
     if pid:
-        self.logger.info('pid: %d name: %s', pid, self.get_process_image_filename(pid))
+        self.logger.info('pid: %d name: %s', pid,
+                         self.get_process_image_filename(pid))
     else:
         self.logger.error('failed to get pid for tcp port 135')
 
-
     pid = self._get_pid_port_udp(123)
     if pid:
-        self.logger.info('pid: %d name: %s', pid, self.get_process_image_filename(pid)) 
+        self.logger.info('pid: %d name: %s', pid,
+                         self.get_process_image_filename(pid))
     else:
         self.logger.error('failed to get pid for udp port 123')
 
     pid = self._get_pid_port_tcp(1234)
     if not pid:
-        self.logger.info('successfully returned None for unknown tcp port 1234')
+        self.logger.info('successfully returned None for unknown tcp port '
+                         '1234')
 
     pid = self._get_pid_port_udp(1234)
     if not pid:
-        self.logger.info('successfully returned None for unknown udp port 1234')
+        self.logger.info('successfully returned None for unknown udp port '
+                         '1234')
+
 
 def test_interfaces_list():
 
-
     class Test(WinUtilMixin):
-        def __init__(self, name = 'WinUtil'):
+        def __init__(self, name='WinUtil'):
             self.logger = logging.getLogger(name)
 
     self = Test()
 
     # for adapter in self.get_adapters_addresses():
-        # self.logger.info('ethernet: %s enabled: %s index: %d friendlyname: %s name: %s', adapter.IfType == MIB_IF_TYPE_ETHERNET, adapter.OperStatus == IFOPERSTATUSUP, adapter.IfIndex, adapter.FriendlyName, adapter.AdapterName)
-
+    # self.logger.info('ethernet: %s enabled: %s index: %d friendlyname: %s name: %s', adapter.IfType == MIB_IF_TYPE_ETHERNET, adapter.OperStatus == IFOPERSTATUSUP, adapter.IfIndex, adapter.FriendlyName, adapter.AdapterName)
 
     for dns_server in self.get_dns_servers():
         self.logger.info('dns: %s', dns_server)
@@ -1243,13 +1336,14 @@ def test_interfaces_list():
         self.logger.info('gateway: %s', gateway)
 
     for adapter in self.get_active_ethernet_adapters():
-        self.logger.info('active ethernet index: %s friendlyname: %s name: %s', adapter.IfIndex, adapter.FriendlyName, adapter.AdapterName)
+        self.logger.info('active ethernet index: %s friendlyname: %s name: %s',
+                         adapter.IfIndex, adapter.FriendlyName, adapter.AdapterName)
 
 
 def test_registry_nameserver():
 
     class Test(WinUtilMixin):
-        def __init__(self, name = 'WinUtil'):
+        def __init__(self, name='WinUtil'):
             self.logger = logging.getLogger(name)
 
     self = Test()
@@ -1258,7 +1352,6 @@ def test_registry_nameserver():
     sub_key = 'SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{cd17d5b5-bf83-44f5-8de7-d988e3db5451}'
     value = 'NameServer'
     data = '127.0.0.1'
-
 
     data_tmp = self.get_reg_value(key, sub_key, value)
     self.logger.info('NameServer: %s', data_tmp)
@@ -1279,7 +1372,7 @@ def test_registry_nameserver():
 def test_registry_gateway():
 
     class Test(WinUtilMixin):
-        def __init__(self, name = 'WinUtil'):
+        def __init__(self, name='WinUtil'):
             self.logger = logging.getLogger(name)
 
     self = Test()
@@ -1294,15 +1387,15 @@ def test_registry_gateway():
 
     else:
         ip = self.get_reg_value(key, sub_key, 'Dhcp')
-        #self.logger
-
+        # self.logger
 
     self.notify_ip_change('{cd17d5b5-bf83-44f5-8de7-d988e3db5451}')
+
 
 def test_check_connectivity():
 
     class Test(WinUtilMixin):
-        def __init__(self, name = 'WinUtil'):
+        def __init__(self, name='WinUtil'):
             self.logger = logging.getLogger(name)
 
     self = Test()
@@ -1327,10 +1420,11 @@ def test_check_connectivity():
     else:
         self.logger.info('DNS server PASS')
 
+
 def test_stop_service():
 
     class Test(WinUtilMixin):
-        def __init__(self, name = 'WinUtil'):
+        def __init__(self, name='WinUtil'):
             self.logger = logging.getLogger(name)
 
     self = Test()
@@ -1340,16 +1434,17 @@ def test_stop_service():
 
 def test_start_service():
     class Test(WinUtilMixin):
-        def __init__(self, name = 'WinUtil'):
+        def __init__(self, name='WinUtil'):
             self.logger = logging.getLogger(name)
 
     self = Test()
 
     self.start_service_helper('Dnscache')
 
+
 def test_get_best_ip():
     class Test(WinUtilMixin):
-        def __init__(self, name = 'WinUtil'):
+        def __init__(self, name='WinUtil'):
             self.logger = logging.getLogger(name)
 
     self = Test()
@@ -1361,24 +1456,22 @@ def test_get_best_ip():
     self.logger.info("IP with gateway address: %s" % ipaddress)
 
 
-    
-
 def main():
     pass
 
-    #test_process_list()
+    # test_process_list()
 
-    #test_interfaces_list()
+    # test_interfaces_list()
 
-    #test_registry_gateway()
+    # test_registry_gateway()
 
+    # test_check_connectivity()
 
-    #test_check_connectivity()
-
-    #test_stop_service()
-    #test_start_service()
+    # test_stop_service()
+    # test_start_service()
 
     test_get_best_ip()
+
 
 if __name__ == '__main__':
     main()
