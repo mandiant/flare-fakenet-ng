@@ -18,6 +18,8 @@ from collections import OrderedDict
 from optparse import OptionParser,OptionGroup
 from ConfigParser import ConfigParser
 
+from listeners import ListenerBase
+
 import platform
 
 from optparse import OptionParser
@@ -42,6 +44,9 @@ class Fakenet():
 
         # Diverter used to intercept and redirect traffic
         self.diverter = None
+
+        # Splunk logging options and parameters
+        self.splunk_config = dict()
 
         # FakeNet options and parameters
         self.fakenet_config = dict()
@@ -72,6 +77,8 @@ class Fakenet():
 
         config = ConfigParser()
         config.read(config_filename)
+        # For list of valid remote logger configs
+        self.remoteloggers = {}
 
         self.logger.info('Loaded configuration file: %s', config_filename)
 
@@ -83,6 +90,12 @@ class Fakenet():
 
             elif section == 'Diverter':
                 self.diverter_config = dict(config.items(section))
+
+            elif section.startswith('RemoteLogger'):
+                remotelogger_config = dict(config.items(section))
+                if ListenerBase.add_remote_logger(self.logger, remotelogger_config):
+                    # for adding to listeners when we initialize them
+                    self.remoteloggers[section] = remotelogger_config
 
             elif config.getboolean(section, 'enabled'):
                 self.listeners_config[section] = dict(config.items(section))
@@ -144,21 +157,21 @@ class Fakenet():
                 # Check Windows version
                 if platform.release() in ['2000', 'XP', '2003Server', 'post2003']:
                     self.logger.error('Error: FakeNet-NG only supports Windows Vista+.')
-                    self.logger.error('       Please use the original Fakenet for older versions of Windows.')
+                    self.logger.error('Please use the original Fakenet for older versions of Windows.')
                     sys.exit(1)
 
                 if self.diverter_config['networkmode'].lower() == 'auto':
                     self.diverter_config['networkmode'] = 'singlehost'
                 
                 from diverters.windows import Diverter
-                self.diverter = Diverter(self.diverter_config, self.listeners_config, self.logging_level)
+                self.diverter = Diverter(self.diverter_config, self.listeners_config, self.logger)
 
             elif platform_name.lower().startswith('linux'):
                 if self.diverter_config['networkmode'].lower() == 'auto':
                     self.diverter_config['networkmode'] = 'multihost'
 
                 from diverters.linux import Diverter
-                self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
+                self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logger)
 
             else:
                 self.logger.error('Error: Your system %s is currently not supported.', platform_name)
@@ -168,6 +181,8 @@ class Fakenet():
         for listener_name in self.listeners_config:
 
             listener_config = self.listeners_config[listener_name]
+            # Pass remote logger configs in case we want to enable it for listener
+            listener_config.update(self.remoteloggers)
 
             # Anonymous listener
             if not 'listener' in listener_config:

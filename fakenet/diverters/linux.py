@@ -157,7 +157,7 @@ class PacketHandler:
 
                     if ((not (self.diverter.pdebug_level & DGENPKTV)) and
                         pid and (pid != self.diverter.pid)):
-                        self.logger.info('  pid:  %d name: %s' %
+                        self.logger.debug('  pid:  %d name: %s' %
                                          (pid, comm if comm else 'Unknown'))
 
                     hdr_latest = self.hdr
@@ -200,9 +200,9 @@ class Diverter(DiverterBase, LinUtilMixin):
 
 
     def __init__(self, diverter_config, listeners_config, ip_addrs,
-                 logging_level=logging.INFO):
+                 logger=None, logging_level=logging.INFO):
         self.init_base(diverter_config, listeners_config, ip_addrs,
-                       logging_level)
+                       logger, logging_level)
 
         self.init_linux_mixin()
         self.init_diverter_linux()

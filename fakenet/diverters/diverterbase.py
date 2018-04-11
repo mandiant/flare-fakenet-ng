@@ -16,7 +16,7 @@ class DiverterBase(fnconfig.Config):
 
 
     def init_base(self, diverter_config, listeners_config, ip_addrs,
-                  logging_level=logging.INFO):
+                  logger=None, logging_level=logging.DEBUG):
         # For fine-grained control of subclass debug output. Does not control
         # debug output from DiverterBase. To see DiverterBase debug output,
         # pass logging.DEBUG as the logging_level argument to init_base.
@@ -31,7 +31,10 @@ class DiverterBase(fnconfig.Config):
         self.pcap_filename = ''
         self.pcap_lock = None
 
-        self.logger = logging.getLogger('Diverter')
+        if logger is not None:
+            self.logger = logger
+        else:
+            self.logger = logging.getLogger('Diverter')
         self.logger.setLevel(logging_level)
 
         portlists = ['BlackListPortsTCP', 'BlackListPortsUDP']
@@ -410,12 +413,12 @@ class DiverterBase(fnconfig.Config):
             else:
                 self.default_listener['TCP'] = int(
                     self.listeners_config[self.getconfigval('defaulttcplistener').lower()]['port'])
-                self.logger.error('Using default listener %s on port %d', self.getconfigval(
+                self.logger.error('Using default listener %s on port %d.', self.getconfigval(
                     'defaulttcplistener').lower(), self.default_listener['TCP'])
 
                 self.default_listener['UDP'] = int(
                     self.listeners_config[self.getconfigval('defaultudplistener').lower()]['port'])
-                self.logger.error('Using default listener %s on port %d', self.getconfigval(
+                self.logger.error('Using default listener %s on port %d.', self.getconfigval(
                     'defaultudplistener').lower(), self.default_listener['UDP'])
 
             # Re-marshall these into a readily usable form...

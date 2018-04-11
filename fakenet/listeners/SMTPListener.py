@@ -8,7 +8,9 @@ import SocketServer
 
 import ssl
 import socket
+import ListenerBase
 
+import urllib
 from . import *
 
 class SMTPListener():
@@ -40,9 +42,7 @@ class SMTPListener():
             logging_level=logging.INFO,
             ):
 
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging_level)
-
+        self.logger = ListenerBase.set_logger("%s:%s" % (self.__module__, name), config, logging_level)
         self.config = config
         self.name = name
         self.local_ip = '0.0.0.0'
@@ -50,15 +50,14 @@ class SMTPListener():
         self.name = 'SMTP'
         self.port = self.config.get('port', 25)
 
-        self.logger.info('Starting...')
+        ssl_str = 'SMTPS' if self.config.get('usessl') == 'Yes' else 'SMTP'
+        self.logger.info('Starting %s server on %s:%s' % (ssl_str, self.local_ip, self.config.get('port')))
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
             self.logger.debug('  %10s: %s', key, value)
 
     def start(self):
-        self.logger.debug('Starting...')
-
         self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
 
         if self.config.get('usessl') == 'Yes':
@@ -76,7 +75,7 @@ class SMTPListener():
                 self.logger.error('Could not locate %s', certfile_path)
                 sys.exit(1)
 
-            self.server.socket = ssl.wrap_socket(self.server.socket, keyfile='privkey.pem', certfile='server.pem', server_side=True, ciphers='RSA')
+            self.server.socket = ssl.wrap_socket(self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers='RSA')
 
         self.server.logger = self.logger
         self.server.config = self.config
@@ -86,7 +85,8 @@ class SMTPListener():
         self.server_thread.start()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        ssl_str = 'SMTPS' if self.config.get('usessl') == 'Yes' else 'SMTP'
+        self.logger.info('Stopping %s server on %s:%s' % (ssl_str, self.local_ip, self.config.get('port')))
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -107,6 +107,31 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.server.logger.debug(line)
 
                 command = data[:4].upper()
+
+                escaped_data = urllib.quote(data,'@()<>{}[]:\/ '),
+                logmsg = dict({'src': self.client_address[0], 'src_port':self.client_address[1],
+                       'dest_port': self.server.server_address[1], 'smtp_cmd': command, 'listener': __name__})
+
+                if command.startswith('MAIL'):
+                    logmsg['src_user'] = escaped_data
+                elif command.startswith('RCPT'):
+                    logmsg['recipient'] = escaped_data
+                elif command.startswith('NOOP'):
+                    logmsg['keepalive'] = escaped_data
+                elif command.startswith('RSET'):
+                    logmsg['reset'] = escaped_data
+                elif command.startswith('HELO') or command.startswith('EHLO'):
+                    logmsg['domain'] = escaped_data
+                elif command.startswith('VRFY'):
+                    logmsg['verify'] = escaped_data
+                elif command.startswith('AUTH'):
+                    logmsg['authentication'] = escaped_data
+                elif command.startswith('DATA'):
+                    # capture entire mail data
+                    logmsg['message'] = ""
+                else:
+                    logmsg['message'] = escaped_data
+
 
                 if command == '':
                     break
@@ -136,6 +161,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             break
 
                     self.server.logger.info('Received mail data.')
+                    logmsg['message'] = urllib.quote(mail_data, '@()<>{}[]:\/ ')
                     for line in mail_data.split("\n"):
                         self.server.logger.info(line)
 
@@ -143,6 +169,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 else:
                     self.request.sendall("503 Command not supported\r\n")
+
+                self.server.logger.info(logmsg)
 
         except socket.timeout:
             self.server.logger.warning('Connection timeout')

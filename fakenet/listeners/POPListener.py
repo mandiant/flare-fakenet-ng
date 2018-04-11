@@ -10,6 +10,7 @@ import ssl
 import socket
 
 from . import *
+import ListenerBase
 
 EMAIL = """From: "Bob Example" <bob@example.org>
 To: Alice Example <alice@example.com>
@@ -48,9 +49,7 @@ class POPListener():
             logging_level=logging.INFO, 
             ):
 
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging_level)
-
+        self.logger = ListenerBase.set_logger("%s:%s" % (self.__module__, name), config, logging_level)
         self.config = config
         self.name = name
         self.local_ip = '0.0.0.0'
@@ -58,14 +57,13 @@ class POPListener():
         self.name = 'POP'
         self.port = self.config.get('port', 110)
 
-        self.logger.info('Starting...')
-
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
             self.logger.debug('  %10s: %s', key, value)
 
     def start(self):
-        self.logger.debug('Starting...')
+        ssl_str = 'POPS' if self.config.get('usessl') == 'Yes' else 'POP'
+        self.logger.info('Starting %s server on %s:%s' % (ssl_str, self.local_ip, self.config.get('port')))
 
         self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
 
@@ -84,7 +82,7 @@ class POPListener():
                 self.logger.error('Could not locate %s', certfile_path)
                 sys.exit(1)
 
-            self.server.socket = ssl.wrap_socket(self.server.socket, keyfile='privkey.pem', certfile='server.pem', server_side=True, ciphers='RSA')
+            self.server.socket = ssl.wrap_socket(self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers='RSA')
 
         self.server.logger = self.logger
         self.server.config = self.config
@@ -94,7 +92,8 @@ class POPListener():
         self.server_thread.start()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        ssl_str = 'POPS' if self.config.get('usessl') == 'Yes' else 'POP'
+        self.logger.info('Starting %s server on %s:%s' % (ssl_str, self.local_ip, self.config.get('port')))
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -105,10 +104,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         # Timeout connection to prevent hanging
         self.request.settimeout(int(self.server.config.get('timeout', 10)))
+        logmsg = dict({'src': self.client_address[0], 'src_port':self.client_address[1],
+                       'dest_port': self.server.server_address[1], 'listener': __name__})
 
         try:
 
-            self.request.sendall("+OK FakeNet POP3 Server Ready\r\n")
+            self.request.sendall("+OK %s\r\n" % self.server.config.get('banner',"FakeNet POP3 Server Ready"))
             while True:
 
                 data = self.request.recv(1024)
@@ -129,6 +130,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                             handler = getattr(self, 'pop_%s' % (cmd.upper()), self.pop_DEFAULT)
                             handler(cmd, params)
+
+                        logmsg['pop_cmd'] = cmd.upper()
+                        logmsg['pop_cmd_args'] = params
+                        self.server.logger.info(logmsg)
 
         except socket.timeout:
             self.server.logger.warning('Connection timeout')
