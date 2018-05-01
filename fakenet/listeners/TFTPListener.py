@@ -31,7 +31,7 @@ OPCODE_ERROR = "\x00\x05"
 
 BLOCKSIZE = 512
 
-class TFTPListener():
+class TFTPListener(object):
 
 
     def taste(self, data, dport):

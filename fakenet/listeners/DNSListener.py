@@ -10,7 +10,7 @@ import socket
 
 from . import *
 
-class DNSListener():
+class DNSListener(object):
 
     def taste(self, data, dport):
 

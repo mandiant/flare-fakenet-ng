@@ -11,7 +11,7 @@ import socket
 
 from . import *
 
-class SMTPListener():
+class SMTPListener(object):
 
     def taste(self, data, dport):
 

@@ -8,46 +8,12 @@ import binascii
 import threading
 import subprocess
 import netfilterqueue
+from debuglevels import *
 from collections import defaultdict
+from . import diverterbase
 
-# Debug print levels for fine-grained debug trace output control
-DNFQUEUE = (1 << 0)     # netfilterqueue
-DGENPKT = (1 << 1)      # Generic packet handling
-DGENPKTV = (1 << 2)     # Generic packet handling with TCP analysis
-DCB = (1 << 3)          # Packet handlign callbacks
-DPROCFS = (1 << 4)      # procfs
-DIPTBLS = (1 << 5)      # iptables
-DNONLOC = (1 << 6)      # Nonlocal-destined datagrams
-DDPF = (1 << 7)         # DPF (Dynamic Port Forwarding)
-DDPFV = (1 << 8)         # DPF (Dynamic Port Forwarding) Verbose
-DIPNAT = (1 << 9)       # IP redirection for nonlocal-destined datagrams
-DIGN = (1 << 10)         # Packet redirect ignore conditions
-DFTP = (1 << 11)         # FTP checks
-DMISC = (1 << 27)       # Miscellaneous
 
-DCOMP = 0x0fffffff      # Component mask
-DFLAG = 0xf0000000      # Flag mask
-DEVERY = 0x0fffffff     # Log everything, low verbosity
-DEVERY2 = 0x8fffffff    # Log everything, complete verbosity
-
-DLABELS = {
-    DNFQUEUE: 'NFQUEUE',
-    DGENPKT: 'GENPKT',
-    DGENPKTV: 'GENPKTV',
-    DPROCFS: 'PROCFS',
-    DIPTBLS: 'IPTABLES',
-    DNONLOC: 'NONLOC',
-    DDPF: 'DPF',
-    DDPFV: 'DPFV',
-    DIPNAT: 'IPNAT',
-    DIGN: 'IGN',
-    DIGN | DFTP: 'IGN-FTP',
-    DMISC: 'MISC',
-}
-
-DLABELS_INV = {v.upper(): k for k, v in DLABELS.iteritems()}
-
-class IptCmdTemplate:
+class IptCmdTemplate(object):
     """For managing insertion and removal of iptables rules.
 
     Construct and execute iptables command lines to add (-I or -A) and remove
@@ -61,16 +27,20 @@ class IptCmdTemplate:
         self._addcmd = fmt % tuple(args[0:add_idx] + [add] + args[add_idx:])
         self._remcmd = fmt % tuple(args[0:add_idx] + [rem] + args[rem_idx:])
 
-    def gen_add_cmd(self): return self._addcmd
+    def gen_add_cmd(self):
+        return self._addcmd
 
-    def gen_remove_cmd(self): return self._remcmd
+    def gen_remove_cmd(self):
+        return self._remcmd
 
-    def add(self): return subprocess.call(self._addcmd.split())
+    def add(self):
+        return subprocess.call(self._addcmd.split())
 
-    def remove(self): return subprocess.call(self._remcmd.split())
+    def remove(self):
+        return subprocess.call(self._remcmd.split())
 
 
-class LinuxDiverterNfqueue:
+class LinuxDiverterNfqueue(object):
     """NetfilterQueue object wrapper.
 
     Handles iptables rule addition/removal, NetfilterQueue management,
@@ -188,7 +158,7 @@ class LinuxDiverterNfqueue:
             self._rule.remove()  # Shell out to iptables to remove the rule
 
 
-class ProcfsReader:
+class ProcfsReader(object):
     """Standard row/field reading for proc files."""
     def __init__(self, path, skip, cb):
         self.path = path
@@ -218,7 +188,8 @@ class ProcfsReader:
 
                     # Insufficient columns => ValueError
                     if max_col and (len(line) < max_col):
-                        raise ValueError('Line %d in %s has less than %d columns' %
+                        raise ValueError(('Line %d in %s has less than %d '
+                                          'columns') %
                                          (n, self.path, max_col))
                     # Skip header lines
                     if self.skip:
@@ -241,7 +212,7 @@ class ProcfsReader:
         return retval
 
 
-class LinUtilMixin():
+class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
     """Automate addition/removal of iptables rules, checking interface names,
     checking available netfilter queue numbers, etc.
     """
@@ -249,6 +220,12 @@ class LinUtilMixin():
     def init_linux_mixin(self):
         self.old_dns = None
         self.iptables_captured = ''
+
+    def getNewDestinationIp(self, ip):
+        """On Linux, FTP tests fail if IP redirection uses the external IP, so
+        always return localhost.
+        """
+        return '127.0.0.1'
 
     def check_active_ethernet_adapters(self):
         return (len(self._linux_get_ifaces()) > 0)
@@ -259,6 +236,18 @@ class LinUtilMixin():
     def check_dns_servers(self):
         # TODO: Implement
         return True
+
+    def check_ipaddresses(self):
+        # TODO: Implement
+        return True
+
+    def fix_gateway(self):
+        # TODO: Implement
+        return False
+
+    def fix_dns(self):
+        # TODO: Implement
+        return False
 
     def linux_capture_iptables(self):
         self.iptables_captured = ''
@@ -348,10 +337,10 @@ class LinUtilMixin():
                                     str(queue_nr) + ' per ') + procfs_path)
                         qnos.append(queue_nr)
         except IOError as e:
-            self.logger.debug(('Failed to open %s to enumerate netfilter ' +
-                                 'netlink queues, caller may proceed as if ' +
-                                 'none are in use: %s') %
-                                (procfs_path, e.message))
+            self.logger.debug(('Failed to open %s to enumerate netfilter '
+                               'netlink queues, caller may proceed as if '
+                               'none are in use: %s') %
+                              (procfs_path, e.message))
 
         return qnos
 
@@ -486,8 +475,8 @@ class LinUtilMixin():
                                   e.message))
 
     def linux_find_processes(self, names):
-        """Yeah great, but what if a blacklisted process spawns after we call
-        this? We'd have to call this every time we do anything - expensive! Then again,
+        """But what if a blacklisted process spawns after we call
+        this? We'd have to call this every time we do anything.
         """
         pids = []
 
@@ -523,6 +512,16 @@ class LinUtilMixin():
 
     def linux_find_sock_by_endpoint(self, ipver, proto_name, ip, port,
                                     local=True):
+        """Check args and call _linux_find_sock_by_endpoint_unsafe."""
+
+        if proto_name and ip and port:
+            return self._linux_find_sock_by_endpoint_unsafe(ipver, proto_name,
+                                                            ip, port, local)
+        else:
+            return None
+
+    def _linux_find_sock_by_endpoint_unsafe(self, ipver, proto_name, ip, port,
+                                            local=True):
         """Search /proc/net/tcp for a socket whose local (field 1, zero-based)
         or remote (field 2) address matches ip:port and return the
         corresponding inode (field 9).
@@ -532,7 +531,7 @@ class LinUtilMixin():
         Example contents of /proc/net/tcp (wrapped and double-spaced)
 
           sl  local_address rem_address   st tx_queue rx_queue tr tm->when
-            retrnsmt   uid  timeout inode      
+            retrnsmt   uid  timeout inode
 
            0: 0100007F:0277 00000000:0000 0A 00000000:00000000 00:00000000
             00000000     0        0 53320 1 0000000000000000 100 0 0 10 0
@@ -718,6 +717,10 @@ class LinUtilMixin():
 
         return pid, comm
 
+    def get_pid_comm(self, pkt):
+        return self.linux_get_pid_comm_by_endpoint(pkt.ipver, pkt.proto,
+                                                   pkt.src_ip, pkt.sport)
+
     def linux_endpoint_owned_by_processes(self, ipver, proto_name, ip, port,
                                           names):
         inode = self.linux_find_sock_by_endpoint(ipver, proto_name, ip, port)
@@ -736,3 +739,4 @@ class LinUtilMixin():
                         (ip, port, t))
 
         return False
+

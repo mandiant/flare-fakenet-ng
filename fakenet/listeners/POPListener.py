@@ -22,7 +22,7 @@ This is a test message with 5 header fields and 4 lines in the message body.
 Your friend,
 Bob\r\n"""
 
-class POPListener():
+class POPListener(object):
 
     # Once the TCP connection has been established, the POP server initiates 
     # the conversation with +OK message. However, if the client connects

@@ -434,7 +434,7 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
             repr(e.internal_exception))
         self.__send_response(headers, status_code = status_code)
 
-class BITSListener():
+class BITSListener(object):
 
     def taste(self, data, dport):
         request_methods = ['BITS_POST',]
