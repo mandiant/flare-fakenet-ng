@@ -1075,6 +1075,18 @@ class DiverterBase(fnconfig.Config):
                 self.logger.debug('Blacklisted UDP ports: %s', ', '.join(
                     [str(p) for p in self.getconfigval('BlackListPortsUDP')]))
 
+        # Ignore or drop packets to/from blacklisted interfaces
+        # Currently Linux-only
+        self.blacklist_ifaces = None
+        if self.is_set('linuxblacklistinterfaces'):
+            self.blacklist_ifaces_disp = \
+                self.getconfigval('linuxblacklistinterfacesdisposition', 'drop')
+            self.blacklist_ifaces = \
+                self.getconfigval('linuxblacklistedinterfaces', None)
+            print("logging level: %d" % (self.logger.getEffectiveLevel()))
+            self.logger.debug('Blacklisted interfaces: %s. Disposition: %s' % 
+                (self.blacklist_ifaces, self.blacklist_ifaces_disp))
+
     def write_pcap(self, pkt):
         """Writes a packet to the pcap.
 
@@ -1140,6 +1152,18 @@ class DiverterBase(fnconfig.Config):
             self.pdebug(DGENPKT, '%s %s' % (pkt.label, pkt.hdrToStr()))
 
             crit = DivertParms(self, pkt)
+
+        if (self.blacklist_ifaces and 
+                (pkt.src_ip in self.blacklist_ifaces or 
+                pkt.dst_ip in self.blacklist_ifaces)):
+            self.logger.debug("Blacklisted Interface. src: %s dst: %s" % 
+                (pkt.src_ip, pkt.dst_ip))
+            if self.blacklist_ifaces_disp == 'Drop':
+                self.logger.debug("Dropping blacklist interface packet")
+                pkt.drop = True
+            else:
+                self.logger.debug("Ignoring blacklist interface packet")
+            no_further_processing = True
 
             # fnpacket has parsed all that can be parsed, so
             pid, comm = self.get_pid_comm(pkt)
