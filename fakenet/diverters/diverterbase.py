@@ -1153,17 +1153,17 @@ class DiverterBase(fnconfig.Config):
 
             crit = DivertParms(self, pkt)
 
-        if (self.blacklist_ifaces and 
+            if (self.blacklist_ifaces and 
                 (pkt.src_ip in self.blacklist_ifaces or 
                 pkt.dst_ip in self.blacklist_ifaces)):
-            self.logger.debug("Blacklisted Interface. src: %s dst: %s" % 
-                (pkt.src_ip, pkt.dst_ip))
-            if self.blacklist_ifaces_disp == 'Drop':
-                self.logger.debug("Dropping blacklist interface packet")
-                pkt.drop = True
-            else:
-                self.logger.debug("Ignoring blacklist interface packet")
-            no_further_processing = True
+                self.logger.debug("Blacklisted Interface. src: %s dst: %s" % 
+                    (pkt.src_ip, pkt.dst_ip))
+                if self.blacklist_ifaces_disp == 'Drop':
+                    self.logger.debug("Dropping blacklist interface packet")
+                    pkt.drop = True
+                else:
+                    self.logger.debug("Ignoring blacklist interface packet")
+                no_further_processing = True
 
             # fnpacket has parsed all that can be parsed, so
             pid, comm = self.get_pid_comm(pkt)
