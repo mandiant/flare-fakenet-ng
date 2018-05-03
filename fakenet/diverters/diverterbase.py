@@ -1153,11 +1153,12 @@ class DiverterBase(fnconfig.Config):
 
             crit = DivertParms(self, pkt)
 
+            # check for blacklisted interface and drop if needed
             if (self.blacklist_ifaces and 
-                (pkt.src_ip in self.blacklist_ifaces or 
-                pkt.dst_ip in self.blacklist_ifaces)):
+                    (pkt.src_ip in self.blacklist_ifaces or 
+                    pkt.dst_ip in self.blacklist_ifaces)):
                 self.logger.debug("Blacklisted Interface. src: %s dst: %s" % 
-                    (pkt.src_ip, pkt.dst_ip))
+                                 (pkt.src_ip, pkt.dst_ip))
                 if self.blacklist_ifaces_disp == 'Drop':
                     self.logger.debug("Dropping blacklist interface packet")
                     pkt.drop = True
