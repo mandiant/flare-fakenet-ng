@@ -1083,7 +1083,6 @@ class DiverterBase(fnconfig.Config):
                 self.getconfigval('linuxblacklistinterfacesdisposition', 'drop')
             self.blacklist_ifaces = \
                 self.getconfigval('linuxblacklistedinterfaces', None)
-            print("logging level: %d" % (self.logger.getEffectiveLevel()))
             self.logger.debug('Blacklisted interfaces: %s. Disposition: %s' % 
                 (self.blacklist_ifaces, self.blacklist_ifaces_disp))
 
