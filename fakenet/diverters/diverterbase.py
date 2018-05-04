@@ -1170,7 +1170,8 @@ class DiverterBase(fnconfig.Config):
             if self.pdebug_level & DGENPKTV:
                 logline = self.formatPkt(pkt, pid, comm)
                 self.pdebug(DGENPKTV, logline)
-            elif pid and (pid != self.pid) and crit.first_packet_new_session:
+            elif pid and (pid != self.pid) and crit.first_packet_new_session & \
+                    no_further_processing is not True:
                 self.logger.info('  pid:  %d name: %s' %
                                  (pid, comm if comm else 'Unknown'))
 
