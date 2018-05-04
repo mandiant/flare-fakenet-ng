@@ -1079,10 +1079,10 @@ class DiverterBase(fnconfig.Config):
         # Currently Linux-only
         self.blacklist_ifaces = None
         if self.is_set('linuxblacklistinterfaces'):
-            self.blacklist_ifaces_disp = \
-                self.getconfigval('linuxblacklistinterfacesdisposition', 'drop')
-            self.blacklist_ifaces = \
-                self.getconfigval('linuxblacklistedinterfaces', None)
+            self.blacklist_ifaces_disp = (
+                self.getconfigval('linuxblacklistinterfacesdisposition', 'drop'))
+            self.blacklist_ifaces = (
+                self.getconfigval('linuxblacklistedinterfaces', None))
             self.logger.debug('Blacklisted interfaces: %s. Disposition: %s' % 
                 (self.blacklist_ifaces, self.blacklist_ifaces_disp))
 
@@ -1170,8 +1170,15 @@ class DiverterBase(fnconfig.Config):
             if self.pdebug_level & DGENPKTV:
                 logline = self.formatPkt(pkt, pid, comm)
                 self.pdebug(DGENPKTV, logline)
-            elif pid and (pid != self.pid) and crit.first_packet_new_session & \
-                    no_further_processing is not True:
+
+            # check for no_further_processing here in order to filter out 
+            # packets that are being ignored already due to a blacklisted 
+            # interface. If a user is using ssh over a blacklisted interface
+            # there needs to be no per-packet output by default. If there is
+            # output for each packet, an infinite loop is generated where each
+            # packet produces output which produces a packet, etc.
+            elif (pid and (pid != self.pid) and crit.first_packet_new_session & 
+                    no_further_processing is not True):
                 self.logger.info('  pid:  %d name: %s' %
                                  (pid, comm if comm else 'Unknown'))
 
