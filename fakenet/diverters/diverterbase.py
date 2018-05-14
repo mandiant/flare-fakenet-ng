@@ -1152,18 +1152,9 @@ class DiverterBase(fnconfig.Config):
 
             crit = DivertParms(self, pkt)
 
-            # check for blacklisted interface and drop if needed
-            if (self.blacklist_ifaces and 
-                    (pkt.src_ip in self.blacklist_ifaces or 
-                    pkt.dst_ip in self.blacklist_ifaces)):
-                self.logger.debug("Blacklisted Interface. src: %s dst: %s" % 
-                                 (pkt.src_ip, pkt.dst_ip))
-                if self.blacklist_ifaces_disp == 'Drop':
-                    self.logger.debug("Dropping blacklist interface packet")
-                    pkt.drop = True
-                else:
-                    self.logger.debug("Ignoring blacklist interface packet")
-                no_further_processing = True
+            pkt.drop = self.check_should_drop(crit, pkt)
+
+            #no_further_processing = self.check_should_ignore(crit, pkt)
 
             # fnpacket has parsed all that can be parsed, so
             pid, comm = self.get_pid_comm(pkt)
@@ -1199,11 +1190,11 @@ class DiverterBase(fnconfig.Config):
                     # Windows Diverter has always allowed loopback packets to
                     # fall where they may. This behavior now applies to all
                     # Diverters.
-                    if crit.is_loopback:
-                        self.logger.debug('Ignoring loopback packet')
-                        self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip,
-                                          pkt.sport, pkt.dst_ip, pkt.dport)
-                        no_further_processing = True
+                    #if crit.is_loopback:
+                    #    self.logger.debug('Ignoring loopback packet')
+                    #    self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip,
+                    #                      pkt.sport, pkt.dst_ip, pkt.dport)
+                    #    no_further_processing = True
 
                     # 3: Layer 4 (Transport layer) callbacks
                     if not no_further_processing:
@@ -1304,7 +1295,7 @@ class DiverterBase(fnconfig.Config):
                 )
         return logline
 
-    def check_should_ignore(self, pkt, pid, comm):
+    def check_should_ignore(self, pkt, pid, comm, crit):
         """Indicate whether a packet should be passed without mangling.
 
         Checks whether the packet matches black and whitelists, or whether it
@@ -1328,7 +1319,7 @@ class DiverterBase(fnconfig.Config):
             self.pdebug(DIGN, 'Ignoring %s packet %s' %
                         (pkt.proto, pkt.hdrToStr()))
             return True
-
+    
         # SingleHost mode checks
         if self.single_host_mode:
             if comm:
@@ -1373,9 +1364,21 @@ class DiverterBase(fnconfig.Config):
 
         # MultiHost mode checks
         else:
-            pass  # None as of yet
+            if self.is_set('listenerlocalignore'):
+                if crit.is_loopback0 and crit.dport_bound:
+                    self.logger.debug('Ignore local packet destined for ' + 
+                                      'unbound port. src: %s dst: %s' % 
+                                      (pkt.src_ip, pkt.dst_ip))
+                    return true
 
         # Checks independent of mode
+        if self.blacklist_ifaces and self.blacklist_ifaces_disp == 'Pass':
+            if (pkt.src_ip in self.blacklist_ifaces or 
+                        pkt.dst_ip in self.blacklist_ifaces):
+                self.logger.debug('Ignore blacklisted Interface. src: %s ' + 
+                                  'dst: %s' % (pkt.src_ip, pkt.dst_ip))
+                return True
+
 
         # Forwarding blacklisted port
         if pkt.proto:
@@ -1436,6 +1439,33 @@ class DiverterBase(fnconfig.Config):
 
         return False
 
+    def check_should_drop(self, crit, pkt):
+
+
+        # Single-host only checks
+        if self.single_host_mode:
+            pass
+        
+        # Multi-host only checks
+        else:
+            if self.is_set('listenerlocalignore'):
+                if crit.is_loopback0 and not crit.dport_bound:
+                    self.logger.debug('Drop local packet destined for bound ' +
+                                      'port. src: %s dst: %s' % 
+                                      (pkt.src_ip, pkt.dst_ip))
+                    return True
+
+        # Single and multi-host checks
+        # check for blacklisted interface and drop if needed
+        if self.blacklist_ifaces and self.blacklist_ifaces_disp == 'Drop':
+            if (pkt.src_ip in self.blacklist_ifaces or 
+                        pkt.dst_ip in self.blacklist_ifaces):
+                self.logger.debug('Drop blacklisted Interface. src: %s dst: %s'
+                                  % (pkt.src_ip, pkt.dst_ip))
+                return True
+
+        return False
+
     def check_log_icmp(self, crit, pkt):
         """Log an ICMP packet if the header was parsed as ICMP.
 
@@ -1490,7 +1520,7 @@ class DiverterBase(fnconfig.Config):
         Returns:
             None
         """
-        if self.check_should_ignore(pkt, pid, comm):
+        if self.check_should_ignore(pkt, pid, comm, crit):
             return
 
         self.pdebug(DIPNAT, 'Condition 1 test')
@@ -1624,7 +1654,7 @@ class DiverterBase(fnconfig.Config):
                     # client was trying to talk to. Leave it alone.
                     return
 
-            if self.check_should_ignore(pkt, pid, comm):
+            if self.check_should_ignore(pkt, pid, comm, crit):
                 with self.ignore_table_lock:
                     self.ignore_table[pkt.skey] = pkt.dport
                 return
