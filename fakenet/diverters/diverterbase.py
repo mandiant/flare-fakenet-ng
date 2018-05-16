@@ -91,6 +91,29 @@ class DivertParms(object):
         return not (self.diverter.sessions.get(self.pkt.sport) ==
                     (self.pkt.dst_ip, self.pkt.dport))
 
+    @property
+    def proxyd(self):
+        """Is this packet coming from, or headed for, the proxy?
+
+        Returns:
+            True if either endpoint is the proxy
+        """
+        with self.diverter.proxy_ports_lock:
+            proxy_ports = self.diverter.proxy_ports
+            proxy_sports = proxy_ports.get(self.pkt.sport)
+            proxy_dports = proxy_ports.get(self.pkt.dport)
+
+            # If a TCP connection is currently being established the value is 
+            # True because we do not know the ports of both endpoints until the
+            # socket is connected (so we prevent all packets related to that
+            # listener from being dropped)
+            if proxy_sports == True or proxy_dports == True:
+                return True
+            if ((proxy_sports is not None and self.pkt.dport in proxy_sports) or 
+                    (proxy_dports is not None and self.pkt.sport in proxy_dports)):
+                return True
+            return False
+
 
 class DiverterPerOSDelegate(object):
     """Delegate class for OS-specific methods that FakeNet-NG implementors must
@@ -521,6 +544,13 @@ class DiverterBase(fnconfig.Config):
         # NOTE: A dictionary of source ports mapped to destination address,
         # port tuples
         self.sessions = dict()
+
+        # A dictionary of bound listener ports mapped to lists of proxy ports
+        # that have a current connection to that listener. The list value can 
+        # be temporarily changed to True(Boolean) if a TCP connection is in the 
+        # process of being established. Maintained by ProxyListeners.
+        self.proxy_ports = dict()
+        self.proxy_ports_lock = threading.Lock()
 
         # Manage logging of foreign-destined packets
         self.nonlocal_ips_already_seen = []
@@ -1375,8 +1405,8 @@ class DiverterBase(fnconfig.Config):
         if self.blacklist_ifaces and self.blacklist_ifaces_disp == 'Pass':
             if (pkt.src_ip in self.blacklist_ifaces or 
                         pkt.dst_ip in self.blacklist_ifaces):
-                self.logger.debug('Ignore blacklisted Interface. src: %s ' + 
-                                  'dst: %s' % (pkt.src_ip, pkt.dst_ip))
+                self.logger.debug('Ignore blacklisted Interface. src: ' + 
+                                  '%s dst: %s' % (pkt.src_ip, pkt.dst_ip))
                 return True
 
 
@@ -1448,11 +1478,16 @@ class DiverterBase(fnconfig.Config):
         
         # Multi-host only checks
         else:
+            # If listeners are ignoring local traffic, we can drop local
+            # packets destined for listeners. However, the proxy can forward 
+            # non-local traffic so we must allow local traffic to/from proxy.
             if self.is_set('listenerlocalignore'):
-                if crit.is_loopback0 and not crit.dport_bound:
+                if (crit.is_loopback0 and not crit.dport_bound 
+                        and not crit.proxyd):
                     self.logger.debug('Drop local packet destined for bound ' +
-                                      'port. src: %s dst: %s' % 
-                                      (pkt.src_ip, pkt.dst_ip))
+                                      'port. src: %s:%s dst: %s:%s' % 
+                                      (pkt.src_ip, pkt.sport, pkt.dst_ip, 
+                                      pkt.dport))
                     return True
 
         # Single and multi-host checks
