@@ -162,7 +162,7 @@ class Fakenet(object):
 
             elif platform_name.lower().startswith('darwin'):
                 self.diverter_config['networkmode']= 'singlehost'
-                from diverters.darwin import make_diverter
+                from diverters.darwin.factory import make_diverter
                 diverter = make_diverter(self.diverter_config,
                                          self.listeners_config,
                                          ip_addrs,

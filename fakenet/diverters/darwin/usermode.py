@@ -1,19 +1,17 @@
+import Queue
 import logging
 import netifaces
 import threading
 import pcapy
 import traceback
 import subprocess as sp
-import json
+
 from scapy.all import Ether, IP, conf, TCP, UDP, sendp
 from expiringdict import ExpiringDict
-from diverters import darutils as dutils
-from diverters.diverterbase import DiverterBase
-from diverters import fnpacket
 from diverters.debuglevels import *
-from ctypes import CDLL, Structure, sizeof, byref, create_string_buffer
-from ctypes import c_ubyte, c_ushort, c_int, c_uint, c_ulong, c_char, c_void_p
-from socket import SOCK_STREAM
+from diverters import fnpacket
+from diverters.darwin import DarwinDiverter
+from diverters.darwin.pkt import DarwinPacketCtx
 
 
 ADDR_LINK_ANY = 'ff:ff:ff:ff:ff:ff'
@@ -21,40 +19,7 @@ LOOPBACK_IP = '127.0.0.1'
 MY_IP = '192.0.2.123'
 MY_IP_FAKE = '192.0.2.124'
 LOOPBACK_IFACE = 'lo0'
-DIVERTER_MODE_KEY = r'darwindivertermode'
-KEXT_PATH_KEY = r'darwinkextpath'
-DIVERTER_MODE_USER = 'user'
-DIVERTER_MODE_KERNEL = 'kernel'
-DEFAULT_MODE = DIVERTER_MODE_USER
 
-
-def make_diverter(dconf, lconf, ipaddrs, loglvl=logging.INFO):
-    mode = dconf.get(DIVERTER_MODE_KEY, DEFAULT_MODE).lower()
-    if mode == DIVERTER_MODE_USER:
-        diverter = UsermodeDiverter(dconf, lconf, ipaddrs, loglvl)
-    elif mode == DIVERTER_MODE_KERNEL:
-        diverter = KextDiverter(dconf, lconf, ipaddrs, loglvl)
-    else:
-        return None
-    return diverter
-
-
-class DarwinPacketCtx(fnpacket.PacketCtx):
-    def __init__(self, lbl, ip_packet):
-        super(DarwinPacketCtx, self).__init__(lbl, str(ip_packet))
-        self.to_inject = True
-        self.ip_packet = ip_packet
-        if TCP in ip_packet:
-            self.protocol = 'tcp'
-        elif UDP in ip_packet:
-            self.protocol = 'udp'
-        else:
-            self.protocol = ''
-
-class DarwinKextPacketCtx(DarwinPacketCtx):
-    def __init__(self, meta, lbl, ip_packet):
-        super(DarwinKextPacketCtx, self).__init__(lbl, ip_packet)
-        self.meta = meta        
 
 
 class Injector(object):
@@ -106,13 +71,17 @@ class Injector(object):
 
 class InterfaceMonitor(object):
     TIMEOUT = 3
+    QUEUESIZE = 0xfff
+    QUEUE_TIMEOUT = 1
+    WORKER_THREADS = 0x01
     def __init__(self, ifname, callback):
         self.monitor_thread = None
         self.is_running = False
         self.timeout = self.TIMEOUT
         self.iface = ifname
         self.callback = callback
-        self.logger = logging.getLogger('Diverter.IfaceMonitor')
+        self.logger = logging.getLogger('Diverter.Darwin.IfaceMonitor')
+        self.queue = Queue.Queue(self.QUEUESIZE)
 
     
     def start(self):
@@ -123,6 +92,10 @@ class InterfaceMonitor(object):
         self.is_running = True
         self.monitor_thread.start()
         rc = e.wait(self.timeout)
+
+        # start a bunch of worker threads
+        for i in xrange(self.WORKER_THREADS):
+            threading.Thread(target=self._process_thread).start()
         return rc
     
     def stop(self):
@@ -144,17 +117,26 @@ class InterfaceMonitor(object):
         e.set()
         while self.is_running:
             _ts, bytez = pc.next()
-            self._process(bytez)
+            self._enqueue(bytez)
         self.logger.error('monitor thread stopping')
         return
-
-    def _process(self, bytez):
+    
+    def _enqueue(self, bytez):
         ip_packet = self.ip_packet_from_bytes(bytez)
         if ip_packet is None:
             return False
         
         pkt = DarwinPacketCtx('DarwinPacket', ip_packet)
-        self.callback(pkt)
+        self.queue.put(pkt)
+        return
+
+    def _process_thread(self):
+        while self.is_running:
+            try:
+                pkt = self.queue.get(timeout=self.QUEUE_TIMEOUT)
+            except Queue.Empty:
+                continue
+            self.callback(pkt)
         return
     
     def ip_packet_from_bytes(self, bytez):
@@ -184,272 +166,6 @@ class InterfaceMonitor(object):
             return None
         return ip_packet
 
-
-class KextMonitor(object):
-    PF_SYSTEM = 32
-    SYSPROTO_CONTROL = 2
-    AF_SYS_CONTROL = 2
-    CTLIOCGINFO = c_ulong(3227799043)
-    MYCONTROLNAME = "com.mandiant.FakeNetDiverter"
-    MAX_PKT_JSON = 1024
-    OPTNEXTPKT = 1
-    OPTINJECTPKT = 2
-    OPTDROPPKT = 3
-    OPTENABLESWALLOW = 4
-    OPTDISABLESWALLOW = 5
-    LIB_SYSTEM_PATH = "/usr/lib/libSystem.B.dylib"
-    KEXT_PATH = "/Users/me/FakeNetDiverter.kext"
-
-    class sockaddr_ctl(Structure):
-        _fields_ = [('sc_len', c_ubyte),
-                    ('sc_family', c_ubyte),
-                    ('ss_sysaddr', c_ushort),
-                    ('sc_id', c_uint),
-                    ('sc_unit', c_uint),
-                    ('sc_reserved', c_uint * 5)]
-
-    class ctl_info(Structure): 
-        _fields_ = [('ctl_id', c_uint),
-        ('ctl_name', c_char * 96)]
-    
-
-    def __init__(self, callback, kextpath=None):
-        self.posix = None
-        self.callback = callback
-        self.kextpath = self.KEXT_PATH if kextpath is None else kextpath
-        self.timeout = 3
-    
-    def __del__(self):
-        self.__unload_kext()
-
-    def initialize(self):
-        self.posix = self.__initialize_posix_wrapper()
-        if self.posix is None:
-            self.logger.error('Failed to initialize POSIX wrapper')
-            return False
-
-        if not self.__load_kext():
-            return False
-
-        return True
-    
-    def start(self):
-        self.is_running = True
-        self.socket = self.__initialize_socket()
-
-        if self.socket is None:
-            return False
-        
-        e = threading.Event()
-        e.clear()
-        self.monitor_thread = threading.Thread(target=self._monitor_thread,
-                                               args=[e])
-        self.monitor_thread.start()
-        rc = e.wait(self.timeout)
-        return rc
-    
-    def stop(self):
-        self.is_running = False
-        if self.monitor_thread is None:
-            return True
-        rc = self.monitor_thread.join(self.timeout)
-        self.posix.close(self.socket)
-        self.socket = None
-        self.posix = None
-        self.__unload_kext()
-        return rc
-
-    # internal
-    def __initialize_posix_wrapper(self):
-        posix = CDLL(self.LIB_SYSTEM_PATH, use_errno=True)
-        posix.getsockopt.argtypes = [c_int, c_int, c_int, c_void_p, c_void_p]
-        posix.setsockopt.argtypes = [c_int, c_int, c_int, c_void_p, c_uint]
-        return posix
-
-    def __initialize_socket(self):
-        posix = self.posix
-        if posix is None:
-            return None
-        socket = posix.socket(
-            self.PF_SYSTEM, SOCK_STREAM, self.SYSPROTO_CONTROL)
-
-        addr = self.sockaddr_ctl()
-        addr.sc_len = (c_ubyte)(sizeof(self.sockaddr_ctl))
-        addr.sc_family = (c_ubyte)(self.PF_SYSTEM)
-        addr.ss_sysaddr = (c_ushort)(self.AF_SYS_CONTROL)
-
-        info = self.ctl_info()
-        info.ctl_name = self.MYCONTROLNAME
-
-        rc = posix.ioctl(socket, self.CTLIOCGINFO, byref(info))        
-
-        addr.sc_id = (c_uint)(info.ctl_id)
-        addr.sc_unit = (c_uint)(0)
-        posix.connect(socket, byref(addr), sizeof(addr))
-        return socket
-    
-    def __load_kext(self):
-        try:
-            sp.call("kextutil %s" % (self.kextpath,), shell=True)
-        except:
-            return False
-        return True
-
-    def __unload_kext(self):
-        if self.socket is not None and self.posix is not None:
-            self.posix.close(self.socket)
-            self.posix = None
-            self.socket = None
-
-        count = 2
-        while count > 0:
-            try:
-                self.logger.error("Unloading kext...")
-                x = sp.call("kextunload %s" % (self.kextpath,), shell=True)
-            except:
-                return False
-            sleep(1)
-            count -= 1
-        return True
-    
-
-    def _monitor_thread(self, event):
-        event.set()
-        self.posix.setsockopt(
-            self.socket, self.SYSPROTO_CONTROL, self.OPTENABLESWALLOW, 0, 0)
-
-        while self.is_running:
-            pktSize = c_uint(self.MAX_PKT_JSON)
-            pkt = create_string_buffer("\x00" * self.MAX_PKT_JSON)
-            self.posix.getsockopt(self.socket,
-                                  self.SYSPROTO_CONTROL,
-                                  self.OPTNEXTPKT, pkt, byref(pktSize))
-
-            try:
-                if len(pkt.value) > 0:
-                    pktjson = json.loads(pkt.value)
-                    newpkt = self.__process(pktjson)
-                    if newpkt is None:
-                        pkt = byref(c_uint(int(pktjson.get('id'))))
-                        pktSize = c_uint(4)
-                        self.posix.setsockopt(self.socket,
-                                              self.SYSPROTO_CONTROL,
-                                              self.OPTDROPPKT, pkt, pktSize)
-                    newjson = json.dumps(newpkt)
-                    newjson += '\0x00'
-                    newpkt = create_string_buffer(newjson)
-
-                    pktSize = c_uint(len(newpkt))
-
-                    self.posix.setsockopt(self.socket,
-                                          self.SYSPROTO_CONTROL,
-                                          self.OPTINJECTPKT, newpkt, pktSize)
-            except:
-                traceback.print_exc()
-        self.posix.setsockopt(self.socket,
-                              self.SYSPROTO_CONTROL,
-                              self.OPTDISABLESWALLOW, 0, 0)
-        return
-
-    def __process(self, pkt):
-        ip_packet = self.ip_packet_from_json(pkt)
-        if ip_packet is None:
-            return None
-
-        # Process the packet through the callbacks. pctx is updated as it
-        # traverse through the callback stack
-        pctx = DarwinKextPacketCtx(pkt, 'DarwinKextPacket', ip_packet)
-        self.callback(pctx)
-        if not pctx.mangled:
-            newpkt = {'id': pctx.meta.get('id'), 'changed': False}
-        else:
-            newpkt = self.json_from_pctx(pctx)
-        return newpkt
-    
-    def ip_packet_from_json(self, js):
-        proto = js.get('proto', None)
-        sport = js.get('srcport')
-        dport = js.get('dstport')
-        src = js.get('srcaddr')
-        dst = js.get('dstaddr')
-        
-        if proto is None or sport is None or dport is None:
-            return None
-        
-        if  src is None or dst is None:
-            return None
-        
-        if proto == 'tcp':
-            tport = TCP(sport=sport, dport=dport)
-        elif proto == 'udp':
-            tport = UDP(sport=sport, dport=dport)
-        else:
-            tport is None        
-        if tport is None:
-            return None
-        
-        ip_packet = IP(src=src, dst=dst)/tport
-        return ip_packet
-    
-    def json_from_pctx(self, pctx):
-        return {
-            u'id': pctx.meta.get('id'),
-            u'direction': pctx.meta.get('direction'),
-            u'proto': pctx.protocol,
-            u'srcaddr': pctx.src_ip,
-            u'srcport': pctx.sport,
-            u'dstaddr': pctx.dst_ip,
-            u'dstport': pctx.dport,
-            u'ip_ver': pctx.meta.get('ip_ver'),
-            u'changed': pctx.mangled
-        }
-    
-    def drop(self, pkt):
-        pkt = byref(c_uint(int(pkt.get('id', -1))))
-        pktSize = c_uint(4)
-        self.posix.setsockopt(self.socket, self.SYSPROTO_CONTROL,
-                              self.OPTDROPPKT, pkt, pktSize)
-        return True
-
-class DarwinDiverter(DiverterBase):
-    def __init__(self, diverter_config, listeners_config, ip_addrs,
-                 logging_level=logging.INFO):
-        super(DarwinDiverter, self).__init__(diverter_config, listeners_config,
-                                             ip_addrs, logging_level)
-        
-        self.gw = None
-        self.iface = None
-            
-    def __del__(self):
-        self.stopCallback()
-    
-    def initialize(self):
-        self.gw = dutils.get_gateway_info()
-        if self.gw is None:
-            raise NameError("Failed to get gateway")
-
-        self.iface = dutils.get_iface_info(self.gw.get('iface'))
-        if self.iface is None:
-            raise NameError("Failed to get public interface")
-        
-        return
-    
-
-    #--------------------------------------------------------------
-    # implements various DarwinUtilsMixin methods
-    #--------------------------------------------------------------
-
-    def check_active_ethernet_adapters(self):
-        return len(netifaces.interfaces()) > 0
-    
-    def check_ipaddresses(self):
-        return True
-        
-    def check_dns_servers(self):
-        return True
-
-    def check_gateways(self):
-        return len(netifaces.interfaces()) > 0
 
 
 class UsermodeDiverter(DarwinDiverter):
@@ -533,8 +249,11 @@ class UsermodeDiverter(DarwinDiverter):
         if not self._is_in_inject_cache(pctx):
             return
 
+        
         cb3 = []
-        cb4 = [self._darwin_fix_ip_external]
+        cb4 = [
+            self._darwin_fix_ip_external,            
+        ]
         ipkt = pctx.ip_packet
         self.handle_pkt(pctx, cb3, cb4)
         self.handle_inject(pctx)
@@ -556,9 +275,12 @@ class UsermodeDiverter(DarwinDiverter):
             self.check_log_icmp,
         ]
         cb4 = [
+            self.maybe_redir_port,
             self._darwin_fix_ip_internal,
+            self.maybe_fixup_sport,
         ]
-        self.handle_pkt(pctx, cb3, cb4)
+        self.handle_pkt(pctx, cb3, cb4)        
+        
         self.handle_inject(pctx)
         return
 
@@ -591,7 +313,7 @@ class UsermodeDiverter(DarwinDiverter):
         injector = self.select_injector(pctx.dst_ip)    
         injector.inject(bytez)
         return True
-    
+
     def make_bytez(self, pctx):
         ipkt = pctx.ip_packet
         if pctx.protocol == 'tcp':
@@ -608,9 +330,7 @@ class UsermodeDiverter(DarwinDiverter):
             pload = ipkt.payload
         
         bytez = IP(src=pctx.src_ip, dst=pctx.dst_ip)/pload
-        return bytez
-        
-        
+        return bytez     
 
     #--------------------------------------------------------------
     # implements various DarwinUtilsMixin methods
@@ -655,9 +375,86 @@ class UsermodeDiverter(DarwinDiverter):
         newdst = self.getNewDestination(pkt.src_ip)
         pkt.src_ip, pkt.dst_ip = pkt.dst_ip, pkt.src_ip
         pkt.dst_ip = newdst
-        return             
-
+        return
+    
+    def decide_redir_port(self, pkt, bound_ports):
+        '''
+        @override port ridirection logic
+        '''
+        # referencing the original packets, not the pctx that may have been
+        # mangled by upper layer callbacks
         
+        a = src_local = self._is_my_ip(pkt.src_ip0)
+        c = sport_bound = pkt.sport in (bound_ports)
+        d = dport_bound = pkt.dport in (bound_ports)
+        rc = (not a and not d) or (not c and not d)        
+        return rc
+
+    
+    def maybe_redir_port(self, crit, pkt, pid, comm):
+        '''
+        @override
+        '''
+
+        if pid == self.pid:
+            self.logger.info("Ignoring traffic from self")
+            return
+        
+        default =  self.default_listener.get(pkt.proto, None)
+        if default is None:
+            self.logger.pid("There is no default listener")
+            return
+        
+        with self.port_fwd_table_lock:
+            if pkt.dkey in self.port_fwd_table:
+                return
+            
+        dport_hidden_listener = crit.dport_hidden_listener
+        bound_ports = self.listener_ports.getPortList(pkt.proto)
+        if dport_hidden_listener or self.decide_redir_port(pkt, bound_ports):
+            self.pdebug(DDPFV, 'Condition 2 satisfied: Packet destined for '
+                        'unbound port or hidden listener')
+            
+            with self.ignore_table_lock:
+                if ((pkt.dkey in self.ignore_table) and
+                        (self.ignore_table[pkt.dkey] == pkt.sport)):
+                    return
+
+            self.pdebug(DDPFV, ' + ADDING portfwd key entry: ' + pkt.skey)
+            with self.port_fwd_table_lock:
+                self.logger.error("Adding %s:%s into table" % 
+                    (pkt.skey, pkt.dport))
+                self.port_fwd_table[pkt.skey] = pkt.dport
+
+            self.pdebug(DDPF, 'Redirecting %s to go to port %d' %
+                        (pkt.hdrToStr(), default))
+            pkt.dport = default
+        else:
+            self.delete_stale_port_fwd_key(pkt.skey)
+
+        if crit.first_packet_new_session:
+            self.addSession(pkt)
+
+            # Execute command if applicable
+            self.maybeExecuteCmd(pkt, pid, comm)
+        return
+    
+    
+    def maybe_fixup_sport(self, crit, pkt, pid, comm):
+        '''
+        @override
+        '''
+        key = pkt.get_current_dkey()
+        with self.port_fwd_table_lock:
+            new_sport = self.port_fwd_table.get(key)
+            self.logger.error("Searching for %s: get %s" % (key, new_sport))
+        
+        if new_sport is not None:
+            pkt.sport = new_sport
+        
+        return
+
+
     #--------------------------------------------------------------
     # implements various DirverterPerOSDelegate() abstract methods
     #--------------------------------------------------------------
@@ -694,6 +491,9 @@ class UsermodeDiverter(DarwinDiverter):
         if not self._change_default_route():
             self.logger.error('Failed to change default route')
             return False
+        if not self._change_dns_server():
+            self.logger.error('Failed to set dns server')
+            return False
         return True
 
 
@@ -719,9 +519,11 @@ class UsermodeDiverter(DarwinDiverter):
             iface, ipaddr, gw = conf.route.route('0.0.0.0')
         except:
             return False
+        
         configs['net.iface'] = iface
         configs['net.ipaddr'] = ipaddr
         configs['net.gateway'] = gw
+        configs['net.dns'] = gw
         self.configs = configs
         return True
 
@@ -752,6 +554,11 @@ class UsermodeDiverter(DarwinDiverter):
                 return True
         return False
 
+    def _change_dns_server(self):
+        cmd = 'networksetup -setdnsservers Ethernet 127.0.0.1'
+        if self._quiet_call(cmd):
+            return True
+        return False
 
     def _restore_config(self):
         '''
@@ -765,6 +572,14 @@ class UsermodeDiverter(DarwinDiverter):
             return True
         self._fix_default_route()
         self._remove_loopback_alias()
+        self._fix_dns_server()
+        return True
+
+    def _fix_dns_server(self):
+        dns = self.configs.get('net.dns')
+        cmd = 'networksetup -setdnsservers Ethernet %s' % (dns,)
+        if not self._quiet_call(cmd):
+            return False
         return True
 
     def _remove_loopback_alias(self):
@@ -796,7 +611,6 @@ class UsermodeDiverter(DarwinDiverter):
                           shell=True)
         except:
             self.logger.error('Failed to run: %s' % (cmd,))
-            traceback.print_exc()
             stk = traceback.format_exc()
             self.logger.debug(">>> Stack:\n%s" % (stk,))
             return False
@@ -806,7 +620,6 @@ class UsermodeDiverter(DarwinDiverter):
         if not ipkt.protocol == 'tcp' and not ipkt.protocol == 'udp':
             return None, None
 
-        now = datetime.now()
         protospec = "-i%s%s@%s" % (
             ipkt.ip_packet.version, ipkt.protocol, ipkt.dst_ip)
         
@@ -827,13 +640,11 @@ class UsermodeDiverter(DarwinDiverter):
             return None, None
         
         lines = result.split('\n')
-        # print 'YYY elapsed 0', datetime.now() - now
         for record in self._generate_records(lines):
             _result = self._parse_record(record)
             if _result is None:
                 continue
             if self._is_my_packet(_result):
-                # print 'XXX elapsed:', datetime.now() - now
                 return _result.get('pid'), _result.get('comm')
         
         return None, None
@@ -851,7 +662,6 @@ class UsermodeDiverter(DarwinDiverter):
                 name = record[4][1:]
                 yield {'pid': pid, 'comm': comm, 'name': name, 'uname': uname}
             except IndexError:
-                print record[2]
                 yield {}
     
     def _parse_record(self, record):
@@ -897,51 +707,11 @@ class UsermodeDiverter(DarwinDiverter):
             pctx.protocol, pctx.dst_ip, pctx.dport)
         return endpoint in self.inject_cache
 
-
-class KextDiverter(DarwinDiverter):
-    def __init__(self, diverter_config, listeners_config, ip_addrs, log_level):
-        super(KextDiverter, self).__init__(diverter_config, listeners_config,
-                                           ip_addrs, log_level)
-        self.kextpath = diverter_config.get(KEXT_PATH_KEY, None)
-        self.monitor = None
-        self.initialize()
-    
-    def initialize(self):
-        self.monitor = KextMonitor(self.handle_packet, self.kextpath)
-        if not self.monitor.initialize():
-            self.monitor = None
-            raise NameError("Failed to initialize monitor")
-        return True
-    
-    def handle_packet(self, pctx):
-        direction = pctx.meta.get('direction')
-        cb3 = [
-            self.check_log_icmp   
-        ]
-
-        if direction == 'out':
-            cb4 = [
-                self.maybe_redir_ip,
-                self.maybe_redir_port,
-            ]
-        else:
-            cb4 = [
-                self.maybe_fixup_sport,
-                self.maybe_fixup_srcip,
-            ]
-        self.handle_pkt(pctx, cb3, cb4)
-        return 
-    
-    def get_pid_comm(self, pkt):
-        return pkt.meta.get('pid', ''), pkt.meta.get('procname', '')
-    
-    def startCallback(self):
-        self.monitor.start()
-        return True
-    
-    def stopCallback(self):
-        self.monitor.stop()
-        return
-    
-    def getNewDestinationIp(self, ip):
-        return LOOPBACK_IP
+    def _is_my_ip(self, ip):
+        if ip == self.loopback_ip or ip == self.loopback_ip_fake:
+            return True
+        
+        if ip == LOOPBACK_IP:
+            return True
+        
+        return False
