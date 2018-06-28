@@ -48,7 +48,7 @@ class DarwinDiverter(DiverterBase):
         return len(netifaces.interfaces()) > 0
 
     def _get_pid_comm_through_lsof(self, ipkt):
-        if not ipkt.protocol == 'tcp' and not ipkt.protocol == 'udp':
+        if not ipkt.protocol == 'TCP' and not ipkt.protocol == 'UDP':
             return None, None
 
         protospec = "-i%s%s@%s" % (

@@ -1,5 +1,5 @@
 
-from scapy.all import TCP, UDP
+from scapy.all import TCP, UDP, ICMP
 from diverters import fnpacket
 
 
@@ -9,15 +9,18 @@ class DarwinPacketCtx(fnpacket.PacketCtx):
         self.to_inject = True
         self.ip_packet = ip_packet
         if TCP in ip_packet:
-            self.protocol = 'tcp'
+            self.protocol = 'TCP'
         elif UDP in ip_packet:
-            self.protocol = 'udp'
+            self.protocol = 'UDP'
+        elif ICMP in ip_packet:
+            self.protocol = 'ICMP'
+            self._is_icmp = True
         else:
             self.protocol = ''
-    
+
     def get_current_dkey(self):
         return self._genEndpointKey(self.dst_ip, self.dport)
-    
+
     def get_current_skey(self):
         return self._genEndpointKey(self.src_ip, self.sport)
 
