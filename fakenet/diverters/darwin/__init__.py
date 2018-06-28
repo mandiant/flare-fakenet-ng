@@ -11,14 +11,14 @@ class DarwinDiverter(DiverterBase):
                  logging_level=logging.INFO):
         super(DarwinDiverter, self).__init__(diverter_config, listeners_config,
                                              ip_addrs, logging_level)
-        
+
         self.gw = None
         self.iface = None
         self.pid = os.getpid()
-            
+
     def __del__(self):
         self.stopCallback()
-    
+
     def initialize(self):
         self.gw = dutils.get_gateway_info()
         if self.gw is None:
@@ -27,9 +27,9 @@ class DarwinDiverter(DiverterBase):
         self.iface = dutils.get_iface_info(self.gw.get('iface'))
         if self.iface is None:
             raise NameError("Failed to get public interface")
-        
+
         return
-    
+
 
     #--------------------------------------------------------------
     # implements various DarwinUtilsMixin methods
@@ -37,16 +37,16 @@ class DarwinDiverter(DiverterBase):
 
     def check_active_ethernet_adapters(self):
         return len(netifaces.interfaces()) > 0
-    
+
     def check_ipaddresses(self):
         return True
-        
+
     def check_dns_servers(self):
         return True
 
     def check_gateways(self):
         return len(netifaces.interfaces()) > 0
-    
+
     def _get_pid_comm_through_lsof(self, ipkt):
         if not ipkt.protocol == 'tcp' and not ipkt.protocol == 'udp':
             return None, None
@@ -60,8 +60,6 @@ class DarwinDiverter(DiverterBase):
             'lsof', '-wnPF', 'cLn',
             protospec
         ]
-        with open('lsof.txt', 'a+') as ofile:
-            ofile.write("%s\n" % (protospec,))
 
         try:
             result = sp.check_output(cmd, stderr=None).strip()
@@ -80,7 +78,7 @@ class DarwinDiverter(DiverterBase):
                 return _result.get('pid'), _result.get('comm')
 
         return None, None
-        
+
     def _generate_records(self, lines):
         n = len(lines)
         maxlen = (n // 5) * 5
