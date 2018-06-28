@@ -100,7 +100,7 @@ class IrcTester(object):
     def __init__(self, hostname, port=6667):
         self.hostname = hostname
         self.port = port
-
+        
         self.nick = 'dr_evil'
         self.join_chan = '#whatevs'
         self.clouseau = 'inspector_clouseau'
@@ -124,7 +124,7 @@ class IrcTester(object):
             if (evt.arguments[0].startswith(self.black_market) and
                 evt.target == self.pub_chan):
                 self.pubmsg_ok = True
-
+        
     def _irc_script(self, srv):
         """Callback manages individual test cases for IRC."""
         # Clear success flags
@@ -141,19 +141,25 @@ class IrcTester(object):
 
         # Issue all commands, indirectly invoking the event handler for each
         # flag
-
+        is_darwin = platform.system().lower().startswith('darwin')
+        if is_darwin:
+            srv.process_data()
+            srv.process_data()
+        
         srv.join(self.join_chan)
         srv.process_data()
+        if is_darwin:
+            srv.process_data()
 
         srv.privmsg(self.pub_chan, self.black_market)
         srv.process_data()
-
+        
         srv.privmsg(self.clouseau, self.safehouse)
         srv.process_data()
-
+        
         srv.quit()
         srv.process_data()
-
+                
         if not self.welcome_ok:
             raise FakeNetTestException('Welcome test failed')
 
@@ -463,7 +469,6 @@ class FakeNetTester(object):
         retval = False
         s = socket.socket(socket.AF_INET, proto)
         s.settimeout(timeout)
-
         try:
             s.connect((host, port))
 
@@ -685,7 +690,6 @@ class FakeNetTester(object):
         udp = socket.SOCK_DGRAM
 
         t = OrderedDict() # The tests
-
         t['TCP external IP @ bound'] = (self._test_sk, (tcp, ext_ip, 1337), True)
         t['TCP external IP @ unbound'] = (self._test_sk, (tcp, ext_ip, 9999), True)
         t['TCP arbitrary @ bound'] = (self._test_sk, (tcp, arbitrary, 1337), True)
@@ -695,7 +699,7 @@ class FakeNetTester(object):
         if self.settings.singlehost:
             t['TCP localhost @ bound'] = (self._test_sk, (tcp, localhost, 1337), True)
             t['TCP localhost @ unbound'] = (self._test_sk, (tcp, localhost, 9999), False)
-
+        
         t['UDP external IP @ bound'] = (self._test_sk, (udp, ext_ip, 1337), True)
         t['UDP external IP @ unbound'] = (self._test_sk, (udp, ext_ip, 9999), True)
         t['UDP arbitrary @ bound'] = (self._test_sk, (udp, arbitrary, 1337), True)
@@ -709,7 +713,6 @@ class FakeNetTester(object):
         t['ICMP external IP'] = (self._test_icmp, (ext_ip,), True)
         t['ICMP arbitrary host'] = (self._test_icmp, (arbitrary,), True)
         t['ICMP domainname'] = (self._test_icmp, (domain_dne,), True)
-
         t['DNS listener test'] = (self._test_ns, (domain_dne, dns_expected), True)
         t['HTTP listener test'] = (self._test_http, (arbitrary,), True)
         t['FTP listener test'] = (self._test_ftp, (arbitrary,), True)
@@ -718,23 +721,19 @@ class FakeNetTester(object):
 
         # Does not work, SSL error
         t['SMTP SSL listener test'] = (self._test_smtp_ssl, (sender, recipient, smtpmsg, arbitrary), True)
-
         # Works on Linux, not on Windows
         t['IRC listener test'] = (self._test_irc, (arbitrary,), True)
-
         t['Proxy listener HTTP test'] = (self._test_http, (arbitrary, no_service), True)
         t['Proxy listener hidden test'] = (self._test_http, (arbitrary, hidden_tcp), True)
-
+        
         t['TCP blacklisted host @ unbound'] = (self._test_sk, (tcp, blacklistedhost, 9999), False)
         t['TCP arbitrary @ blacklisted unbound'] = (self._test_sk, (tcp, arbitrary, blacklistedtcp), False)
         t['UDP arbitrary @ blacklisted unbound'] = (self._test_sk, (udp, arbitrary, blacklistedudp), False)
-
         if self.settings.singlehost:
             t['Listener process blacklist'] = (self._test_http, (arbitrary, self.settings.listener_proc_black), False)
             t['Listener process whitelist'] = (self._test_http, (arbitrary, self.settings.listener_proc_white), True)
             t['Listener host blacklist'] = (self._test_http, (arbitrary, self.settings.listener_host_black), True)
             t['Listener host whitelist'] = (self._test_http, (arbitrary, self.settings.listener_host_black), True)
-
         return self._testGeneric('General', config, t, matchspec)
 
     def makeConfig(self, singlehostmode=True, proxied=True, redirectall=True):
@@ -801,7 +800,7 @@ class FakeNetTestSettings:
         self.stopflag = self.genPath('%TEMP%\\stop_fakenet', '/tmp/stop_fakenet')
         self.logpath = self.genPath('%TEMP%\\fakenet.log', '/tmp/fakenet.log')
         self.fakenet = self.genPath('fakenet', 'python fakenet.py')
-        self.fndir = self.genPath('.', '$HOME/files/src/flare-fakenet-ng/fakenet')
+        self.fndir = self.genPath('.', '../fakenet')        
 
         # For process blacklisting
         self.pythonname = os.path.basename(sys.executable)
