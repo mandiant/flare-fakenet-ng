@@ -11,8 +11,6 @@ DEFAULT_MODE = DIVERTER_MODE_USER
 
 def make_diverter(dconf, lconf, ipaddrs, loglvl=logging.INFO):
     mode = dconf.get(DIVERTER_MODE_KEY, DEFAULT_MODE).lower()
-    print dconf
-    print mode
     if mode == DIVERTER_MODE_USER:
         diverter = UsermodeDiverter(dconf, lconf, ipaddrs, loglvl)
     elif mode == DIVERTER_MODE_KERNEL:

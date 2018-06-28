@@ -17,8 +17,10 @@ def get_iface_info(ifname):
     ipaddrs = [_.get('addr') for _ in addrs.get(netifaces.AF_INET, dict())]
     if len(ipaddrs) < 1:
         return None
-
-    hwaddr = addrs.get(netifaces.AF_LINK, list())[0].get('addr', None)
+    try:
+        hwaddr = addrs.get(netifaces.AF_LINK, list())[0].get('addr', None)
+    except:
+        hwaddr = None
     if hwaddr is None:
         return None
     return {'addr.inet': ipaddrs, 'addr.dlink': hwaddr, 'iface': ifname}
@@ -35,11 +37,13 @@ def get_gateway_info():
     gwlist = netifaces.gateways().get('default', None)
     if gwlist is None:
         return None
+
     inetgw = gwlist.get(netifaces.AF_INET, None)
     if inetgw is None:
         return None
 
     gwip, gwif = inetgw[0], inetgw[1]
+
     ifinfo = get_iface_info(gwif)
     if ifinfo is None:
         return None
