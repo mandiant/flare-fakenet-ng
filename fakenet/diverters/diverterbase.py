@@ -1080,9 +1080,9 @@ class DiverterBase(fnconfig.Config):
         self.blacklist_ifaces = None
         if self.is_set('linuxblacklistinterfaces'):
             self.blacklist_ifaces_disp = (
-                self.getconfigval('linuxblacklistinterfacesdisposition', 'drop'))
+                self.getconfigval('linuxblacklistinterfacesdisposition', 'drop').lower())
             self.blacklist_ifaces = (
-                self.getconfigval('linuxblacklistedinterfaces', None))
+                set([ip.strip() for ip in self.getconfigval('linuxblacklistedinterfaces').split(',')]))
             self.logger.debug('Blacklisted interfaces: %s. Disposition: %s' % 
                 (self.blacklist_ifaces, self.blacklist_ifaces_disp))
 
@@ -1153,17 +1153,21 @@ class DiverterBase(fnconfig.Config):
             crit = DivertParms(self, pkt)
 
             # check for blacklisted interface and drop if needed
-            if (self.blacklist_ifaces and 
-                    (pkt.src_ip in self.blacklist_ifaces or 
-                    pkt.dst_ip in self.blacklist_ifaces)):
-                self.logger.debug("Blacklisted Interface. src: %s dst: %s" % 
-                                 (pkt.src_ip, pkt.dst_ip))
-                if self.blacklist_ifaces_disp == 'Drop':
-                    self.logger.debug("Dropping blacklist interface packet")
-                    pkt.drop = True
+            #print "blacklist_ifaces: %s:%s" % (self.blacklist_ifaces, type(self.blacklist_ifaces))
+            if self.blacklist_ifaces:
+                #print 'ips: %s:%s' % (self.blacklist_ifaces, type(self.blacklist_ifaces))
+                if not set([pkt.src_ip, pkt.dst_ip]).isdisjoint(self.blacklist_ifaces):
+                    #print 'not disjoint'
+                    self.logger.debug("Blacklisted Interface. src: %s dst: %s" % 
+                                     (pkt.src_ip, pkt.dst_ip))
+                    if self.blacklist_ifaces_disp == 'drop':
+                        self.logger.debug("Dropping blacklist interface packet")
+                        pkt.drop = True
+                    else:
+                        self.logger.debug("Ignoring blacklist interface packet")
+                    no_further_processing = True
                 else:
-                    self.logger.debug("Ignoring blacklist interface packet")
-                no_further_processing = True
+                    print 'disjoint'
 
             # fnpacket has parsed all that can be parsed, so
             pid, comm = self.get_pid_comm(pkt)
@@ -1177,10 +1181,12 @@ class DiverterBase(fnconfig.Config):
             # there needs to be no per-packet output by default. If there is
             # output for each packet, an infinite loop is generated where each
             # packet produces output which produces a packet, etc.
-            elif (pid and (pid != self.pid) and crit.first_packet_new_session & 
-                    no_further_processing is not True):
+            elif (pid and (pid != self.pid) and crit.first_packet_new_session and
+                    (not no_further_processing)):
                 self.logger.info('  pid:  %d name: %s' %
                                  (pid, comm if comm else 'Unknown'))
+                self.logger.info('  no_further_processing: %s' %
+                                 (no_further_processing))
 
             # 2: Call layer 3 (network) callbacks
             for cb in callbacks3:
