@@ -1078,7 +1078,7 @@ class DiverterBase(fnconfig.Config):
         # Ignore or drop packets to/from blacklisted interfaces
         # Currently Linux-only
         self.blacklist_ifaces = None
-        if self.is_set('linuxblacklistinterfaces'):
+        if self.is_set('linuxblacklistinterfaces') and not self.single_host_mode:
             self.blacklist_ifaces_disp = (
                 self.getconfigval('linuxblacklistinterfacesdisposition', 'drop').lower())
             self.blacklist_ifaces = (
@@ -1185,8 +1185,6 @@ class DiverterBase(fnconfig.Config):
                     (not no_further_processing)):
                 self.logger.info('  pid:  %d name: %s' %
                                  (pid, comm if comm else 'Unknown'))
-                self.logger.info('  no_further_processing: %s' %
-                                 (no_further_processing))
 
             # 2: Call layer 3 (network) callbacks
             for cb in callbacks3:
