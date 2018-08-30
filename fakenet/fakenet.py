@@ -286,9 +286,12 @@ def main():
                       help="print more verbose messages.")
     parser.add_option("-l", "--log-file", action="store", dest="log_file")
     parser.add_option("-s", "--log-syslog", action="store_true", dest="syslog",
-                      default=False)
+                      default=False, help="Log to syslog via /dev/log")
     parser.add_option("-f", "--stop-flag", action="store", dest="stop_flag",
                       help="terminate if stop flag file is created")
+    parser.add_option("-n", "--no-console-output", action="store_true",
+                      dest="no_con_out", default=False,
+                      help="Suppress console output")
 
     (options, args) = parser.parse_args()
 
@@ -299,11 +302,16 @@ def main():
                         datefmt=date_format, level=logging_level)
     logger = logging.getLogger('')  # Get the root logger i.e. ''
 
+    if options.no_con_out:
+        logger.handlers = []
+
     if options.log_file:
-        if not os.access(options.log_file, os.W_OK):
+        try:
+            loghandler = logging.StreamHandler(stream=open(options.log_file,
+                                                           'a'))
+        except IOError:
             print('Failed to open specified log file: %s' % (options.log_file))
             sys.exit(1)
-        loghandler = logging.StreamHandler(stream=open(options.log_file, 'a'))
         loghandler.formatter = logging.Formatter(
             '%(asctime)s [%(name)18s] %(message)s', datefmt=date_format)
         logger.addHandler(loghandler)

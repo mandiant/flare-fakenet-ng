@@ -836,7 +836,7 @@ class FakeNetTestSettings:
             return os.path.expandvars(unixypath)
 
     def genFakenetCmd(self):
-        return ('%s -f %s -l %s -c %s' %
+        return ('%s -f %s -n -l %s -c %s' %
                 (self.fakenet, self.stopflag, self.logpath, self.configpath))
 
 def is_ip(s):
