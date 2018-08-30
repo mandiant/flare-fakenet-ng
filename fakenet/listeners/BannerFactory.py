@@ -3,7 +3,7 @@ import socket
 import string
 import datetime
 
-class Banner():
+class Banner(object):
     """Act like a string, but actually get date/time components on the fly.
 
     Returned by BannerFactory.genBanner().
@@ -96,7 +96,7 @@ class Banner():
         return banner
 
 
-class BannerFactory():
+class BannerFactory(object):
     def genBanner(self, config, bannerdict, defaultbannerkey='!generic'):
         """Select and initialize a banner.
         

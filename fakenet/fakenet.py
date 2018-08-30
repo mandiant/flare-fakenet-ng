@@ -32,7 +32,7 @@ from listeners import *
 # FakeNet
 ###############################################################################
 
-class Fakenet():
+class Fakenet(object):
 
     def __init__(self, logging_level = logging.INFO):
 
@@ -152,7 +152,7 @@ class Fakenet():
                     self.diverter_config['networkmode'] = 'singlehost'
                 
                 from diverters.windows import Diverter
-                self.diverter = Diverter(self.diverter_config, self.listeners_config, self.logging_level)
+                self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
 
             elif platform_name.lower().startswith('linux'):
                 if self.diverter_config['networkmode'].lower() == 'auto':
@@ -195,7 +195,7 @@ class Fakenet():
                 try:
                     listener_provider_instance.start()
                 except Exception, e:
-                    self.logger.error('Error starting %s listener:', listener_config['listener'])
+                    self.logger.error('Error starting %s listener on port %s:', listener_config['listener'], listener_config['port'])
                     self.logger.error(" %s" % e)
 
         # Start the diverter
@@ -227,8 +227,6 @@ class Fakenet():
 
         if self.diverter:
             self.diverter.stop()
-
-        sys.exit(0)
 
 def get_ips(ipvers):
     """Return IP addresses bound to local interfaces including loopbacks.
@@ -273,11 +271,9 @@ def main():
  | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
  |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                         Version  1.3
+                        Version 1.4.0
   _____________________________________________________________
-                         Developed by            
-             Peter Kacherginsky and Michael Bailey      
-       FLARE (FireEye Labs Advanced Reverse Engineering)       
+                   Developed by FLARE Team
   _____________________________________________________________               
                                                """
 
@@ -290,6 +286,8 @@ def main():
                       help="print more verbose messages.")
     parser.add_option("-l", "--log-file", action="store", dest="log_file")
     parser.add_option("-s", "--log-syslog", action="store_true", dest="syslog", default=False)
+    parser.add_option("-f", "--stop-flag", action="store", dest="stop_flag",
+                      help="terminate if stop flag file is created")
 
     (options, args) = parser.parse_args()
 
@@ -300,13 +298,10 @@ def main():
     logger = logging.getLogger('') # Get the root logger i.e. ''
 
     if options.log_file:
-        logfile = None
-        try:
-            logfile = open(options.log_file, 'a')
-        except IOError:
+        if not os.access(options.log_file, os.W_OK):
             print('Failed to open specified log file: %s' % (options.log_file))
             sys.exit(1)
-            
+
         loghandler = logging.StreamHandler(stream=open(options.log_file, 'a'))
         loghandler.formatter = logging.Formatter('%(asctime)s [%(name)18s] %(message)s', datefmt=date_format)
         logger.addHandler(loghandler)
@@ -329,19 +324,34 @@ def main():
 
     fakenet = Fakenet(logging_level)
     fakenet.parse_config(options.config_file)
+
+    if options.stop_flag:
+        options.stop_flag = os.path.expandvars(options.stop_flag)
+        fakenet.logger.info('Will seek stop flag at %s' % (options.stop_flag))
+
     fakenet.start()
 
     try:
         while True:
             time.sleep(1)
+            if options.stop_flag and os.path.exists(options.stop_flag):
+                fakenet.logger.info('Stop flag found at %s' % (options.stop_flag))
+                break
 
     except KeyboardInterrupt:
-        fakenet.stop()
+        pass
 
     except:
         e = sys.exc_info()[0]
         fakenet.logger.error("ERROR: %s" % e)
-        fakenet.stop()
+
+    fakenet.stop()
+
+    # Delete flag only after FakeNet-NG has stopped to indicate completion
+    if options.stop_flag and os.path.exists(options.stop_flag):
+        os.remove(options.stop_flag)
+
+    sys.exit(0)
 
 if __name__ == '__main__':
     main()

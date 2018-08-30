@@ -200,7 +200,7 @@ class FakeFS(AbstractedFS):
         # Don't remove anything
         pass
 
-class FTPListener():
+class FTPListener(object):
 
     def taste(self, data, dport):
 

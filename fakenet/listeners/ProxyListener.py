@@ -17,7 +17,7 @@ import os
 BUF_SZ = 1024
 IP = '0.0.0.0'
 
-class ProxyListener():
+class ProxyListener(object):
 
 
     def __init__(
@@ -126,67 +126,6 @@ class ThreadedTCPClientSocket(threading.Thread):
                         exit(1)
         except Exception as e:
             self.logger.debug('Listener socket exception %s' % e.message)
-
-        
-class ThreadedUDPClientSocket(threading.Thread):
-
- 
-    def gen_endpoint_key(self, ip, port):
-        """e.g. 192.168.19.132/3030"""
-        return str(ip) + '/' + str(port)
-
-    def __init__(self, ip, port, listener_q, remote_q, config, log, 
-            listener_port, fwd_table, orig_src_ip, orig_src_port):
-
-        super(ThreadedUDPClientSocket, self).__init__()
-        self.ip = ip
-        self.port = int(port)
-        self.listener_q = listener_q
-        self.remote_q = remote_q
-        self.config = config
-        self.logger = log
-        self.listener_port = int(listener_port)
-        self.orig_src_ip = orig_src_ip
-        self.orig_src_port = orig_src_port
-        self.fwd_table = fwd_table
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-    def run(self):
-
-        try:
-
-            # if there is an existing UDP connection from this client, this
-            # packet needs to exit the proxy from the same port as the previous
-            # client so the listener knows which stream it belongs to.
-            connection_exists = False
-            skey = self.gen_endpoint_key(self.orig_src_ip, self.orig_src_port)
-            if skey in self.fwd_table:
-                connection_exists = True
-                self.port = self.fwd_table[skey]
-            
-            self.sock.bind((self.ip, self.port))
-            if connection_exists == False:
-                self.port = self.sock.getsockname()[1]
-                self.fwd_table[skey] = self.port
-            self.logger.debug('Proxy connected to listener on port %s' 
-                    % self.port)
-
-            while True:
-                readable, writable, exceptional = select.select([self.sock], 
-                        [], [], .001)
-                if not self.remote_q.empty():
-                    data = self.remote_q.get()
-                    self.sock.sendto(data, ('localhost', self.listener_port))
-                if readable:
-                    data = self.sock.recv(BUF_SZ)
-                    if data:
-                        self.listener_q.put(data)
-                    else:
-                        self.sock.close()
-                        exit(1)
-        except Exception as e:
-            self.logger.debug('Listener socket exception %s' % e)
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     daemon_threads = True
@@ -320,7 +259,6 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
 
     def handle(self):
-
         data = self.request[0]
         remote_sock = self.request[1]
 
@@ -343,42 +281,15 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
                     orig_src_ip, orig_src_port, 'UDP')
 
             if top_listener:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind(('localhost', 0))
 
-                # queue for data received from the listener
-                listener_q = Queue.Queue()
-                # queue for data received from remote
-                remote_q = Queue.Queue()
-                self.server.logger.debug('Likely listener: %s' % 
-                        top_listener.name)
-                listener_sock = ThreadedUDPClientSocket('localhost', 0, 
-                        listener_q, remote_q, self.server.config, 
-                        self.server.logger, top_listener.port, 
-                        self.server.fwd_table, orig_src_ip, orig_src_port)
-                listener_sock.daemon = True
-                listener_sock.start()
-                remote_sock.setblocking(0)
-
-                # no peek option so process the data already recd
-                remote_q.put(data)
-
-                try:
-                    while True:
-                        readable, writable, exceptional = select.select(
-                                [remote_sock], [], [], .001)
-                        if readable:
-                            data = remote_sock.recv(BUF_SZ)
-                            if data:
-                                remote_q.put(data)
-                            else:
-                                self.server.logger.debug(
-                                        'Closing remote socket connection')
-                                return
-                        if not listener_q.empty():
-                            data = listener_q.get()
-                            remote_sock.sendto(data, (orig_src_ip, int(orig_src_port)))
-                except Exception as e:
-                    pass
-
+                sock.sendto(data, ('localhost', int(top_listener.port)))
+                reply = sock.recv(BUF_SZ)
+                self.server.logger.info('Received %d bytes.', len(data))
+                sock.close()
+                remote_sock.sendto(reply, (orig_src_ip, int(orig_src_port)))
         else:
             self.server.logger.debug('No packet data')
 

@@ -11,7 +11,7 @@ import socket
 
 from . import *
 
-class SMTPListener():
+class SMTPListener(object):
 
     def taste(self, data, dport):
 
@@ -100,7 +100,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         try:
 
-            self.request.sendall("220 FakeNet SMTP Service Ready\r\n")
+            self.request.sendall("%s\r\n" % self.server.config.get('banner',"220 FakeNet SMTP Service Ready"))
             while True:
                 data = self.request.recv(4096)
                 for line in data.split("\n"):

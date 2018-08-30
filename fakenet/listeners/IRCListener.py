@@ -29,7 +29,7 @@ BANNERS = {
         '|------------------------------------------------------------------------|\n')
 }
 
-class IRCListener():
+class IRCListener(object):
 
     def taste(self, data, dport):
 
@@ -241,7 +241,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         self.request.sendall(":%s!%s@%s %s\r\n" % (nick, user, servername, message))
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
-    pass
+    # Avoid [Errno 98] Address already in use due to TIME_WAIT status on TCP
+    # sockets, for details see:
+    # https://stackoverflow.com/questions/4465959/python-errno-98-address-already-in-use
+    allow_reuse_address = True
 
 ###############################################################################
 # Testing code

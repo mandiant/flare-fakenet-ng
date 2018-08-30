@@ -1,15 +1,9 @@
 # FakeNet-NG Internals
 
-## FakeNet-NG Linux Diverter Internals
+This documentation was originally written for the Linux implementation, and
+where specifics are called for, it currently references Linux.
 
-The FakeNet-NG Diverter implementation for Linux uses
-[netfilter](http://netfilter.org/) to examine, log, and redirect packets.
-Netfilter is available at the kernel level through loadable kernel modules
-(LKMs) and in userspace through the
-[libnetfilter_queue](http://netfilter.org/projects/libnetfilter_queue/index.html)
-library. Since FakeNet-NG is Python-based, it uses libnetfilter_queue via the
-[python-netfilterqueue](https://github.com/kti/python-netfilterqueue/) wrapper
-which is written in Cython.
+## FakeNet-NG Diverter Internals
 
 For purposes of this documentation, some rigorously-defined terms will be
 repurposed or replaced:
@@ -21,6 +15,20 @@ repurposed or replaced:
   we will use the more general term _conversation_ to represent the concept of
   a pair of endpoints (again, using that term loosely) that are communicating.
 
+FakeNet-NG can also operate in two modes on Linux:
+* `SingleHost` - simulate the Internet for the local machine
+* `MultiHost` - simulate the Internet by acting as the gateway for another
+  machine
+
+Each implementation of FakeNet-NG ultimately relies on a driver or kernel
+module that supports network hooking and a library that makes this accessible
+from user space. The Windows Diverter uses
+[PyDivert](https://github.com/ffalcinelli/pydivert) to control the
+[WinDivert](https://reqrypt.org/windivert.html) driver. The Linux Diverter uses
+[python-netfilterqueue](https://github.com/kti/python-netfilterqueue) to access
+[libnetfilter_queue](https://netfilter.org/projects/libnetfilter_queue/) and in
+turn [NetFilter](https://netfilter.org/).
+
 ### Traffic Flow Condition Evaluation
 
 The simplest case for the Linux implementation of the FakeNet-NG Diverter is
@@ -30,10 +38,9 @@ we use `iptables` to implement a `REDIRECT` rule in the `PREROUTING` chain.
 In this use case, FakeNet-NG implements only dynamic port forwarding (DPF)
 using python-netfilterqueue.
 
-The most complicated case is `SingleHost` mode (experimental), in which both
-DPF and NAT must be controlled by FakeNet-NG to permit process blacklisting
-and other configuration settings. In this case, FakeNet-NG uses
-python-netfilterqueue to evaluate four conditions:
+The more complicated case is `SingleHost` mode, in which both DPF and NAT must
+be controlled by FakeNet-NG to permit process blacklisting and other
+configuration settings. In this case, FakeNet-NG evaluates four conditions:
 1. When a packet is produced, is it destined for a foreign IP address? (if so,
   fix up its destination address to be a local address)
 2. When a packet is about to be consumed, is it destined for an unbound port?
@@ -45,8 +52,8 @@ python-netfilterqueue to evaluate four conditions:
   that has been NATted? (if so, fix up its source IP)
 
 Given two processes `P1` and `P2`, here is a diagram of communication and
-condition evaluation using the `INPUT` and `OUTPUT` chains provided by
-Netfilter:
+condition evaluation specific to Linux, using the `INPUT` and `OUTPUT` chains
+provided by Netfilter:
 
 ```
          (1)                                                      (2)
@@ -288,7 +295,6 @@ Or, in Python:
 				(not sport_bound and not dport_bound))
 ```
 
-
 ### Future
 
 #### NetworkMode Auto for Linux
@@ -312,11 +318,12 @@ troubleshooting problems transferring the 24KB file `FakeNet.gif` over FTP.
 
 This is fine for `MultiHost` mode because external interfaces (e.g. `eth0`)
 frequently have a maximum transmittal unit (MTU) of 1500. However, for loopback
-communications where the MTU is 65536, this causes errors. It is possible to
-fix these errors by changing the buffer size to 65616, however this may be
-overridden by future installations of python-netfilterqueue either via the
-package management system specific to the Linux distribution, Pip, etc.
+communications where the MTU may be something like 65536, this causes errors.
+It is possible to fix these errors by changing the buffer size to 65616
+(accounting for 80 bytes of overhead), however this could be overridden by
+future installations of python-netfilterqueue either via the package management
+system specific to the Linux distribution, Pip, etc.
 
 A work-around for this issue is to send all NAT packets through an externally
-facing IP address instead of 127.0.0.1 to avoid exposing ourselves to
-`BufferSize < MTU` conditions such as in the transfer of large files.
+facing IP address instead of 127.0.0.1 to avoid exposing traffic to `BufferSize
+< MTU` conditions such as in the transfer of large files.
