@@ -162,7 +162,9 @@ class Fakenet(object):
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
 
             else:
-                self.logger.error('Error: Your system %s is currently not supported.' % (platform_name))
+                self.logger.error(
+                    'Error: Your system %s is currently not supported.' %
+                    (platform_name))
                 sys.exit(1)
 
         # Start all of the listeners
