@@ -291,9 +291,14 @@ def main():
                       default=False, help="Log to syslog via /dev/log")
     parser.add_option("-f", "--stop-flag", action="store", dest="stop_flag",
                       help="terminate if stop flag file is created")
+    # TODO: Rework the way loggers are created and configured by subcomponents
+    # to produce the expected result when logging control is asserted at the
+    # top level. For now, the setting serves its real purpose which is to ease
+    # testing on Linux after modifying logging such that console and file
+    # output are not mutually exclusive.
     parser.add_option("-n", "--no-console-output", action="store_true",
                       dest="no_con_out", default=False,
-                      help="Suppress console output")
+                      help="Suppress console output (for testing on Linux)")
 
     (options, args) = parser.parse_args()
 
