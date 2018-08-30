@@ -285,7 +285,8 @@ def main():
                       action="store_true", dest="verbose", default=False,
                       help="print more verbose messages.")
     parser.add_option("-l", "--log-file", action="store", dest="log_file")
-    parser.add_option("-s", "--log-syslog", action="store_true", dest="syslog", default=False)
+    parser.add_option("-s", "--log-syslog", action="store_true", dest="syslog",
+                      default=False)
     parser.add_option("-f", "--stop-flag", action="store", dest="stop_flag",
                       help="terminate if stop flag file is created")
 
@@ -294,16 +295,17 @@ def main():
     logging_level = logging.DEBUG if options.verbose else logging.INFO
 
     date_format = '%m/%d/%y %I:%M:%S %p'
-    logging.basicConfig(format='%(asctime)s [%(name)18s] %(message)s', datefmt=date_format, level=logging_level)
+    logging.basicConfig(format='%(asctime)s [%(name)18s] %(message)s',
+                        datefmt=date_format, level=logging_level)
     logger = logging.getLogger('') # Get the root logger i.e. ''
 
     if options.log_file:
         if not os.access(options.log_file, os.W_OK):
             print('Failed to open specified log file: %s' % (options.log_file))
             sys.exit(1)
-
         loghandler = logging.StreamHandler(stream=open(options.log_file, 'a'))
-        loghandler.formatter = logging.Formatter('%(asctime)s [%(name)18s] %(message)s', datefmt=date_format)
+        loghandler.formatter = logging.Formatter(
+                '%(asctime)s [%(name)18s] %(message)s', datefmt=date_format)
         logger.addHandler(loghandler)
 
     if options.syslog:
@@ -314,12 +316,17 @@ def main():
         elif platform_name.lower().startswith('linux'):
             sysloghandler = logging.handlers.SysLogHandler('/dev/log')
         else:
-            print('Error: Your system %s is currently not supported.' % (platform_name))
+            print('Error: Your system %s is currently not supported.' %
+                  (platform_name))
             sys.exit(1)
 
-        # Bothered to specify datefmt for consistency, but syslog generally
-        # logs the time on each log line, so %(asctime) is omitted here.
-        sysloghandler.formatter = logging.Formatter('FakeNet-NG: {"loggerName":"%(name)s", "moduleName":"%(module)s", "levelName":"%(levelname)s", "message":"%(message)s"}', datefmt=date_format)
+        # Specify datefmt for consistency, but syslog generally logs the time
+        # on each log line, so %(asctime) is omitted here.
+        sysloghandler.formatter = logging.Formatter(
+                '"FakeNet-NG": {"loggerName":"%(name)s", ' 
+                '"moduleName":"%(module)s", '
+                '"levelName":"%(levelname)s", '
+                '"message":"%(message)s"}', datefmt=date_format)
         logger.addHandler(sysloghandler)
 
     fakenet = Fakenet(logging_level)
