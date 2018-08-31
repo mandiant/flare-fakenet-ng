@@ -14,6 +14,156 @@ from debuglevels import *
 from collections import namedtuple
 from collections import OrderedDict
 
+class ProxyConns(object):
+    """Class to track all proxy connections from within the diverter so a
+    connection status can be obtained when deciding to ignore a local packet
+    """
+
+    def __init__(self):
+        self.connections = {}
+        self.lock = threading.Lock()
+
+    def conn_establishing(self, proxy_port):
+        """Check if a connection is in the TCP handshake phase
+
+        Args:
+            proxy_port (int): The ephemeral port of the proxy side
+
+        Returns:
+            bool: True if handshake is occurring on this port
+        """
+
+        return self.connections.get(proxy_port).is_connecting()
+
+    def is_proxied(self, sport, dport):
+        """Is this packet coming from the proxy to a bound listener
+
+        Args:
+            sport (int): source port
+            dport (int): destination port
+
+        Returns:
+            bool: True if the packet is from the proxy to a bound listener
+        """
+        with self.lock:
+            if dport in self.connections:
+                return (self.conn_establishing(dport) or
+                        sport in self.connections.get(dport).get_peers())
+        return False
+
+    def new_conn(self, listener_port, proxy_port=None):
+        """Establish a new connection
+
+        Args:
+            listener_port (int): port of bound listener end of connection
+            proxy_port (int): ephemeral port of proxy end. New TCP connections
+                              are unknown during handshake phase thus None
+        """
+        # UDP
+        if proxy_port:
+            with self.lock:
+                if listener_port in self.connections:
+                    self.connections[listener_port].add_peer(proxy_port)
+                else:
+                    self.connections[listener_port] = ProxyConnMeta(proxy_port)
+        # TCP
+        else:
+            with self.lock:
+                if listener_port in self.connections:
+                    self.connections[listener_port].connecting()
+                else:
+                    self.connections[listener_port] = ProxyConnMeta()
+
+    def conn_established(self, listener_port, proxy_port):
+        """TCP handshake phase is completed. Change handshake_phase member variable
+
+        Args:
+            listener port (int): The port of the bound listener
+            proxy_port (int): The ephemeral port of the proxy end
+        """
+
+        with self.lock:
+            self.connections[listener_port].connected(proxy_port)
+
+    def conn_ended(self, listener_port, proxy_port):
+        """Remove a connection that has terminated
+
+        Args:
+            listener port (int): The port of the bound listener
+            proxy_port (int): The ephemeral port of the proxy end
+        """
+
+        with self.lock:
+            if listener_port in self.connections:
+                self.connections[listener_port].remove(proxy_port)
+
+class ProxyConnMeta(object):
+    """Class to track proxy connection status by port so a connection status
+    can be determined when deciding whether to ignore a local packet.
+    Each object represents a bound listener and each ephemeral proxy port
+    it is connected to.
+    """
+
+    def __init__(self, proxy_port=None):
+        # UDP
+        if proxy_port:
+            self.handshake_phase = False
+            self.peer_ports = [proxy_port]
+        # TCP
+        else:
+            self.handshake_phase = True
+            self.peer_ports = []
+
+    def __str__(self):
+        return 'ProxyConnMeta: connecting:{} | peers:{}'.format(
+            self.handshake_phase, [p for p in self.peer_ports])
+ 
+    def __repr__(self):
+        return 'ProxyConnMeta: connecting:{} | peers:{}'.format(
+            self.handshake_phase, [p for p in self.peer_ports])
+
+    def connecting(self):
+        """Mark the connection as currently executing TCP handshake"""
+        self.handshake_phase = True
+
+    def is_connecting(self):
+        """Is the connection currently executing TCP handshake?
+
+        Returns:
+            bool: True if handshake phase
+        """
+        return self.handshake_phase
+
+    def connected(self, proxy_port):
+        """TCP handshake complete. Mark as such and add ephemeral proxy port
+
+        Args:
+            proxy_port (int): The ephemeral port of the proxy endpoint
+        """
+        self.handshake_phase = False
+        self.add_peer(proxy_port)
+
+    def add_peer(self, proxy_port):
+        """New proxy endpoint to existing connection object
+
+        Args:
+            proxy_port (int): The ephemeral port of the proxy endpoint
+        """
+        if proxy_port not in self.peer_ports:
+            self.peer_ports.append(proxy_port)
+
+    def get_peers(self):
+        """Get a list of all proxy ports connected to this listener
+
+        Returns:
+            list: ephemeral proxy ports connected to this listener
+        """
+        return self.peer_ports
+
+    def remove(self, proxy_port):
+        """Remove a proxy endpoint from the connections to this listener"""
+        if proxy_port in self.peer_ports:
+            self.peer_ports.remove(proxy_port)
 
 class DivertParms(object):
     """Class to abstract all criteria possible out of the Windows and Linux
@@ -90,30 +240,6 @@ class DivertParms(object):
         """
         return not (self.diverter.sessions.get(self.pkt.sport) ==
                     (self.pkt.dst_ip, self.pkt.dport))
-
-    @property
-    def proxyd(self):
-        """Is this packet coming from, or headed for, the proxy?
-
-        Returns:
-            True if either endpoint is the proxy
-        """
-        with self.diverter.proxy_ports_lock:
-            proxy_ports = self.diverter.proxy_ports
-            proxy_sports = proxy_ports.get(self.pkt.sport)
-            proxy_dports = proxy_ports.get(self.pkt.dport)
-
-            # If a TCP connection is currently being established the value is 
-            # True because we do not know the ports of both endpoints until the
-            # socket is connected (so we prevent all packets related to that
-            # listener from being dropped)
-            if proxy_sports == True or proxy_dports == True:
-                return True
-            if ((proxy_sports is not None and self.pkt.dport in proxy_sports) or 
-                    (proxy_dports is not None and self.pkt.sport in proxy_dports)):
-                return True
-            return False
-
 
 class DiverterPerOSDelegate(object):
     """Delegate class for OS-specific methods that FakeNet-NG implementors must
@@ -546,11 +672,8 @@ class DiverterBase(fnconfig.Config):
         self.sessions = dict()
 
         # A dictionary of bound listener ports mapped to lists of proxy ports
-        # that have a current connection to that listener. The list value can 
-        # be temporarily changed to True(Boolean) if a TCP connection is in the 
-        # process of being established. Maintained by ProxyListeners.
-        self.proxy_ports = dict()
-        self.proxy_ports_lock = threading.Lock()
+        # that have a current connection to that listener.
+        self.proxy_conns = ProxyConns()
 
         # Manage logging of foreign-destined packets
         self.nonlocal_ips_already_seen = []
@@ -1184,7 +1307,8 @@ class DiverterBase(fnconfig.Config):
 
             pkt.drop = self.check_should_drop(crit, pkt)
 
-            #no_further_processing = self.check_should_ignore(crit, pkt)
+            if pkt.drop:
+                no_further_processing = True
 
             # fnpacket has parsed all that can be parsed, so
             pid, comm = self.get_pid_comm(pkt)
@@ -1198,8 +1322,8 @@ class DiverterBase(fnconfig.Config):
             # there needs to be no per-packet output by default. If there is
             # output for each packet, an infinite loop is generated where each
             # packet produces output which produces a packet, etc.
-            elif (pid and (pid != self.pid) and crit.first_packet_new_session & 
-                    no_further_processing is not True):
+            elif (pid and (pid != self.pid) and crit.first_packet_new_session
+                and no_further_processing is not True):
                 self.logger.info('  pid:  %d name: %s' %
                                  (pid, comm if comm else 'Unknown'))
 
@@ -1217,14 +1341,6 @@ class DiverterBase(fnconfig.Config):
             if pkt.proto:
 
                 if len(callbacks4):
-                    # Windows Diverter has always allowed loopback packets to
-                    # fall where they may. This behavior now applies to all
-                    # Diverters.
-                    #if crit.is_loopback:
-                    #    self.logger.debug('Ignoring loopback packet')
-                    #    self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip,
-                    #                      pkt.sport, pkt.dst_ip, pkt.dport)
-                    #    no_further_processing = True
 
                     # 3: Layer 4 (Transport layer) callbacks
                     if not no_further_processing:
@@ -1349,7 +1465,7 @@ class DiverterBase(fnconfig.Config):
             self.pdebug(DIGN, 'Ignoring %s packet %s' %
                         (pkt.proto, pkt.hdrToStr()))
             return True
-    
+
         # SingleHost mode checks
         if self.single_host_mode:
             if comm:
@@ -1394,14 +1510,16 @@ class DiverterBase(fnconfig.Config):
 
         # MultiHost mode checks
         else:
-            if self.is_set('listenerlocalignore'):
-                if crit.is_loopback0 and crit.dport_bound:
-                    self.logger.debug('Ignore local packet destined for ' + 
-                                      'unbound port. src: %s dst: %s' % 
-                                      (pkt.src_ip, pkt.dst_ip))
-                    return true
+            pass
 
         # Checks independent of mode
+        if self.is_set('listenerlocalignore'):
+            if crit.is_loopback0 and not crit.dport_bound:
+                self.logger.debug('Ignore local packet destined for ' +
+                                  'unbound port. src: %s dst: %s' %
+                                  (pkt.src_ip, pkt.dst_ip))
+                return True
+
         if self.blacklist_ifaces and self.blacklist_ifaces_disp == 'Pass':
             if (pkt.src_ip in self.blacklist_ifaces or 
                         pkt.dst_ip in self.blacklist_ifaces):
@@ -1470,7 +1588,17 @@ class DiverterBase(fnconfig.Config):
         return False
 
     def check_should_drop(self, crit, pkt):
+        """ Determine if packet should be dropped.
 
+        Based on configuration items 'listenerlocalignore', 'blacklist_ifaces'
+
+        Args:
+            crit: a DivertParms object
+            pkt: a fnpacket.PacketCtx or derived object
+
+        Returns:
+            bool: True if packet meets drop requirements
+        """
 
         # Single-host only checks
         if self.single_host_mode:
@@ -1478,12 +1606,13 @@ class DiverterBase(fnconfig.Config):
         
         # Multi-host only checks
         else:
-            # If listeners are ignoring local traffic, we can drop local
-            # packets destined for listeners. However, the proxy can forward 
-            # non-local traffic so we must allow local traffic to/from proxy.
             if self.is_set('listenerlocalignore'):
-                if (crit.is_loopback0 and not crit.dport_bound 
-                        and not crit.proxyd):
+                # If listeners are ignoring local traffic, we can drop local
+                # packets destined for listeners. However,the proxy can forward
+                # non-local traffic. We must allow local traffic to/from proxy.
+                if (crit.is_loopback0 and crit.dport_bound and not
+                        self.proxy_conns.is_proxied(crit.pkt.sport,
+                        crit.pkt.dport)):
                     self.logger.debug('Drop local packet destined for bound ' +
                                       'port. src: %s:%s dst: %s:%s' % 
                                       (pkt.src_ip, pkt.sport, pkt.dst_ip, 

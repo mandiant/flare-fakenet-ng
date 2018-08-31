@@ -107,33 +107,25 @@ class ThreadedTCPClientSocket(threading.Thread):
         self.logger = log
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.diverter = diverter
+        self.proxy_port = None
 
     def run(self):
 
-
         try:
-            # Before connection is established need to tell the diverter to 
-            # not drop the TCP handshake packets on both sides of the Proxy 
             if self.diverter.is_set('listenerlocalignore'):
-                prev_proxy_ports = None
-                with self.diverter.proxy_ports_lock:
-                    prev_proxy_ports = self.diverter.proxy_ports.get(self.port)
-                    self.diverter.proxy_ports[self.port] = True
+                # Before connect() call need to tell the diverter to
+                # not drop the TCP handshake packets on both sides of the Proxy
+                self.diverter.proxy_conns.new_conn(self.port)
 
             self.sock.connect((self.ip, self.port))
 
-            # Connection is established. Diverter will not drop local Proxy 
-            # traffic for this connection
             if self.diverter.is_set('listenerlocalignore'):
-                proxy_port = self.sock.getsockname()[1]
-                with self.diverter.proxy_ports_lock:
-                    # No other proxy connections currently associated with this listener
-                    if (prev_proxy_ports is None):
-                        self.diverter.proxy_ports[self.port] = [proxy_port]
-                    # Add this connection to list of ongoing connections
-                    else:
-                        prev_proxy_ports.append(proxy_port)
-                        self.diverter.proxy_ports[self.port] = prev_proxy_ports
+                # Connection is established. Diverter will not drop local Proxy
+                # traffic for this connection
+                self.proxy_port = self.sock.getsockname()[1]
+                self.diverter.proxy_conns.conn_established(self.port,
+                    self.proxy_port)
+
             while True:
                 readable, writable, exceptional = select.select([self.sock], 
                         [], [], .001)
@@ -149,11 +141,10 @@ class ThreadedTCPClientSocket(threading.Thread):
         except Exception as e:
             self.logger.debug('Listener socket exception %s' % e.message)
         finally:
-            # Clean up entry in list of ongoing proxy connections
             if self.diverter.is_set('listenerlocalignore'):
-                with self.diverter.proxy_ports_lock:
-                    self.diverter.proxy_ports[self.port].remove(proxy_port)
-            exit(1)
+                # Clean up entry in list of ongoing proxy connections
+                self.diverter.proxy_conns.conn_ended(self.port,
+                    self.proxy_port)
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     daemon_threads = True
@@ -291,8 +282,8 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
         data = self.request[0]
         remote_sock = self.request[1]
 
-        self.server.logger.debug('Received UDP packet from %s:%s.' % 
-                self.client_address)
+        self.server.logger.debug('Received UDP packet from %s.' %
+                self.client_address[0])
 
         if data:
 
@@ -318,36 +309,25 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
                 self.server.logger.debug("UDP socket bound to %s:%s" 
                     % sock.getsockname())
 
-                # Diverter will not drop local traffic for this exchange
                 try:
                     if self.server.diverter.is_set('listenerlocalignore'):
-                        with self.server.diverter.proxy_ports_lock:
-                            if self.server.diverter.proxy_ports.get(port) is None:
-                                self.server.diverter.proxy_ports[port] = [sock_port]
-                            else:
-                                (self.server.diverter.proxy_ports[port].
-                                    append(sock_port))
+                    # Diverter will not drop local traffic for this exchange
+                        self.server.diverter.proxy_conns.new_conn(port,
+                            sock_port)
 
                     sock.sendto(data, ('localhost', port))
                     reply = sock.recv(BUF_SZ)
                     self.server.logger.info('Received %d bytes.', len(data))
                     sock.close()
 
-                    # Diverter will not drop local traffic for this exchange
-                    if self.server.diverter.is_set("listenerlocalignore"):
-                        with self.server.diverter.proxy_ports_lock:
-                            (self.server.diverter.proxy_ports[port].
-                                remove(sock_port))
-
-                    remote_sock.sendto(reply, (orig_src_ip, int(orig_src_port)))
+                    remote_sock.sendto(reply, (orig_src_ip,
+                        int(orig_src_port)))
 
                 finally:
                     # Clean up entry in list of ongoing proxy connections
                     if self.server.diverter.is_set("listenerlocalignore"):
-                        with self.server.diverter.proxy_ports_lock:
-                            if sock_port in self.server.diverter.proxy_ports[port]:
-                                (self.server.diverter.proxy_ports[port].
-                                remove(sock_port)) 
+                        self.server.diverter.proxy_conns.conn_ended(port,
+                            sock_port)
         else:
             self.server.logger.debug('No packet data')
 
