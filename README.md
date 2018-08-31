@@ -935,5 +935,5 @@ Contact
 =======
 
 For bugs, crashes, or other comments please contact 
-peter.kacherginsky@fireeye.com or michael.bailey@fireeye.com.
+FakeNet@fireeye.com.
 
