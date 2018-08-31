@@ -727,6 +727,18 @@ class DiverterBase(fnconfig.Config):
 
         return privileged
 
+    def involves_blacklisted_iface(self, pkt):
+        """Check packet endpoints against blacklisted ifaces config
+
+        Args:
+            pkt: a PacketCtx object
+
+        Returns:
+            bool: True if either endpoint is a blacklisted iface
+        """
+        return not set([pkt.src_ip, pkt.dst_ip]).isdisjoint(
+            self.blacklist_ifaces)
+
     def parse_listeners_config(self, listeners_config):
         """Parse listener config sections.
 
@@ -1078,13 +1090,22 @@ class DiverterBase(fnconfig.Config):
         # Ignore or drop packets to/from blacklisted interfaces
         # Currently Linux-only
         self.blacklist_ifaces = None
-        if self.is_set('linuxblacklistinterfaces') and not self.single_host_mode:
+        if (self.is_set('linuxblacklistinterfaces') and
+                not self.single_host_mode):
+            available_dispositions = ['drop', 'pass']
             self.blacklist_ifaces_disp = (
-                self.getconfigval('linuxblacklistinterfacesdisposition', 'drop').lower())
+                self.getconfigval(
+                    'linuxblacklistinterfacesdisposition', 'drop').lower())
+            if self.blacklist_ifaces_disp not in available_dispositions:
+                self.logger.error('linuxblacklistinterfacedisposition must ' +
+                                  'be one of %s' % available_dispositions)
+                sys.exit(1)
             self.blacklist_ifaces = (
-                set([ip.strip() for ip in self.getconfigval('linuxblacklistedinterfaces').split(',')]))
-            self.logger.debug('Blacklisted interfaces: %s. Disposition: %s' % 
-                (self.blacklist_ifaces, self.blacklist_ifaces_disp))
+                set([ip.strip() for ip in self.getconfigval(
+                    'linuxblacklistedinterfaces').split(',')]))
+            self.logger.debug('Blacklisted interfaces: %s. Disposition: %s' %
+                              (self.blacklist_ifaces,
+                               self.blacklist_ifaces_disp))
 
     def write_pcap(self, pkt):
         """Writes a packet to the pcap.
@@ -1153,21 +1174,17 @@ class DiverterBase(fnconfig.Config):
             crit = DivertParms(self, pkt)
 
             # check for blacklisted interface and drop if needed
-            #print "blacklist_ifaces: %s:%s" % (self.blacklist_ifaces, type(self.blacklist_ifaces))
             if self.blacklist_ifaces:
-                #print 'ips: %s:%s' % (self.blacklist_ifaces, type(self.blacklist_ifaces))
-                if not set([pkt.src_ip, pkt.dst_ip]).isdisjoint(self.blacklist_ifaces):
-                    #print 'not disjoint'
-                    self.logger.debug("Blacklisted Interface. src: %s dst: %s" % 
-                                     (pkt.src_ip, pkt.dst_ip))
+                if self.involves_blacklisted_iface(pkt):
+                    self.logger.debug('Blacklisted Interface. src:%s dst:%s' %
+                                      (pkt.src_ip, pkt.dst_ip))
                     if self.blacklist_ifaces_disp == 'drop':
-                        self.logger.debug("Dropping blacklist interface packet")
+                        self.logger.debug("Dropping blacklist iface packet")
                         pkt.drop = True
                     else:
-                        self.logger.debug("Ignoring blacklist interface packet")
+                        self.logger.debug("Ignoring blacklist iface packet")
+
                     no_further_processing = True
-                else:
-                    print 'disjoint'
 
             # fnpacket has parsed all that can be parsed, so
             pid, comm = self.get_pid_comm(pkt)
@@ -1175,15 +1192,15 @@ class DiverterBase(fnconfig.Config):
                 logline = self.formatPkt(pkt, pid, comm)
                 self.pdebug(DGENPKTV, logline)
 
-            # check for no_further_processing here in order to filter out 
-            # packets that are being ignored already due to a blacklisted 
+            # check for no_further_processing here in order to filter out
+            # packets that are being ignored already due to a blacklisted
             # interface. If a user is using ssh over a blacklisted interface
             # there needs to be no per-packet output by default. If there is
             # output for each packet, an infinite loop is generated where each
             # packet produces output which produces a packet, etc.
-            elif (pid and (pid != self.pid) and crit.first_packet_new_session and
-                    (not no_further_processing)):
-                self.logger.info('  pid:  %d name: %s' %
+            elif (pid and (pid != self.pid) and crit.first_packet_new_session
+                  and (not no_further_processing)):
+                self.logger.info('  pid:%d name: %s' %
                                  (pid, comm if comm else 'Unknown'))
 
             # 2: Call layer 3 (network) callbacks
