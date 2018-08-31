@@ -6,6 +6,7 @@
 # Developed by Peter Kacherginsky
 
 import logging
+import logging.handlers
 
 import os
 import sys
@@ -161,7 +162,9 @@ class Fakenet(object):
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
 
             else:
-                self.logger.error('Error: Your system %s is currently not supported.', platform_name)
+                self.logger.error(
+                    'Error: Your system %s is currently not supported.' %
+                    (platform_name))
                 sys.exit(1)
 
         # Start all of the listeners
@@ -270,7 +273,7 @@ def main():
  | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
  |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                        Version 1.4.0
+                        Version 1.4.1
   _____________________________________________________________
                    Developed by FLARE Team
   _____________________________________________________________               
@@ -284,17 +287,62 @@ def main():
                       action="store_true", dest="verbose", default=False,
                       help="print more verbose messages.")
     parser.add_option("-l", "--log-file", action="store", dest="log_file")
+    parser.add_option("-s", "--log-syslog", action="store_true", dest="syslog",
+                      default=False, help="Log to syslog via /dev/log")
     parser.add_option("-f", "--stop-flag", action="store", dest="stop_flag",
                       help="terminate if stop flag file is created")
+    # TODO: Rework the way loggers are created and configured by subcomponents
+    # to produce the expected result when logging control is asserted at the
+    # top level. For now, the setting serves its real purpose which is to ease
+    # testing on Linux after modifying logging such that console and file
+    # output are not mutually exclusive.
+    parser.add_option("-n", "--no-console-output", action="store_true",
+                      dest="no_con_out", default=False,
+                      help="Suppress console output (for testing on Linux)")
 
     (options, args) = parser.parse_args()
 
     logging_level = logging.DEBUG if options.verbose else logging.INFO
 
+    date_format = '%m/%d/%y %I:%M:%S %p'
+    logging.basicConfig(format='%(asctime)s [%(name)18s] %(message)s',
+                        datefmt=date_format, level=logging_level)
+    logger = logging.getLogger('')  # Get the root logger i.e. ''
+
+    if options.no_con_out:
+        logger.handlers = []
+
     if options.log_file:
-        logging.basicConfig(format='%(asctime)s [%(name)18s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.INFO, filename=options.log_file)
-    else:
-        logging.basicConfig(format='%(asctime)s [%(name)18s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.INFO)
+        try:
+            loghandler = logging.StreamHandler(stream=open(options.log_file,
+                                                           'a'))
+        except IOError:
+            print('Failed to open specified log file: %s' % (options.log_file))
+            sys.exit(1)
+        loghandler.formatter = logging.Formatter(
+            '%(asctime)s [%(name)18s] %(message)s', datefmt=date_format)
+        logger.addHandler(loghandler)
+
+    if options.syslog:
+        platform_name = platform.system()
+        sysloghandler = None
+        if platform_name == 'Windows':
+            sysloghandler = logging.handlers.NTEventLogHandler('FakeNet-NG')
+        elif platform_name.lower().startswith('linux'):
+            sysloghandler = logging.handlers.SysLogHandler('/dev/log')
+        else:
+            print('Error: Your system %s is currently not supported.' %
+                  (platform_name))
+            sys.exit(1)
+
+        # Specify datefmt for consistency, but syslog generally logs the time
+        # on each log line, so %(asctime) is omitted here.
+        sysloghandler.formatter = logging.Formatter(
+            '"FakeNet-NG": {"loggerName":"%(name)s", '
+            '"moduleName":"%(module)s", '
+            '"levelName":"%(levelname)s", '
+            '"message":"%(message)s"}', datefmt=date_format)
+        logger.addHandler(sysloghandler)
 
     fakenet = Fakenet(logging_level)
     fakenet.parse_config(options.config_file)
