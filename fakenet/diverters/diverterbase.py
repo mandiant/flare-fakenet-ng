@@ -14,6 +14,7 @@ from debuglevels import *
 from collections import namedtuple
 from collections import OrderedDict
 
+
 class ProxyConns(object):
     """Class to track all proxy connections from within the diverter so a
     connection status can be obtained when deciding to ignore a local packet
@@ -75,7 +76,7 @@ class ProxyConns(object):
                     self.connections[listener_port] = ProxyConnMeta()
 
     def conn_established(self, listener_port, proxy_port):
-        """TCP handshake phase is completed. Change handshake_phase member variable
+        """TCP handshake phase is completed. Change handshake_phase
 
         Args:
             listener port (int): The port of the bound listener
@@ -97,6 +98,7 @@ class ProxyConns(object):
             if listener_port in self.connections:
                 self.connections[listener_port].remove(proxy_port)
 
+
 class ProxyConnMeta(object):
     """Class to track proxy connection status by port so a connection status
     can be determined when deciding whether to ignore a local packet.
@@ -117,7 +119,7 @@ class ProxyConnMeta(object):
     def __str__(self):
         return 'ProxyConnMeta: connecting:{} | peers:{}'.format(
             self.handshake_phase, [p for p in self.peer_ports])
- 
+
     def __repr__(self):
         return 'ProxyConnMeta: connecting:{} | peers:{}'.format(
             self.handshake_phase, [p for p in self.peer_ports])
@@ -164,6 +166,7 @@ class ProxyConnMeta(object):
         """Remove a proxy endpoint from the connections to this listener"""
         if proxy_port in self.peer_ports:
             self.peer_ports.remove(proxy_port)
+
 
 class DivertParms(object):
     """Class to abstract all criteria possible out of the Windows and Linux
@@ -457,7 +460,7 @@ class ListenerPorts(object):
         proto = listener.proto
         port = listener.port
 
-        if not proto in self.protos:
+        if proto not in self.protos:
             self.protos[proto] = {}
 
         if port in self.protos[proto]:
@@ -1233,11 +1236,13 @@ class DiverterBase(fnconfig.Config):
         self.blacklist_ifaces = None
         if self.is_set('linuxblacklistinterfaces'):
             self.blacklist_ifaces_disp = (
-                self.getconfigval('linuxblacklistinterfacesdisposition', 'drop'))
+                self.getconfigval('linuxblacklistinterfacesdisposition',
+                                  'drop'))
             self.blacklist_ifaces = (
                 self.getconfigval('linuxblacklistedinterfaces', None))
-            self.logger.debug('Blacklisted interfaces: %s. Disposition: %s' % 
-                (self.blacklist_ifaces, self.blacklist_ifaces_disp))
+            self.logger.debug('Blacklisted interfaces: %s. Disposition: %s' %
+                              (self.blacklist_ifaces, 
+                              self.blacklist_ifaces_disp))
 
     def write_pcap(self, pkt):
         """Writes a packet to the pcap.
@@ -1316,14 +1321,14 @@ class DiverterBase(fnconfig.Config):
                 logline = self.formatPkt(pkt, pid, comm)
                 self.pdebug(DGENPKTV, logline)
 
-            # check for no_further_processing here in order to filter out 
-            # packets that are being ignored already due to a blacklisted 
+            # check for no_further_processing here in order to filter out
+            # packets that are being ignored already due to a blacklisted
             # interface. If a user is using ssh over a blacklisted interface
             # there needs to be no per-packet output by default. If there is
             # output for each packet, an infinite loop is generated where each
             # packet produces output which produces a packet, etc.
             elif (pid and (pid != self.pid) and crit.first_packet_new_session
-                and no_further_processing is not True):
+                  and no_further_processing is not True):
                 self.logger.info('  pid:  %d name: %s' %
                                  (pid, comm if comm else 'Unknown'))
 
@@ -1603,7 +1608,7 @@ class DiverterBase(fnconfig.Config):
         # Single-host only checks
         if self.single_host_mode:
             pass
-        
+ 
         # Multi-host only checks
         else:
             if self.is_set('listenerlocalignore'):
@@ -1612,18 +1617,18 @@ class DiverterBase(fnconfig.Config):
                 # non-local traffic. We must allow local traffic to/from proxy.
                 if (crit.is_loopback0 and crit.dport_bound and not
                         self.proxy_conns.is_proxied(crit.pkt.sport,
-                        crit.pkt.dport)):
+                                                    crit.pkt.dport)):
                     self.logger.debug('Drop local packet destined for bound ' +
-                                      'port. src: %s:%s dst: %s:%s' % 
-                                      (pkt.src_ip, pkt.sport, pkt.dst_ip, 
+                                      'port. src: %s:%s dst: %s:%s' %
+                                      (pkt.src_ip, pkt.sport, pkt.dst_ip,
                                       pkt.dport))
                     return True
 
         # Single and multi-host checks
         # check for blacklisted interface and drop if needed
         if self.blacklist_ifaces and self.blacklist_ifaces_disp == 'Drop':
-            if (pkt.src_ip in self.blacklist_ifaces or 
-                        pkt.dst_ip in self.blacklist_ifaces):
+            if (pkt.src_ip in self.blacklist_ifaces or
+                    pkt.dst_ip in self.blacklist_ifaces):
                 self.logger.debug('Drop blacklisted Interface. src: %s dst: %s'
                                   % (pkt.src_ip, pkt.dst_ip))
                 return True
@@ -1968,4 +1973,3 @@ class DiverterBase(fnconfig.Config):
         if execCmd:
             self.logger.info('Executing command: %s' % (execCmd))
             self.execute_detached(execCmd)
-
