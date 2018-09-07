@@ -193,8 +193,6 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.stop()
                 sys.exit(1)
 
-
-
         return True
 
     def stopCallback(self):
