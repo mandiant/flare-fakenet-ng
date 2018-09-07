@@ -154,11 +154,13 @@ def get_top_listener(config, data, listeners, diverter, orig_src_ip,
     
     return top_listener
 
+
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
-    
     def handle(self):
 
+        self.server.logger.info(
+            'New connection: %s:%s' % self.request.getpeername())
         remote_sock = self.request
         # queue for data received from the listener
         listener_q = Queue.Queue()
