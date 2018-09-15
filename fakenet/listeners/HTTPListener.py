@@ -130,7 +130,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, *args)
 
     def version_string(self):
-	return self.server.config.get('version', "FakeNet/1.3")
+        return self.server.config.get('version', "FakeNet/1.3")
 
     def setup(self):
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
@@ -138,11 +138,11 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         self.server.logger.info('Received HEAD request')
-	do_HEAD_or_GET()
+        do_HEAD_or_GET()
 
     def do_GET(self):
         self.server.logger.info('Received a GET request.')
-	self.wfile.write(do_HEAD_or_GET())
+        self.wfile.write(do_HEAD_or_GET())
 
     def do_HEAD_or_GET(self):
         # Process request
@@ -162,7 +162,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.end_headers()
 
         # Return response body to be included for GET and ignored for HEAD
-	return response
+        return response
 
     def do_POST(self):
         self.server.logger.info('Received a POST request')
