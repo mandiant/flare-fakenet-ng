@@ -138,23 +138,13 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         self.server.logger.info('Received HEAD request')
-
-        # Process request
-        self.server.logger.info('%s', '-'*80)
-        self.server.logger.info(self.requestline)
-        for line in str(self.headers).split("\n"):
-            self.server.logger.info(line)
-        self.server.logger.info('%s', '-'*80)
-
-        # Prepare response
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
+	do_HEAD_or_GET()
 
     def do_GET(self):
-
         self.server.logger.info('Received a GET request.')
+	self.wfile.write(do_HEAD_or_GET())
 
+    def do_HEAD_or_GET(self):
         # Process request
         self.server.logger.info('%s', '-'*80)
         self.server.logger.info(self.requestline)
@@ -171,7 +161,8 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.send_header("Content-Length", len(response))
         self.end_headers()
 
-        self.wfile.write(response)
+        # Return response body to be included for GET and ignored for HEAD
+	return response
 
     def do_POST(self):
         self.server.logger.info('Received a POST request')
