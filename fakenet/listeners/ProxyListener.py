@@ -153,13 +153,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         try:
             data = remote_sock.recv(BUF_SZ, socket.MSG_PEEK)
-
-            self.server.logger.info('Received %d bytes.', len(data))
-            self.server.logger.debug('%s', '-'*80,)
-            for line in hexdump_table(data):
-                self.server.logger.debug(line)
-            self.server.logger.debug('%s', '-'*80,)
-
+            log_details(self.server.logger, data)
         except Exception as e:
             data = ''
             self.server.logger.info('recv() error: %s' % e.message)
@@ -239,7 +233,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             self.server.logger.debug(traceback.format_exc())
         return
 
-
     def receive_data(self, s, q, ev):
         try:
             while self.is_running:
@@ -255,7 +248,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         except Exception as e:
             self.server.logger.error('Exception when trying to receive data')
             self.server.logger.debug(e.message)
-            self.server.logger.debug(traceback.format_exc())
 
         # Always set the last event to have the main loop wake up
         ev.set()
@@ -285,10 +277,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
         if data:
 
             self.server.logger.info('Received %d bytes.', len(data))
-            self.server.logger.debug('%s', '-'*80,)
-            for line in hexdump_table(data):
-                self.server.logger.debug(line)
-            self.server.logger.debug('%s', '-'*80,)
+            log_details(self.server.logger, data)
 
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
@@ -319,6 +308,16 @@ def hexdump_table(data, length=16):
         ascii_line = ''.join([b if ord(b) > 31 and ord(b) < 127 else '.' for b in chunk ] )
         hexdump_lines.append("%04X: %-*s %s" % (i, length*3, hex_line, ascii_line ))
     return hexdump_lines
+
+
+def log_details(logger, data):
+    logger.info('Received %d bytes.', len(data))
+    logger.debug('%s', '-'*80,)
+    for line in hexdump_table(data):
+        logger.debug(line)
+    logger.debug('%s', '-'*80,)
+    return
+
 
 def main():
 
