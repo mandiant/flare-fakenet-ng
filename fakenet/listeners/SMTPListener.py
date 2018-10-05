@@ -50,7 +50,7 @@ class SMTPListener(object):
         self.name = 'SMTP'
         self.port = self.config.get('port', 25)
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -86,7 +86,7 @@ class SMTPListener(object):
         self.server_thread.start()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        self.logger.debug('Stopping...')
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -145,7 +145,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("503 Command not supported\r\n")
 
         except socket.timeout:
-            self.server.logger.warning('Connection timeout')
+            self.server.logger.debug('Connection timeout')
             
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)

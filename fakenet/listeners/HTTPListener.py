@@ -112,7 +112,7 @@ class HTTPListener(object):
         self.server_thread.start()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        self.logger.debug('Stopping...')
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -245,7 +245,8 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 self.server.logger.error('Could not locate requested file or default handler.')
                 return (response, response_type)
 
-        self.server.logger.info('Responding with mime type: %s file: %s', response_type, response_filename)
+        self.server.logger.debug('Responding with mime type: %s file: %s', 
+                                 response_type, response_filename)
 
         try:
             f = open(response_filename, 'rb')

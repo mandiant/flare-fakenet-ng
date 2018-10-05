@@ -83,7 +83,7 @@ class IRCListener(object):
         self.port = self.config.get('port', 6667)
         self.logger.debug('PORT: %s', self.port)
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -105,7 +105,7 @@ class IRCListener(object):
         self.server_thread.start()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        self.logger.debug('Stopping...')
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -147,7 +147,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             handler(cmd, params)
 
         except socket.timeout:
-            self.server.logger.warning('Connection timeout')
+            self.server.logger.debug('Connection timeout')
             
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)

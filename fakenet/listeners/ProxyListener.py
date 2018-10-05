@@ -35,7 +35,7 @@ class ProxyListener(object):
         self.server = None
         self.udp_fwd_table = dict()
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -78,7 +78,7 @@ class ProxyListener(object):
         self.server_thread.daemon = True
         self.server_thread.start()
         server_ip, server_port = self.server.server_address
-        self.logger.info("%s Server(%s:%d) thread: %s" % (proto, server_ip, 
+        self.logger.debug("%s Server(%s:%d) thread: %s" % (proto, server_ip, 
             server_port, self.server_thread.name))
 
     def stop(self):
@@ -185,7 +185,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         try:
             data = remote_sock.recv(BUF_SZ, socket.MSG_PEEK)
 
-            self.server.logger.info('Received %d bytes.', len(data))
+            self.server.logger.debug('Received %d bytes.', len(data))
             self.server.logger.debug('%s', '-'*80,)
             for line in hexdump_table(data):
                 self.server.logger.debug(line)
@@ -267,7 +267,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
         if data:
 
-            self.server.logger.info('Received %d bytes.', len(data))
+            self.server.logger.debug('Received %d bytes.', len(data))
             self.server.logger.debug('%s', '-'*80,)
             for line in hexdump_table(data):
                 self.server.logger.debug(line)
@@ -287,7 +287,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
                 sock.sendto(data, ('localhost', int(top_listener.port)))
                 reply = sock.recv(BUF_SZ)
-                self.server.logger.info('Received %d bytes.', len(data))
+                self.server.logger.debug('Received %d bytes.', len(data))
                 sock.close()
                 remote_sock.sendto(reply, (orig_src_ip, int(orig_src_port)))
         else:

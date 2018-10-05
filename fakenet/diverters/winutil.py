@@ -654,11 +654,11 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                 self.logger.error(
                     'Failed to enable the service %s. (sc config)', service_name)
             else:
-                self.logger.info(
+                self.logger.debug(
                     'Successfully enabled the service %s. (sc config)', service_name)
 
         else:
-            self.logger.info('Successfully enabled the service %s.',
+            self.logger.debug('Successfully enabled the service %s.',
                              service_name)
 
         service_status = self.query_service_status_ex(service_handle)
