@@ -626,7 +626,7 @@ class DiverterBase(fnconfig.Config):
         # Check configured DNS servers
         dns_ok = self.check_dns_servers()
         if not dns_ok:
-            self.logger.warning('WARNING: No DNS servers configured!')
+            self.logger.debug('WARNING: No DNS servers configured!')
             if self.is_set('fixdns'):
                 dns_ok = self.fix_dns()
                 if not dns_ok:
