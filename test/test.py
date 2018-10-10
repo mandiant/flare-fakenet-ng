@@ -505,7 +505,7 @@ class FakeNetTester(object):
 
     def _test_smtp_ssl(self, sender, recipient, msg, hostname, port=None, timeout=5):
         smtpserver = smtplib.SMTP_SSL(hostname, port, 'fake.net', None, None, timeout)
-        server.sendmail(sender, recipient, msg)
+        smtpserver.sendmail(sender, recipient, msg)
         smtpserver.quit()
 
         return True
