@@ -15,7 +15,6 @@ class SMTPListener(object):
 
     def taste(self, data, dport):
 
-
         # Once the TCP connection has been established, the server initiates 
         # the conversation with '220' message. However, if the client connects
         # to a nonstandard port there is no way for the proxy to know that
