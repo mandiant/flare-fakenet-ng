@@ -508,6 +508,8 @@ class FakeNetTester(object):
         server.sendmail(sender, recipient, msg)
         smtpserver.quit()
 
+        return True
+
     def _test_smtp(self, sender, recipient, msg, hostname, port=None, timeout=5):
         smtpserver = smtplib.SMTP(hostname, port, 'fake.net', timeout)
         smtpserver.sendmail(sender, recipient, msg)
