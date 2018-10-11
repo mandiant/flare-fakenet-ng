@@ -39,7 +39,7 @@ class DNSListener(object):
         self.name = 'DNS'
         self.port = self.config.get('port', 53)
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -83,10 +83,10 @@ class DNSHandler():
 
         except Exception, e:
             self.server.logger.error('Error: Invalid DNS Request')
-            self.server.logger.info('%s', '-'*80)
+            self.server.logger.debug('%s', '-'*80)
             for line in hexdump_table(data):
                 self.server.logger.info(line)
-            self.server.logger.info('%s', '-'*80,)
+            self.server.logger.debug('%s', '-'*80,)
 
         else:                 
             # Only Process DNS Queries
@@ -157,10 +157,12 @@ class DNSHandler():
                         fake_record = socket.gethostbyname(socket.gethostname())
 
                     if self.server.nxdomains > 0:
-                        self.server.logger.info('Ignoring query. NXDomains: %d', self.server.nxdomains)
+                        self.server.logger.debug('Ignoring query. NXDomains:' +
+                                                 ' %d', self.server.nxdomains)
                         self.server.nxdomains -= 1
                     else:
-                        self.server.logger.info('Responding with \'%s\'', fake_record)
+                        self.server.logger.debug('Responding with \'%s\'', 
+                                                 fake_record)
                         response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
 
                 elif qtype == 'MX':
@@ -170,7 +172,7 @@ class DNSHandler():
                     # dnslib doesn't like trailing dots
                     if fake_record[-1] == ".": fake_record = fake_record[:-1]
 
-                    self.server.logger.info('Responding with \'%s\'', fake_record)
+                    self.server.logger.debug('Responding with \'%s\'', fake_record)
                     response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
 
 
@@ -178,7 +180,8 @@ class DNSHandler():
 
                     fake_record = self.server.config.get('responsetxt', 'FAKENET')
 
-                    self.server.logger.info('Responding with \'%s\'', fake_record)
+                    self.server.logger.debug('Responding with \'%s\'', 
+                                             fake_record)
                     response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
 
                 response = response.pack()
@@ -224,7 +227,7 @@ class TCPHandler(DNSHandler, SocketServer.BaseRequestHandler):
                 self.request.sendall(length+response)      
 
         except socket.timeout:
-            self.server.logger.warning('Connection timeout.')
+            self.server.logger.debug('Connection timeout.')
 
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror)
