@@ -127,7 +127,7 @@ class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
     # Log connections regardless of HTTP requests
     def get_request(self):
         conn, address = self.socket.accept()
-        self.logger.info('HTTP Connection received from %s:%s' % (address))
+        self.logger.info('HTTP connection received from %s:%s' % (address))
         return (conn, address)
 
 class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):

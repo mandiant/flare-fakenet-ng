@@ -130,6 +130,13 @@ class ThreadedTCPClientSocket(threading.Thread):
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     daemon_threads = True
 
+    # Log all connections regardless if data received
+    def get_request(self):
+        conn, address = self.socket.accept()
+        self.logger.info('Proxy connection (non-standard port) received ' +
+                'from %s:%s' % (address))
+        return (conn, address)
+
 class ThreadedUDPServer(SocketServer.ThreadingMixIn, SocketServer.UDPServer):
     daemon_threads = True
 
