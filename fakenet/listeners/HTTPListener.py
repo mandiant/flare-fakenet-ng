@@ -123,6 +123,12 @@ class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
     def handle_error(self, request, client_address):
         exctype, value = sys.exc_info()[:2]
         self.logger.error('Error: %s', value)
+    
+    # Log connections regardless of HTTP requests
+    def get_request(self):
+        conn, address = self.socket.accept()
+        self.logger.info('HTTP Connection received from %s:%s' % (address))
+        return (conn, address)
 
 class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
