@@ -192,7 +192,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             self.server.logger.debug('%s', '-'*80,)
 
         except Exception as e:
-            self.server.logger.info('recv() error: %s' % e.message)
+            self.server.logger.warning('recv() error: %s' % e.message)
 
         if data:
 
@@ -316,7 +316,7 @@ def main():
     TCP_server_thread.daemon = True
     TCP_server_thread.start()
     tcp_server_ip, tcp_server_port = TCP_server.server_address
-    logger.info("TCP Server(%s:%d) thread: %s" % (tcp_server_ip, 
+    logger.debug("TCP Server(%s:%d) thread: %s" % (tcp_server_ip, 
         tcp_server_port, TCP_server_thread.name))
 
     try:
@@ -326,9 +326,9 @@ def main():
         logger.info(e)
         TCP_server.shutdown()
     finally:
-        logger.info('Closing ProxyListener')
+        logger.debug('Closing ProxyListener')
         exit(1)
-    logger.info('Exiting')
+    logger.debug('Exiting')
     TCP_server.shutdown()
 
 if __name__ == '__main__':
