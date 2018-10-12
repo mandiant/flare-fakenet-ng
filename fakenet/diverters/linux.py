@@ -242,7 +242,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.logger.error('Exception: %s' % (traceback.format_exc()))
             raise
 
-        nfqpkt.accept()
+        nfqpkt.accept() if not pkt.drop else nfqpkt.drop()
 
     def handle_incoming(self, nfqpkt):
         """Incoming packet hook.
@@ -266,7 +266,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.logger.error('Exception: %s' % (traceback.format_exc()))
             raise
 
-        nfqpkt.accept()
+        nfqpkt.accept() if not pkt.drop else nfqpkt.drop()
 
     def handle_outgoing(self, nfqpkt):
         """Outgoing packet hook.
@@ -293,7 +293,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.logger.error('Exception: %s' % (traceback.format_exc()))
             raise
 
-        nfqpkt.accept()
+        nfqpkt.accept() if not pkt.drop else nfqpkt.drop()
 
     def check_log_nonlocal(self, crit, pkt):
         """Conditionally log packets having a foreign destination.

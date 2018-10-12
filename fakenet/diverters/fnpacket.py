@@ -39,6 +39,10 @@ class PacketCtx(object):
         self._is_ip = False
         self._is_icmp = False
 
+        # Packet handler logic can check if a drop condition has been met. 
+        # Currenty used for blacklisting interfaces
+        self.drop = False
+
         # Some packet attributes are cached in duplicate members below for code
         # simplicity and uniformity rather than having to query which packet
         # headers were or were not parsed.
