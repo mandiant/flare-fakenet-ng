@@ -996,6 +996,10 @@ class DiverterBase(fnconfig.Config):
             self.pcap = dpkt.pcap.Writer(open(self.pcap_filename, 'wb'),
                                          linktype=dpkt.pcap.DLT_RAW)
             self.pcap_lock = threading.Lock()
+            self.pcap_visibility = [item.lower().strip() for item in
+                self.getconfigval('pcapvisibility').split(',')]
+            self.logger.debug('Packets visible in pcap: %s', ', '.join(
+                [str(p) for p in self.pcap_visibility]))
 
         # Do not redirect blacklisted processes
         if self.is_configured('processblacklist'):
@@ -1129,8 +1133,14 @@ class DiverterBase(fnconfig.Config):
             None
         """
 
-        # 1: Unconditionally write unmangled packet to pcap
-        self.write_pcap(pkt)
+        # 1: Write raw/unmangled packet to pcap
+        if 'raw' in self.pcap_visibility:
+            if 'proxied' in self.pcap_visibility:
+                self.write_pcap(pkt)
+            else:
+                if not pkt.proxied(self):
+                    self.write_pcap(pkt)
+
 
         no_further_processing = False
 
@@ -1192,8 +1202,12 @@ class DiverterBase(fnconfig.Config):
 
         # 4: Double write mangled packets to represent changes made by
         # FakeNet-NG while still allowing SSL decoding with the old packets
-        if pkt.mangled:
-            self.write_pcap(pkt)
+        if pkt.mangled and 'mangled' in self.pcap_visibility:
+            if 'proxied' in self.pcap_visibility:
+                self.write_pcap(pkt)
+            else:
+                if not pkt.proxied(self):
+                    self.write_pcap(pkt)
 
     def formatPkt(self, pkt, pid, comm):
         """Format a packet analysis log line for DGENPKTV.
