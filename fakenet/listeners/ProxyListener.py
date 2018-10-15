@@ -112,21 +112,15 @@ class ThreadedTCPClientSocket(threading.Thread):
         self.proxy_port = None
 
     def run(self):
-
+ 
         try:
-            if self.diverter.is_set('listenerlocalignore'):
-                # Before connect() call need to tell the diverter to
-                # not drop the TCP handshake packets on both sides of the Proxy
-                self.diverter.proxy_conns.new_conn(self.port)
+            self.diverter.proxy_conns.new_conn(self.port)
 
             self.sock.connect((self.ip, self.port))
 
-            if self.diverter.is_set('listenerlocalignore'):
-                # Connection is established. Diverter will not drop local Proxy
-                # traffic for this connection
-                self.proxy_port = self.sock.getsockname()[1]
-                self.diverter.proxy_conns.conn_established(self.port,
-                                                           self.proxy_port)
+            self.proxy_port = self.sock.getsockname()[1]
+            self.diverter.proxy_conns.conn_established(self.port,
+                                                       self.proxy_port)
 
             while True:
                 readable, writable, exceptional = select.select([self.sock],

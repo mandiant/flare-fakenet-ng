@@ -23,6 +23,7 @@ class ProxyConns(object):
     def __init__(self):
         self.connections = {}
         self.lock = threading.Lock()
+        self.logger = logging.getLogger('Diverter')
 
     def conn_establishing(self, proxy_port):
         """Check if a connection is in the TCP handshake phase
@@ -36,7 +37,7 @@ class ProxyConns(object):
 
         return self.connections.get(proxy_port).is_connecting()
 
-    def is_proxied(self, sport, dport):
+    def proxy_to_listener(self, sport, dport):
         """Is this packet coming from the proxy to a bound listener
 
         Args:
@@ -52,6 +53,43 @@ class ProxyConns(object):
                         sport in self.connections.get(dport).get_peers())
         return False
 
+    def listener_to_proxy(self, sport, dport):
+        """Is this packet coming from a bound listener to the proxy
+
+        Args:
+            sport (int): source port
+            dport (int): destination port
+
+        Returns:
+            bool: True if the packet is from the proxy to a bound listener
+        """
+        with self.lock:
+            if sport in self.connections:
+                return (self.conn_establishing(sport) or
+                        dport in self.connections.get(sport).get_peers())
+        return False
+
+    def proxy_related(self, sport, dport, diverter):
+        """Does this packet meet any of the following conditions?
+        diverter to proxy, proxy to diverter, proxy to listener, listener to
+        proxy
+        
+        Args:
+            sport (int): source port
+            dport (int): destination port
+
+        Returns:
+            bool: True if the packet is part of the proxy pipeline
+        """
+        proxy_ports = set(
+            [int(diverter.listeners_config['proxytcplistener']['port']),
+             int(diverter.listeners_config['proxyudplistener']['port'])])
+        packet_ports = set([sport, dport])
+
+        return (not proxy_ports.isdisjoint(packet_ports) or 
+                self.proxy_to_listener(sport, dport) or 
+                self.listener_to_proxy(sport, dport))
+ 
     def new_conn(self, listener_port, proxy_port=None):
         """Establish a new connection
 
@@ -142,6 +180,7 @@ class ProxyConnMeta(object):
         Args:
             proxy_port (int): The ephemeral port of the proxy endpoint
         """
+        #print 'ProxyConnMeta connected(%s)' % proxy_port
         self.handshake_phase = False
         self.add_peer(proxy_port)
 
@@ -1307,7 +1346,8 @@ class DiverterBase(fnconfig.Config):
             if 'proxied' in self.pcap_visibility:
                 self.write_pcap(pkt)
             else:
-                if not pkt.proxied(self):
+                if not self.proxy_conns.proxy_related(pkt.sport, pkt.dport,
+                                                      self):
                     self.write_pcap(pkt)
 
 
@@ -1380,7 +1420,8 @@ class DiverterBase(fnconfig.Config):
             if 'proxied' in self.pcap_visibility:
                 self.write_pcap(pkt)
             else:
-                if not pkt.proxied(self):
+                if not self.proxy_conns.proxy_related(pkt.sport, pkt.dport,
+                                                      self):
                     self.write_pcap(pkt)
 
     def formatPkt(self, pkt, pid, comm):
@@ -1630,7 +1671,7 @@ class DiverterBase(fnconfig.Config):
                 # packets destined for listeners. However,the proxy can forward
                 # non-local traffic. We must allow local traffic to/from proxy.
                 if (crit.is_loopback0 and crit.dport_bound and not
-                        self.proxy_conns.is_proxied(crit.pkt.sport,
+                        self.proxy_conns.proxy_to_listener(crit.pkt.sport,
                                                     crit.pkt.dport)):
                     self.logger.debug('Drop local packet destined for bound ' +
                                       'port. src: %s:%s dst: %s:%s' %
