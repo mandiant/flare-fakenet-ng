@@ -694,7 +694,7 @@ class FakeNetTester(object):
         t['TCP domainname @ unbound'] = (self._test_sk, (tcp, domain_dne, 9999), True)
         if self.settings.singlehost:
             t['TCP localhost @ bound'] = (self._test_sk, (tcp, localhost, 1337), True)
-            t['TCP localhost @ unbound'] = (self._test_sk, (tcp, localhost, 9999), False)
+            t['TCP localhost @ unbound'] = (self._test_sk, (tcp, localhost, 9999), True)
 
         t['UDP external IP @ bound'] = (self._test_sk, (udp, ext_ip, 1337), True)
         t['UDP external IP @ unbound'] = (self._test_sk, (udp, ext_ip, 9999), True)
@@ -704,7 +704,7 @@ class FakeNetTester(object):
         t['UDP domainname @ unbound'] = (self._test_sk, (udp, domain_dne, 9999), True)
         if self.settings.singlehost:
             t['UDP localhost @ bound'] = (self._test_sk, (udp, localhost, 1337), True)
-            t['UDP localhost @ unbound'] = (self._test_sk, (udp, localhost, 9999), False)
+            t['UDP localhost @ unbound'] = (self._test_sk, (udp, localhost, 9999), True)
 
         t['ICMP external IP'] = (self._test_icmp, (ext_ip,), True)
         t['ICMP arbitrary host'] = (self._test_icmp, (arbitrary,), True)
