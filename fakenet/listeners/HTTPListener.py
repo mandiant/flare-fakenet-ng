@@ -2,6 +2,8 @@ import logging
 
 import os
 import sys
+import imp
+
 
 import threading
 import SocketServer
@@ -136,6 +138,55 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
         BaseHTTPServer.BaseHTTPRequestHandler.setup(self)
 
+    def HandleCustomReponse(self, post_data = None):
+        try:
+            # process custom response
+            if self.server.config.get('resp_config_data'):
+                if self.headers.get('Host'):
+                    self.server.logger.info('Check custom response for domain %s' %  self.headers.get('Host'))
+
+                    # look to see if we have a custom response for the host being request
+                    for i in self.server.config.get('resp_config_data'):
+                        if i.keys()[0] == self.headers.get('Host'):
+                            # check for static response
+                            if 'static' in i[i.keys()[0]].keys():
+                                # Prepare response
+                                self.send_response(200)
+                                self.send_header("Content-Type", 'text/html')
+                                self.send_header("Content-Length", len(i[i.keys()[0]]['static']))
+                                self.end_headers()
+                                self.wfile.write(i[i.keys()[0]]['static'])
+                                return True
+                            # check for static-file response
+                            if 'static-file' in i[i.keys()[0]].keys():
+                                # Prepare response
+                                self.send_response(200)
+                                self.send_header("Content-Type", i[i.keys()[0]]['content-type'])
+
+                                # throws exception if file doesn't exist.
+                                file_size = os.path.getsize(i[i.keys()[0]]['static-file'])
+                                with open(self.server.config.get('resp_config') + '\\' + i[i.keys()[0]]['static-file'], 'rb') as file:
+                                    self.send_header("Content-Length", file_size)
+                                    self.end_headers()
+                                    data = file.read()
+                                    self.wfile.write(data)
+                                return True
+                            # check for dynamic response handler
+                            if 'dynamic' in i[i.keys()[0]].keys():
+                                file = self.server.config.get('resp_config') + '\\' + i[i.keys()[0]]['dynamic']
+                                mod = imp.load_source('mod', file)
+
+                                # HandleRequest sends reponse to client
+                                mod.HandleRequest(self, post_data)
+                                return True
+
+        except:
+            self.server.logger.info('Exception while processing custom response data')
+
+        # indicate that we did not handle the custom response
+        return False
+
+
     def do_HEAD(self):
         self.server.logger.info('Received HEAD request')
 
@@ -161,6 +212,10 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         for line in str(self.headers).split("\n"):
             self.server.logger.info(line)
         self.server.logger.info('%s', '-'*80)
+
+        # Attempt to handle custom response
+        if self.HandleCustomReponse() == True:
+            return
 
         # Get response type based on the requested path
         response, response_type = self.get_response(self.path)
@@ -205,6 +260,10 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                     http_f.close()
                 else:
                     self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)        
+
+        # Attempt to handle custom response
+        if self.HandleCustomReponse(post_body) == True:
+            return
 
         # Get response type based on the requested path
         response, response_type = self.get_response(self.path)
