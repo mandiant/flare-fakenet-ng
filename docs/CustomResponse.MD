@@ -1,37 +1,29 @@
-I've hacked in support for custom responses.
+Custom HTTP response configuration can be extended to HTTPListener settings. The HTTPListener support the following new settings:
 
-I've added a new command line option to fakenet: '-r'. This option allows you to specify a json configuration which defines different custom response types. The current code only works with HTTP/HTTPS, however, I can think of situations where having an easy custom response handler for other protocols would be helpful, such as DNS.
-
-Here is an example json configuration.
-
+- Support static response. The `<static string>` is sent back as the HTTP response as-is, without any further logic.
+  HTTPListener uses the following pair:
 ```
-[
-    {
-        "some.random.c2.com":
-        {
-            "dynamic": "C2_Impl.py"
-        }
-    },
-    {
-        "api.ipify.org":
-        {
-            "static": "1.2.3.4"
-        }
-    },
-    {
-        "static.example.com":
-        {
-            "static-file": "static_file.bin",
-            "content-type": "text/plain"
-        }
-    }
-]
-
+Static_C2: static.evil.com, static2.evil.com
+Static_Data: <Static string>
 ```
 
-The config consists of an array of hosts. For each how you must specify: static, static-file, or dynamic. When an HTTP request is received by fakenet it first checks this array, comparing the HTTP Host header with the items in the array. If item in the array was set as `static` fakenet returns the static string defined in the configuration. If the array item was set as `static-file`, fakenet returns the contents of the file (same directory as config), and uses the specified `content-type` from the configuration. Additionally, we can now handle a custom `dynamic` response based on a host. The dynamic configuration takes a ptython filename which is responsible for handling the request and response data.
 
-If any error occurs while processing any of the above, we default to returning the standard default file.
+- Support static file response. The `<subpath within webroot>` specifies a path within `webroot` directory. If the requested resource
+  is found, the content of the file is used as the HTTP resonse. Otherwise, we use the default Fakenet page. HTTPListener uses the
+  following pair:
+```
+StaticFile_C2: staticfile.evil.com, staticfile2.evil.com
+StaticFile_Path: <subpath within webroot>
+```
+
+
+- Support dynamic content generation. The `provider_file_name.py` specifies a python script within `webroot/modules`. The custom
+  content provider only needs to implement a HandleRequest function.
+```
+Custom_C2: custom.evil.com, custom2.evil.com
+Custom_Provider: provider_file_name.py
+```
+
 
 Here is an example dynamic handler
 ```
@@ -47,14 +39,7 @@ Here is an example dynamic handler
 '''
 def HandleRequest(req, post_data = None):
     content = "Dynamic Response"
-
- 
-    req.send_response(200)
-    req.send_header("Content-Type", 'text/html')
-    req.send_header("Content-Length", len(content))
-    req.end_headers()
-    req.wfile.write(content)
-
-
+    content_type = "text/html"
+    return content, content_type
 ```
 

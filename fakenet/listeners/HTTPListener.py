@@ -34,8 +34,8 @@ MIME_FILE_RESPONSE = {
 class HTTPListener(object):
 
     def taste(self, data, dport):
-        
-        request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
+
+        request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE',
             'OPTIONS', 'CONNECT', 'PATCH']
 
         confidence = 1 if dport in [80, 443] else 0
@@ -55,15 +55,15 @@ class HTTPListener(object):
         })
 
     def __init__(
-            self, 
-            config={}, 
-            name='HTTPListener', 
-            logging_level=logging.DEBUG, 
+            self,
+            config={},
+            name='HTTPListener',
+            logging_level=logging.DEBUG,
             ):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
-  
+
         self.config = config
         self.name = name
         self.local_ip  = '0.0.0.0'
@@ -85,8 +85,10 @@ class HTTPListener(object):
 
     def start(self):
         self.logger.debug('Starting...')
-            
-        self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), ThreadedHTTPRequestHandler)
+
+        def handler(*args):
+            return ThreadedHTTPRequestHandler(self.config, *args)
+        self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), handler)
         self.server.logger = self.logger
         self.server.config = self.config
         self.server.webroot_path = self.webroot_path
@@ -128,64 +130,51 @@ class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
 
 class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
-    def __init__(self, *args):
+    CUSTOM_C2_KEY = 'custom_c2'
+    CUSTOM_PROV_KEY = 'custom_provider'
+    STATIC_C2_KEY = 'static_c2'
+    STATIC_DATA_KEY = 'static_data'
+    STATIC_FILE_C2_KEY = 'staticfile_c2'
+    STATIC_FILE_PATH_KEY = 'staticfile_path'
+
+    def __init__(self, config, *args):
+        self.handler_map = self.initialize_handler_map(config)
+        for c2 in self.handler_map:
+            handler, data = self.handler_map[c2]
         BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, *args)
 
+    def initialize_handler_map(self, config):
+        map = dict()
+        keys = [
+            (self.CUSTOM_C2_KEY, self.CUSTOM_PROV_KEY, self.handle_custom),
+            (self.STATIC_C2_KEY, self.STATIC_DATA_KEY, self.handle_static),
+            (self.STATIC_FILE_C2_KEY, self.STATIC_FILE_PATH_KEY, self.handle_static_file),
+        ]
+        for c2key, datakey, handler in keys:
+            c2s, data = self.initialize_custom_config(config, c2key, datakey)
+            for c2 in c2s:
+                map[c2] = (handler, data)
+        return map
+
+
+    def initialize_custom_config(self, config, c2key, datakey):
+
+        c2list, data = [], None
+        try:
+            c2s = config.get(c2key, '').split(',')
+            data = config.get(datakey, '')
+            if data:
+                c2list = [c2.strip() for c2 in c2s if c2]
+        except:
+            c2list, data = [], None
+        return c2list, data
+
     def version_string(self):
-	return self.server.config.get('version', "FakeNet/1.3")
+        return self.server.config.get('version', "FakeNet/1.3")
 
     def setup(self):
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
         BaseHTTPServer.BaseHTTPRequestHandler.setup(self)
-
-    def HandleCustomReponse(self, post_data = None):
-        try:
-            # process custom response
-            if self.server.config.get('resp_config_data'):
-                if self.headers.get('Host'):
-                    self.server.logger.info('Check custom response for domain %s' %  self.headers.get('Host'))
-
-                    # look to see if we have a custom response for the host being request
-                    for i in self.server.config.get('resp_config_data'):
-                        if i.keys()[0] == self.headers.get('Host'):
-                            # check for static response
-                            if 'static' in i[i.keys()[0]].keys():
-                                # Prepare response
-                                self.send_response(200)
-                                self.send_header("Content-Type", 'text/html')
-                                self.send_header("Content-Length", len(i[i.keys()[0]]['static']))
-                                self.end_headers()
-                                self.wfile.write(i[i.keys()[0]]['static'])
-                                return True
-                            # check for static-file response
-                            if 'static-file' in i[i.keys()[0]].keys():
-                                # Prepare response
-                                self.send_response(200)
-                                self.send_header("Content-Type", i[i.keys()[0]]['content-type'])
-
-                                # throws exception if file doesn't exist.
-                                file_size = os.path.getsize(i[i.keys()[0]]['static-file'])
-                                with open(self.server.config.get('resp_config') + '\\' + i[i.keys()[0]]['static-file'], 'rb') as file:
-                                    self.send_header("Content-Length", file_size)
-                                    self.end_headers()
-                                    data = file.read()
-                                    self.wfile.write(data)
-                                return True
-                            # check for dynamic response handler
-                            if 'dynamic' in i[i.keys()[0]].keys():
-                                file = self.server.config.get('resp_config') + '\\' + i[i.keys()[0]]['dynamic']
-                                mod = imp.load_source('mod', file)
-
-                                # HandleRequest sends reponse to client
-                                mod.HandleRequest(self, post_data)
-                                return True
-
-        except:
-            self.server.logger.info('Exception while processing custom response data')
-
-        # indicate that we did not handle the custom response
-        return False
-
 
     def do_HEAD(self):
         self.server.logger.info('Received HEAD request')
@@ -212,10 +201,6 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         for line in str(self.headers).split("\n"):
             self.server.logger.info(line)
         self.server.logger.info('%s', '-'*80)
-
-        # Attempt to handle custom response
-        if self.HandleCustomReponse() == True:
-            return
 
         # Get response type based on the requested path
         response, response_type = self.get_response(self.path)
@@ -259,14 +244,10 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
                     http_f.close()
                 else:
-                    self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)        
-
-        # Attempt to handle custom response
-        if self.HandleCustomReponse(post_body) == True:
-            return
+                    self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)
 
         # Get response type based on the requested path
-        response, response_type = self.get_response(self.path)
+        response, response_type = self.get_response(self.path, post_body)
 
         # Prepare response
         self.send_response(200)
@@ -276,10 +257,49 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
         self.wfile.write(response)
 
-    def get_response(self, path):
+    def get_response(self, path, post_data=None):
+        hostname = self.headers.get('Host', '')
+        handler, customdata = self.handler_map.get(hostname, (self.get_default_response, self.path))
+        return handler(customdata, post_data=post_data)
+
+    def handle_custom(self, provider, post_data=None):
+        mod_path = os.path.join(self.server.webroot_path, 'modules')
+        provider_path = os.path.join(mod_path, provider)
+        try:
+            mod = imp.load_source('mod', provider_path)
+        except:
+            response, content_type = self.get_default_response(self.path, post_data)
+        else:
+            response, content_type = mod.HandleRequest(self, post_data)
+        return response, content_type
+
+
+    def handle_static_file(self, static_file_path, post_data=None):
+        static_dir = os.path.abspath(os.path.join(
+            self.server.webroot_path,
+            # self.headers.get('Host', '.'),        # NOTE: Should we support this?
+            static_file_path))
+        if self.path[0] == '/':
+            request_path = self.path[1:]
+        else:
+            request_path = self.path
+        filepath = os.path.join(static_dir, request_path)
+        try:
+            with open(filepath, 'rb') as fd:
+                data = fd.read()
+        except IOError as _ioe:
+            response, content_type = self.get_default_response(self.path, post_data)
+        else:
+            response, content_type = data, "text/html"
+        return response, content_type
+
+    def handle_static(self, data, post_data=None):
+        return data, "text/html"
+
+    def get_default_response(self, path, post_data=None):
         response = "<html><head><title>FakeNet</title><body><h1>FakeNet</h1></body></html>"
         response_type = 'text/html'
-
+        
         if path[-1] == '/':
             response_type = 'text/html'
             path += 'index.html'
@@ -311,7 +331,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         except Exception, e:
             self.server.logger.error('Failed to open response file: %s', response_filename)
             response_type = 'text/html'
-        else:            
+        else:
             response = f.read()
             f.close()
 
@@ -352,7 +372,7 @@ def main():
 
     """
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
-    
+
     config = {'port': '8443', 'usessl': 'Yes', 'webroot': 'fakenet/defaultFiles' }
 
     listener = HTTPListener(config)
