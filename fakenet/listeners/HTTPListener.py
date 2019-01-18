@@ -18,6 +18,7 @@ import shutil
 import traceback
 import subprocess
 from OpenSSL import crypto
+from ssl_utils import SSLWrapper
 from . import *
 
 MIME_FILE_RESPONSE = {
@@ -34,32 +35,8 @@ MIME_FILE_RESPONSE = {
 
 
 
-def load_cert(certpath):
-    try:
-        with open(certpath, "rb") as certfile:
-            data = certfile.read()
-        cacert = crypto.load_certificate(crypto.FILETYPE_PEM, data)
-    except:
-        traceback.print_exc()
-        cacert = None
-    return cacert
-
-
-def load_private_key(keypath):
-    try:
-        with open(keypath, "rb") as keyfile:
-            data = keyfile.read()
-        privkey = crypto.load_privatekey(crypto.FILETYPE_PEM, data)
-    except:
-        traceback.print_exc()
-        privkey = None
-    return privkey
-
-
 class HTTPListener(object):
     SSL_UTILS = os.path.join("listeners", "ssl_utils")
-    CERT_DIR = os.path.join(SSL_UTILS, "temp_certs")
-    CN="fakenet.flare"
     CA_CERT = os.path.join(SSL_UTILS, "server.pem")
     CA_KEY = os.path.join(SSL_UTILS, "privkey.pem")
     NOT_AFTER_DELTA_SECONDS = 300  * 24 * 60 * 60
@@ -113,23 +90,6 @@ class HTTPListener(object):
             self.logger.error('Could not locate webroot directory: %s', path)
             sys.exit(1)
 
-    def prepare_certs(self):
-        if not os.path.isdir(self.CERT_DIR):
-            os.makedirs(self.CERT_DIR)
-
-        # Generate and add a root CA, which is used to sign for other certs
-        if self.config.get("static_ca") == "Yes":
-            # self.ca_cert, self.ca_key = self.CA_CERT, self.CA_KEY
-            self.ca_cert = self.config.get("ca_cert", "")
-            self.ca_key = self.config.get("ca_key", "")
-            msg = "Using the following root CA: %s" % (self.ca_cert,)
-            self.logger.info(msg)
-            self.add_root_ca(self.CA_CERT)
-        else:
-            self.logger.info("Generating a new Root CA")
-            self.ca_cert, self.ca_key = self.create_cert(self.CN)
-            self.add_root_ca(self.ca_cert)
-
     def start(self):
         self.logger.debug('Starting...')
 
@@ -140,6 +100,7 @@ class HTTPListener(object):
         self.server.extensions_map = self.extensions_map
 
         if self.config.get('usessl') == 'Yes':
+            '''
             self.prepare_certs()
             self.logger.debug('Using SSL socket.')
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
@@ -147,6 +108,18 @@ class HTTPListener(object):
             ctx.set_servername_callback(self.sni_callback)
             ctx.load_cert_chain(certfile=self.ca_cert, keyfile=self.ca_key)
             self.server.socket = ctx.wrap_socket(self.server.socket, server_side=True)
+            '''
+            config = {
+                'static_ca': self.config.get('static_ca'),
+                'ca_cert': self.config.get('ca_cert'),
+                'ca_key': self.config.get('ca_key'),
+            }
+            self.sslwrapper = SSLWrapper(config)
+            self.logger.error('initializing wrapper socket')
+            if not self.sslwrapper.initialize():
+                raise RuntimeError("Failed to initialize SSLWrapper")
+            self.server.socket = self.sslwrapper.make_socket(self.server.socket)
+
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
@@ -159,118 +132,14 @@ class HTTPListener(object):
             self.server.server_close()
 
         if self.config.get('usessl' == 'Yes'):
-            cert = load_cert(self.ca_cert)
+            cert = self.sslwrap._load_cert(self.ca_cert)
             if cert is not None:
-                self.remove_root_ca(cert.get_subject().CN)
+                self.sslwrap._remove_root_ca(cert.get_subject().CN)
             try:
                 shutil.rmtree(self.CERT_DIR)
             except:
                 pass
 
-    def sni_callback(self, sslsock, servername, sslctx):
-        """
-        Callback to handle new SSL ClientHello message. The call back MUST
-        return None for SSL to continue handling the handshake. Any other
-        numerical values are used as error codes.
-        """
-        newctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
-        certfile, keyfile = self.create_cert(servername, self.ca_cert, self.ca_key)
-        if certfile is None or keyfile is None:
-            return None
-
-        newctx.check_hostname = False
-        newctx.load_cert_chain(certfile=certfile, keyfile=keyfile)
-        sslsock.context = newctx
-        return None
-
-    def add_root_ca(self, ca_cert_file):
-        try:
-            subprocess.check_call(
-                ["certutil", "-addstore", "Root", ca_cert_file],
-                shell=True, stdout=None
-            )
-            rc = True
-        except subprocess.CalledProcessError:
-            rc = False
-            self.logger.error("Failed to add root CA")
-            self.logger.error(traceback.format_exc())
-        return rc
-
-    def remove_root_ca(self, cn):
-        try:
-            subprocess.check_call(
-                ["certutil", "-delstore", "Root", cn],
-                shell=True
-            )
-            rc = True
-        except subprocess.CalledProcessError:
-            rc = False
-            self.logger.error("Failed to add root CA")
-            self.logger.error(traceback.format_exc())
-        return rc
-
-    def create_cert(self, cn, ca_cert=None, ca_key=None, cert_dir=None):
-        """
-        Create a cert given the common name, a signing CA, CA private key and
-        the directory output.
-
-        return: tuple(None, None) on error
-                tuple(cert_file_path, key_file_path) on success
-        """
-
-        f_selfsign = ca_cert is None or ca_key is None
-        certdir = self.CERT_DIR if cert_dir is None else cert_dir
-
-        certfile = os.path.join(certdir, "%s.crt" % (cn))
-        keyfile = os.path.join(certdir, "%s.key" % (cn))
-        if os.path.exists(certfile):
-            return certfile, keyfile
-
-        f_selfsign = True
-        if ca_cert is not None and ca_key is not None:
-            f_selfsign = False
-            cacert = load_cert(ca_cert)
-            if cacert is None:
-                return None, None
-
-            cakey = load_private_key(ca_key)
-            if cakey is None:
-                return None, None
-
-        # generate crypto keys:
-        key = crypto.PKey()
-        key.generate_key(crypto.TYPE_RSA, 2048)
-
-        # Create a cert
-        cert = crypto.X509()
-        cert.get_subject().C = "US"
-        cert.get_subject().CN = cn
-        cert.set_serial_number(0x31337)
-        now = time.time() / 1000000
-        na = int(now + self.NOT_AFTER_DELTA_SECONDS)
-        cert.gmtime_adj_notBefore(0)
-        cert.gmtime_adj_notAfter(na)
-        cert.set_pubkey(key)
-        if f_selfsign:
-            cert.set_issuer(cert.get_subject())
-            cert.sign(key, "sha1")
-        else:
-            cert.set_issuer(cacert.get_subject())
-            cert.sign(cakey, "sha1")
-
-        try:
-            with open(certfile, "wb") as cert_file:
-                cert_file.write(crypto.dump_certificate(
-                    crypto.FILETYPE_PEM, cert)
-                )
-            with open(keyfile, "wb") as key_file:
-                key_file.write(crypto.dump_privatekey(
-                    crypto.FILETYPE_PEM, key)
-                )
-        except:
-            traceback.print_exc()
-            return None, None
-        return certfile, keyfile
 
 class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
 
