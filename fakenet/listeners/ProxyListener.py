@@ -10,7 +10,7 @@ import select
 import logging
 import ssl
 from OpenSSL import SSL
-from ssl_utils import ssl_detector
+from ssl_utils import ssl_detector, SSLWrapper
 from . import *
 import os
 
@@ -155,7 +155,6 @@ def get_top_listener(config, data, listeners, diverter, orig_src_ip,
     return top_listener
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
-
     
     def handle(self):
 
@@ -166,21 +165,21 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         remote_q = Queue.Queue()
         data = None
 
-        ssl_remote_sock = None
+        # ssl_remote_sock = None
 
-        keyfile_path = 'listeners/ssl_utils/privkey.pem'
-        keyfile_path = ListenerBase.abs_config_path(keyfile_path)
-        if keyfile_path is None:
-            self.logger.error('Could not locate %s', keyfile_path)
-            sys.exit(1)
+        # keyfile_path = 'listeners/ssl_utils/privkey.pem'
+        # keyfile_path = ListenerBase.abs_config_path(keyfile_path)
+        # if keyfile_path is None:
+        #    self.logger.error('Could not locate %s', keyfile_path)
+        #    sys.exit(1)
 
-        certfile_path = 'listeners/ssl_utils/server.pem'
-        certfile_path = ListenerBase.abs_config_path(certfile_path)
-        if certfile_path is None:
-            self.logger.error('Could not locate %s', certfile_path)
-            sys.exit(1)
+        # certfile_path = 'listeners/ssl_utils/server.pem'
+        # certfile_path = ListenerBase.abs_config_path(certfile_path)
+        # if certfile_path is None:
+        #     self.logger.error('Could not locate %s', certfile_path)
+        #     sys.exit(1)
 
-        ssl_version = ssl.PROTOCOL_SSLv23
+        # ssl_version = ssl.PROTOCOL_SSLv23
 
         try:
             data = remote_sock.recv(BUF_SZ, socket.MSG_PEEK)
@@ -197,14 +196,17 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         if data:
 
             if ssl_detector.looks_like_ssl(data):
+                config = {
+                    'static_ca': self.server.config.get('static_ca', False),
+                    'ca_cert': self.server.config.get('ca_cert'),
+                    'ca_key': self.server.config.get('ca_key')
+                }
+                self.sslwrapper = SSLWrapper(config)
+                if not self.sslwrapper.initialize():
+                    raise RuntimeError('Failed to initialize SSLWrapper')
+
                 self.server.logger.debug('SSL detected')
-                ssl_remote_sock = ssl.wrap_socket(
-                        remote_sock, 
-                        server_side=True, 
-                        do_handshake_on_connect=True,
-                        certfile=certfile_path, 
-                        ssl_version=ssl_version,
-                        keyfile=keyfile_path )
+                ssl_remote_sock = self.sslwrapper.make_socket(remote_sock)
                 data = ssl_remote_sock.recv(BUF_SZ)
             
             orig_src_ip = self.client_address[0]
