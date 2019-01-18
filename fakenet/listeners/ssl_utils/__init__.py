@@ -6,6 +6,7 @@ import traceback
 import subprocess
 import logging
 import shutil
+import sys
 import ssl
 from OpenSSL import crypto
 
@@ -144,6 +145,8 @@ class SSLWrapper(object):
         return self.privkey
     
     def _add_root_ca(self, ca_cert_file):
+        if not sys.platform.startswith('win'):
+            return False
         try:
             subprocess.check_call(
                 ["certutil", "-addstore", "Root", ca_cert_file],
@@ -157,6 +160,8 @@ class SSLWrapper(object):
         return rc
     
     def _remove_root_ca(self, cn):
+        if not sys.platform.startswith('win'):
+            return False
         try:
             subprocess.check_call(
                 ["certutil", "-delstore", "Root", cn],
