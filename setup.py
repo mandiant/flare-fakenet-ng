@@ -23,10 +23,10 @@ elif platform.system().lower().startswith('linux'):
 
 setup(
     name='FakeNet NG',
-    version='1.3',
+    version='1.4.2',
     description="",
     long_description="",
-    author="FireEye FLARE Team",
+    author="FireEye FLARE Team with credit to Peter Kacherginsky as the original developer",
     author_email='FakeNet@fireeye.com',
     url='https://www.github.com/fireeye/flare-fakenet-ng',
     packages=[
