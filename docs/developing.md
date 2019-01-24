@@ -1,9 +1,13 @@
 Developing for FakeNet-NG
 -------------------------
 
-* Create branches under the `fireeye/` GitHub repository, not a private repo.
+FireEye only:
+* Create branches directly under the `fireeye/` GitHub repository, not under a
+  private fork.
+
+All contributors:
 * Pull request comment should bear bulleted list for inclusion in change log.
-* After review but before merging, at reviewer discretion, either developer or
+* After review, but before merging, at reviewer discretion, either developer or
   reviewer must update the FakeNet-NG version as described below.
 
 FakeNet Versioning
@@ -23,7 +27,7 @@ Here is where to update the version:
 | File                 | How to update                                        |
 |----------------------|------------------------------------------------------|
 | `CHANGELOG.txt`      | Increment version, paste pull request comments       |
-| `fakenet/fakenet.py` | Update version in banner string to match             |
+| `fakenet/fakenet.py` | Update version in banner string                      |
 | `setup.py`           | Update `version` parameter to `setup()`              |
 
 Various listeners report `FakeNet/1.3` as their version. As of this writing,
