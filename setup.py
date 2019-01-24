@@ -23,18 +23,18 @@ elif platform.system().lower().startswith('linux'):
 
 setup(
     name='FakeNet NG',
-    version='1.3',
+    version='1.4.2',
     description="",
     long_description="",
-    author="Peter Kacherginsky",
-    author_email='peter.kacherginsky@fireeye.com',
+    author="FireEye FLARE Team with credit to Peter Kacherginsky as the original developer",
+    author_email='FakeNet@fireeye.com',
     url='https://www.github.com/fireeye/flare-fakenet-ng',
     packages=[
         'fakenet',
     ],
     package_dir={'fakenet': 'fakenet'},
-    package_data={'fakenet': ['*.pem','diverters/*.py', 'listeners/*.py', 
-        'listeners/ssl_utils/*.py', 'listeners/ssl_utils/*.pem', 'configs/*.ini', 'defaultFiles/*', 
+    package_data={'fakenet': ['*.pem','diverters/*.py', 'listeners/*.py',
+        'listeners/ssl_utils/*.py', 'listeners/ssl_utils/*.pem', 'configs/*.ini', 'defaultFiles/*',
         'lib/64/*', 'lib/32/*']},
     entry_points={
         "console_scripts": [
