@@ -1,23 +1,23 @@
-     ______      _  ________ _   _ ______ _______     _   _  _____ 
+     ______      _  ________ _   _ ______ _______     _   _  _____
     |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
-    | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __ 
+    | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
     |  __/ /\ \ |  < |  __| | . ` |  __|    | |______| . ` | | |_ |
     | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
     |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
            D   O   C   U   M   E   N   T   A   T   I   O   N
- 
+
 FakeNet-NG is a next generation dynamic network analysis tool for malware
-analysts and penetration testers. It is open source and designed for the latest 
+analysts and penetration testers. It is open source and designed for the latest
 versions of Windows (and Linux, for certain modes of operation). FakeNet-NG is
 based on the excellent Fakenet tool developed by Andrew Honig and Michael
 Sikorski.
 
-The tool allows you to intercept and redirect all or specific network traffic 
+The tool allows you to intercept and redirect all or specific network traffic
 while simulating legitimate network services. Using FakeNet-NG, malware analysts
-can quickly identify malware's functionality and capture network signatures. 
-Penetration testers and bug hunters will find FakeNet-NG's configurable 
-interception engine and modular framework highly useful when testing 
+can quickly identify malware's functionality and capture network signatures.
+Penetration testers and bug hunters will find FakeNet-NG's configurable
+interception engine and modular framework highly useful when testing
 application's specific functionality and prototyping PoCs.
 
 Installation
@@ -71,7 +71,7 @@ No installation
 ---------------
 
 Finally if you would like to avoid installing FakeNet-NG and just want to run it
-as-is (e.g. for development), then you would need to obtain the source code and 
+as-is (e.g. for development), then you would need to obtain the source code and
 install dependencies as follows:
 
 1) Install 64-bit or 32-bit Python 2.7.x for the 64-bit or 32-bit versions
@@ -106,19 +106,17 @@ executable as an Administrator. You can provide `--help` command-line
 parameter to get simple help:
 
     C:\tools\fakenet-ng>fakenet.exe --help
-      ______      _  ________ _   _ ______ _______     _   _  _____ 
+      ______      _  ________ _   _ ______ _______     _   _  _____
      |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
-     | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __ 
+     | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
      |  __/ /\ \ |  < |  __| | . ` |  __|    | |______| . ` | | |_ |
      | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
      |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
-  
+
                              Version  1.0
       _____________________________________________________________
-                             Developed by            
-                          Peter Kacherginsky      
-           FLARE (FireEye Labs Advanced Reverse Engineering)       
-      _____________________________________________________________ 
+                       Developed by FLARE Team
+      _____________________________________________________________
     Usage: fakenet.py [options]:
 
     Options:
@@ -128,11 +126,11 @@ parameter to get simple help:
       -v, --verbose         print more verbose messages.
       -l LOG_FILE, --log-file=LOG_FILE
 
-As you can see from the simple help above it is possible to configure the 
-configuration file used to start FakeNet-NG. By default, the tool uses 
-`configs\default.ini`; however, it can be changed with the `-c` parameter. 
-There are several example configuration files in the `configs` directory. 
-Due to the large number of different settings, FakeNet-NG relies on the 
+As you can see from the simple help above it is possible to configure the
+configuration file used to start FakeNet-NG. By default, the tool uses
+`configs\default.ini`; however, it can be changed with the `-c` parameter.
+There are several example configuration files in the `configs` directory.
+Due to the large number of different settings, FakeNet-NG relies on the
 configuration files to control its functionality.
 
 NOTE: FakeNet-NG will attempt to locate the specified configuration file, first
@@ -140,16 +138,16 @@ by using the provided absolute or relative path in case you want to store all of
 your configurations. If the specified configuration file is not found,
 then it will try to look in its `configs` directory.
 
-The rest of the command-line options allow you to control the amount 
-of logging output displayed as well as redirecting it to a file as 
+The rest of the command-line options allow you to control the amount
+of logging output displayed as well as redirecting it to a file as
 opposed to dumping it on the screen.
 
 Simple run
 ----------
 
 Before we dive in and run FakeNet-NG let's go over a few basic concepts. The
-tool consists of several modules working together. One such important module is 
-the Diverter which is responsible for redirecting traffic to a collection of 
+tool consists of several modules working together. One such important module is
+the Diverter which is responsible for redirecting traffic to a collection of
 listeners. The Diverter forces applications to interact with FakeNet-NG as
 opposed to real servers. Listeners are individual services handling incoming
 connections and allowing us to examine application's traffic (e.g. malware
@@ -171,9 +169,7 @@ and an HTTP connection:
 
                              Version  1.0
       _____________________________________________________________
-                             Developed by
-                          Peter Kacherginsky
-           FLARE (FireEye Labs Advanced Reverse Engineering)
+                       Developed by FLARE Team
       _____________________________________________________________
 
     07/06/16 10:20:52 PM [           FakeNet] Loaded configuration file: configs/default.ini
@@ -202,7 +198,7 @@ and an HTTP connection:
     07/06/16 10:20:52 PM [          Diverter] Diverting ports:
     07/06/16 10:20:52 PM [          Diverter] TCP: 1337, 80, 443, 25
     07/06/16 10:20:52 PM [          Diverter] UDP: 1337, 53
-                                              / 
+                                              /
                    Summary of diverted ports /
 
     07/06/16 10:21:03 PM [          Diverter] Modifying outbound external UDP request packet:
@@ -231,8 +227,8 @@ and an HTTP connection:
                                            \
                                             \ Fake HTTP Listener handling the above request
 
-Notice that each log line has a name of the currently running FakeNet-NG 
-modules. For example, when it is diverting traffic, the logs will be prefixed 
+Notice that each log line has a name of the currently running FakeNet-NG
+modules. For example, when it is diverting traffic, the logs will be prefixed
 with the `Diverter` label:
 
     07/06/16 10:21:03 PM [          Diverter] Modifying outbound external UDP request packet:
@@ -256,8 +252,8 @@ To stop FakeNet-NG and close out the generated PCAP file simply press `CTRL-C`:
 Configuration
 -------------
 
-In order to take full advantage of FakeNet-NG's capabilities we must understand 
-its configuration file structure and settings. Below is a sample configuration 
+In order to take full advantage of FakeNet-NG's capabilities we must understand
+its configuration file structure and settings. Below is a sample configuration
 file:
 
     ###############################################################################
@@ -309,11 +305,11 @@ file:
     Timeout:     10
     Hidden:      False
 
-The configuration file is broken up into several sections. 
+The configuration file is broken up into several sections.
 
 * **[FakeNet]** - Controls the behavior of the application itself. The only valid
-option at this point is `DivertTraffic`. When enabled, it instructs the tool 
-to launch the appropriate Diverter plugin and intercept traffic. If this option 
+option at this point is `DivertTraffic`. When enabled, it instructs the tool
+to launch the appropriate Diverter plugin and intercept traffic. If this option
 is disabled, FakeNet-NG will still launch listeners, but will rely on another
 method to direct traffic to them (e.g. manually change DNS server).
 
@@ -328,7 +324,7 @@ Diverter Configuration
 
 Supposing you have enabled the `DivertTraffic` setting in the `[FakeNet]`
 configuration block, the tool will enable its traffic redirection engine to
-which we will call Diverter from now on as a reference to the excellent 
+which we will call Diverter from now on as a reference to the excellent
 `WinDivert` library used to perform the magic behind the scenes on Windows
 platforms (the Linux implementation of the Diverter uses
 [python-netfilterqueue](https://github.com/kti/python-netfilterqueue/)).
@@ -412,13 +408,13 @@ local TCP and UDP listeners on ports 1234:
     DefaultUDPListener: UDPListener1234
 
 *NOTE*: We are jumping a bit ahead with listener definitions, but just
-consider that `TCPListener1234` and `UDPListener1234` will be defined in 
+consider that `TCPListener1234` and `UDPListener1234` will be defined in
 the section below.
 
 With the `RedirectAllTraffic` setting, FakeNet-NG will modify not only the
 destination address, but also the destination port so it can be handled
 by one of the default listeners. Below is a sample log of traffic destined to
-an external host IP address 1.1.1.1 on port 4444 which was redirected to the 
+an external host IP address 1.1.1.1 on port 4444 which was redirected to the
 default listener on port 1234 instead:
 
     07/06/16 01:13:47 AM [          Diverter] Modifying outbound external TCP request packet:
@@ -426,8 +422,8 @@ default listener on port 1234 instead:
     07/06/16 01:13:47 AM [          Diverter]   to:   192.168.66.129:1650 -> 192.168.66.129:1234
     07/06/16 01:13:47 AM [          Diverter]   pid:  3716 name: malware.exe
 
-It is important to note that traffic destined to the port from one of the 
-explicitly defined listeners will still be handled by that listener and 
+It is important to note that traffic destined to the port from one of the
+explicitly defined listeners will still be handled by that listener and
 not the default listener. For example, default UDP listener will not handle
 DNS traffic if a separate UDP port 53 DNS listener is defined.
 
@@ -472,13 +468,13 @@ The following settings are generic for all listeners:
  * **Listener**         - Listener name to handle traffic.
  * **ProcessWhiteList** - Only traffic from these processes will be modified
                       and the rest will simply be forwarded.
- * **ProcessBlackList** - Traffic from all but these processes will be simply 
+ * **ProcessBlackList** - Traffic from all but these processes will be simply
                       forwarded and the rest will be modified as needed.
  * **HostWhiteList**    - Only traffic to these hosts will be modified and
                       the rest will be simply forwarded.
  * **HostBlackList**    - Traffic to these hosts will be simply forwarded
                       and the rest will be modified as needed.
- * **ExecuteCmd**       - Execute command on the first connection packet. This 
+ * **ExecuteCmd**       - Execute command on the first connection packet. This
                       feature is useful for extending FakeNet-NG's functionality
                       (e.g. launch a debugger on the connecting pid to help with
                       unpacking and decoding.)
@@ -487,8 +483,8 @@ The following settings are generic for all listeners:
                       protocol based on the packet contents
 
 The `Port` and `Protocol` settings are necessary for the listeners to know to
-which ports to bind and, if they support multiple protocol (e.g RawListener), 
-decide which protocol to use. They are also used by the Diverter to figure out 
+which ports to bind and, if they support multiple protocol (e.g RawListener),
+decide which protocol to use. They are also used by the Diverter to figure out
 which ports and protocols to redirect.
 
 The `Listener` setting defines one of the available listener plugins to handle
@@ -500,7 +496,7 @@ listeners:
                  the `DNSResponse` setting. You can also set the `NXDomains`
                  attribute to the number of requests the listener should ignore.
                  This way you may be able to get the malware to request all of
-                 its backup C2 controller names. The listener supports both TCP 
+                 its backup C2 controller names. The listener supports both TCP
                  and UDP protocols.
 * **RawListener**  - supports basic TCP and UDP binary protocols. The default
                  behavior is to simply echo the received packets back to
@@ -508,15 +504,15 @@ listeners:
 * **HTTPListener** - supports HTTP and HTTPS protocols. Responds with different
                  files in the configurable `Webroot` directory based on the
                  requested file extension. Optionally dumps POST requests to
-                 a configurable file which can be specified using 
+                 a configurable file which can be specified using
                  `DumpHTTPPosts` and `DumpHTTPPostsFilePrefix` settings.
 * **SMTPListener** - supports SMTP protocol.
 * **ProxyListener**- Detects protocol based on packet contents and redirects
                  packets accordingly.
 
 
-NOTE: FakeNet-NG will attempt to locate the webroot directory, first by using 
-the provided absolute or relative paths. If the specified webroot path is not 
+NOTE: FakeNet-NG will attempt to locate the webroot directory, first by using
+the provided absolute or relative paths. If the specified webroot path is not
 found, then it will try to look in its `defaultFiles` directory.
 
 As a special case, the Windows Diverter implementation automatically responds
@@ -549,11 +545,11 @@ For example, consider the configuration below with process and host filters:
     HostBlackList: 5.5.5.5
 
 The `FilteredListener` above will only handle connection coming from the
-processes `malware.exe` and `ncat.exe`, but will ignore any connections 
+processes `malware.exe` and `ncat.exe`, but will ignore any connections
 destined for the host `5.5.5.5`. Meaning that if a process called `test.exe`
 attempted to connect on port 31337 it will not be redirected to the listener
 and will be forwarded to wherever it was originally intended if the route
-is available. 
+is available.
 
 At the same time of the process `malware.exe` attempted to connect to port 31337
 on any host other than `5.5.5.5` it will be diverted
@@ -594,8 +590,8 @@ first connection:
     ProcessWhiteList: malware.exe
     ExecuteCmd:  C:\Program Files (x86)\Windows Kits\10\Debuggers\x86\windbg.exe -p {pid}
 
-Once FakeNet-NG detects a new connection coming from the whitelisted process 
-`malware.exe` (this setting is optional), it will automatically launch `windbg` 
+Once FakeNet-NG detects a new connection coming from the whitelisted process
+`malware.exe` (this setting is optional), it will automatically launch `windbg`
 and attach it to the connecting process.
 
 *NOTE*: You might want to extend the normal `Timeout` setting in case the malware
@@ -617,8 +613,8 @@ Without a listener defined, FakeNet-NG will still divert traffic to the local
 machine, but a separate listener must be launched by the user. For example,
 you could have an HTTP proxy listening for connections on port 8080 and let
 FakeNet-NG intercept all the traffic from applications which do not use system's
-proxy server settings or use hard-coded IP addresses. Using anonymous listeners 
-you can bring FakeNet-NG's advanced traffic and process filtering capabilities 
+proxy server settings or use hard-coded IP addresses. Using anonymous listeners
+you can bring FakeNet-NG's advanced traffic and process filtering capabilities
 to 3rd party tools.
 
 You may also want to enable Diverter's `ProcessBlackList` setting to allow
@@ -630,7 +626,7 @@ communicate out to the Internet:
     ProcessBlackList: java.exe
 
 In the scenario where application communicates on an unknown port, but you still
-want to redirect it to the anonymous listener on port 8080 you can define the 
+want to redirect it to the anonymous listener on port 8080 you can define the
 default listener as follows:
 
     RedirectAllTraffic: Yes
@@ -641,7 +637,7 @@ Finally, to allow DNS traffic to still go to the default DNS server on the
 Internet, while redirecting all other traffic, add port 53 to the Diverter's
 UDP port blacklist as follows:
 
-    BlackListPortsUDP: 
+    BlackListPortsUDP:
 
 Proxy Listener
 --------------
@@ -675,10 +671,10 @@ With the default listener pointing to the proxy listener, all unknown connection
 will be appropriately handled. You can still assign specific listeners to ports to
 enforce a specific protocol (e.g. always use HTTP listener for port 80).
 
-The Proxy determines the protocol of packets by polling all available listeners with 
-the function taste(). Each Listener that implements taste() will respond with a score 
-indicating the likelihood that the protocol handled by that listener matches the 
-packet contents. The Proxy will forward the packet to the Listener that returned the 
+The Proxy determines the protocol of packets by polling all available listeners with
+the function taste(). Each Listener that implements taste() will respond with a score
+indicating the likelihood that the protocol handled by that listener matches the
+packet contents. The Proxy will forward the packet to the Listener that returned the
 highest score. The RawListener will always return a score of 1, so it will be chosen
 in the case that all other Listeners return 0, thus serving as the default.
 
@@ -712,7 +708,7 @@ sample listener template:
         def __init__(self, config, name = 'MyListener', logging_level = logging.INFO):
             self.logger = logging.getLogger(name)
             self.logger.setLevel(logging_level)
-                
+
             self.config = config
             self.name = name
 
@@ -745,9 +741,9 @@ Another requirement is to ensure that the listener can reliably shutdown when
 the `stop()` method is called. For example, make use of connection timeouts to
 ensure that the listener does not block on some connection for too long.
 
-Listeners that implement the function `taste(self, data, dport)` will be 
+Listeners that implement the function `taste(self, data, dport)` will be
 considered when packets are directed by the Proxy. The function must return
-a score which indicates the likelihood that the Listener handles the 
+a score which indicates the likelihood that the Listener handles the
 protocol that is contained in the packet.
 
 The logging convention used by FakeNet-NG's listeners is to use the self.logger
@@ -774,7 +770,7 @@ adding it to the configuration file:
 Developing Diverters
 --------------------
 
-FakeNet-NG uses the open source WinDivert library in order to perform the 
+FakeNet-NG uses the open source WinDivert library in order to perform the
 traffic redirection on Windows Vista+ operating systems. The implementation of
 the Windows Diverter is located in
 [fakenet\diverters\windows.py](fakenet/diverters/windows.py).
@@ -797,7 +793,7 @@ It is planned to continue expanding the support for traffic diversion.
 Building standalone executables
 -------------------------------
 
-If you would like to generate a stand-alone executable you would need to 
+If you would like to generate a stand-alone executable you would need to
 install the PyInstaller module:
 
     pip install pyinstaller
@@ -822,14 +818,14 @@ Not Intercepting Traffic
 ------------------------
 
 In order to for FakeNet-NG to intercept and modify the packet, there must exist
-a valid network route for the packet to reach its destination. 
+a valid network route for the packet to reach its destination.
 
 There is an easy way to check whether or not you have routes set up correctly.
-Without the tool running attempt to ping the destination host. You should 
-observe either a valid response or a timeout message. If you receive a 
+Without the tool running attempt to ping the destination host. You should
+observe either a valid response or a timeout message. If you receive a
 destination not reachable error instead, then you do not have a valid route.
 
-This is usually caused by your gateway being either not set or not reachable. 
+This is usually caused by your gateway being either not set or not reachable.
 For example, on a VMWare machine with host-only mode your machine will not have
 the gateway configured thus preventing FakeNet-NG from seeing any traffic.
 
@@ -928,12 +924,12 @@ Credits
   original FakeNet which was the inspiration to develop this tool.
 * The Linux Diverter was designed and developed by Michael Bailey.
 * Thanks to Matthew Haigh for developing the proxy protocol autodetection feature.
-* Thanks to Cody Pierce and Antony Saba for reporting and fixing a 
+* Thanks to Cody Pierce and Antony Saba for reporting and fixing a
   file system traversal vulnerability.
 
 Contact
 =======
 
-For bugs, crashes, or other comments please contact 
+For bugs, crashes, or other comments please contact
 FakeNet@fireeye.com.
 
