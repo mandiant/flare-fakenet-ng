@@ -23,7 +23,7 @@ elif platform.system().lower().startswith('linux'):
 
 setup(
     name='FakeNet NG',
-    version='1.4.2',
+    version='1.4.3',
     description="",
     long_description="",
     author="FireEye FLARE Team with credit to Peter Kacherginsky as the original developer",
