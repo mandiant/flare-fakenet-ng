@@ -99,7 +99,7 @@ class Diverter(DiverterBase, WinUtilMixin):
         self.running_on_windows = True
 
         if not self.single_host_mode:
-            self.logger.error('Windows diverter currently only supports '
+            self.logger.critical('Windows diverter currently only supports '
                               'SingleHost mode')
             sys.exit(1)
 
@@ -113,7 +113,7 @@ class Diverter(DiverterBase, WinUtilMixin):
         if not self.external_ip:
             self.external_ip = socket.gethostbyname(socket.gethostname())
 
-        self.logger.info('External IP: %s Loopback IP: %s' %
+        self.logger.debug('External IP: %s Loopback IP: %s' %
                          (self.external_ip, self.loopback_ip))
 
         #######################################################################
@@ -129,19 +129,19 @@ class Diverter(DiverterBase, WinUtilMixin):
             self.handle.open()
         except WindowsError, e:
             if e.winerror == 5:
-                self.logger.error('ERROR: Insufficient privileges to run '
+                self.logger.critical('ERROR: Insufficient privileges to run '
                                   'windows diverter.')
-                self.logger.error('       Please restart with Administrator '
-                                  'privileges.')
+                self.logger.critical('       Please restart with '
+                                  'Administrator privileges.')
                 sys.exit(1)
             elif e.winerror == 3:
-                self.logger.error('ERROR: Could not locate WinDivert DLL or '
-                                  'one of its components.')
-                self.logger.error('       Please make sure you have copied '
+                self.logger.critical('ERROR: Could not locate WinDivert DLL '
+                                  'or one of its components.')
+                self.logger.critical('       Please make sure you have copied '
                                   'FakeNet-NG to the C: drive.')
                 sys.exit(1)
             else:
-                self.logger.error('ERROR: Failed to open a handle to the '
+                self.logger.critical('ERROR: Failed to open a handle to the '
                                   'WinDivert driver: %s', e)
                 sys.exit(1)
 
@@ -157,7 +157,7 @@ class Diverter(DiverterBase, WinUtilMixin):
         if self.is_set('stopdnsservice'):
             self.stop_service_helper('Dnscache')
 
-        self.logger.info('Diverting ports: ')
+        self.logger.debug('Diverting ports: ')
 
         self.flush_dns()
 
@@ -298,11 +298,11 @@ class Diverter(DiverterBase, WinUtilMixin):
         """
         if (pkt.is_icmp and
                 pkt.dst_ip not in [self.loopback_ip, self.external_ip]):
-            self.logger.info('Modifying ICMP packet (type %d, code %d):' %
+            self.logger.debug('Modifying ICMP packet (type %d, code %d):' %
                              (pkt.icmp_type, pkt.icmp_code))
-            self.logger.info('  from: %s' % (pkt.hdrToStr()))
+            self.logger.debug('  from: %s' % (pkt.hdrToStr()))
             pkt.dst_ip = self.getNewDestinationIp(pkt.src_ip)
-            self.logger.info('  to:   %s' % (pkt.hdrToStr()))
+            self.logger.debug('  to:   %s' % (pkt.hdrToStr()))
 
         return pkt
 

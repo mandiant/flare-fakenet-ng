@@ -41,7 +41,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         slists = ['linuxredirectnonlocal', ]
         self.reconfigure(portlists=[], stringlists=slists)
 
-        self.logger.info('Running in %s mode' % (self.network_mode))
+        self.logger.debug('Running in %s mode' % (self.network_mode))
 
         self.nfqueues = list()
 
@@ -96,8 +96,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def startCallback(self):
         if not self.check_privileged():
-            self.logger.error('The Linux Diverter requires administrative ' +
-                              'privileges')
+            self.logger.critical('The Linux Diverter requires ' +
+                              'administrative privileges')
             sys.exit(1)
 
         ret = self.linux_capture_iptables()
@@ -132,7 +132,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                     'numbers') % (nhooks))
         qnos = self.linux_get_next_nfqueue_numbers(nhooks)
         if len(qnos) != nhooks:
-            self.logger.error('Could not procure a sufficient number of ' +
+            self.logger.critical('Could not procure a sufficient number of ' +
                               'netfilter queue numbers')
             sys.exit(1)
 
@@ -149,7 +149,8 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.nfqueues.append(q)
             ok = q.start()
             if not ok:
-                self.logger.error('Failed to start NFQUEUE for %s' % (str(q)))
+                self.logger.critical('Failed to start NFQUEUE for %s'
+                                    % (str(q)))
                 self.stop()
                 sys.exit(1)
 
@@ -181,13 +182,13 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.rules_added += rules
 
             if not ok:
-                self.logger.error('Failed to process LinuxRedirectNonlocal')
+                self.logger.critical('Failed to process LinuxRedirectNonlocal')
                 self.stop()
                 sys.exit(1)
 
         ok, rule = self.linux_redir_icmp()
         if not ok:
-            self.logger.error('Failed to redirect ICMP')
+            self.logger.critical('Failed to redirect ICMP')
             self.stop()
             sys.exit(1)
 
@@ -212,7 +213,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.pdebug(DPCAP, 'Closing pcap file %s' % (self.pcap_filename))
             self.pcap.close()  # Only after all queues are stopped
 
-        self.logger.info('Stopped Linux Diverter')
+        self.logger.debug('Stopped Linux Diverter')
 
         if self.single_host_mode and self.is_set('modifylocaldns'):
             self.linux_restore_local_dns()
@@ -311,7 +312,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             # Log when a new IP is observed OR if we are not restricted to
             # logging only the first occurrence of a given nonlocal IP.
             if first_sighting or (not self.log_nonlocal_only_once):
-                self.logger.info(
+                self.logger.debug(
                     'Received nonlocal IPv%d datagram destined for %s' %
                     (pkt.ipver, pkt.dst_ip))
 

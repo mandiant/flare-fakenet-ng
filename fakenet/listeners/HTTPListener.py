@@ -112,7 +112,7 @@ class HTTPListener(object):
         self.server_thread.start()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        self.logger.debug('Stopping...')
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -123,6 +123,12 @@ class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
     def handle_error(self, request, client_address):
         exctype, value = sys.exc_info()[:2]
         self.logger.error('Error: %s', value)
+    
+    # Log connections regardless of HTTP requests
+    def get_request(self):
+        conn, address = self.socket.accept()
+        self.logger.info('HTTP connection received from %s:%s' % (address))
+        return (conn, address)
 
 class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
@@ -245,7 +251,8 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 self.server.logger.error('Could not locate requested file or default handler.')
                 return (response, response_type)
 
-        self.server.logger.info('Responding with mime type: %s file: %s', response_type, response_filename)
+        self.server.logger.debug('Responding with mime type: %s file: %s', 
+                                 response_type, response_filename)
 
         try:
             f = open(response_filename, 'rb')

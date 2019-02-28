@@ -32,7 +32,7 @@ class RawListener(object):
         self.name = 'Raw'
         self.port = self.config.get('port', 1337)
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -113,7 +113,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 self.request.sendall(data)
 
         except socket.timeout:
-            self.server.logger.warning('Connection timeout')
+            self.server.logger.debug('Connection timeout')
 
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)

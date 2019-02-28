@@ -594,16 +594,16 @@ class DiverterBase(fnconfig.Config):
 
         # Check active interfaces
         if not self.check_active_ethernet_adapters():
-            self.logger.warning('WARNING: No active ethernet interfaces '
+            self.logger.critical('WARNING: No active ethernet interfaces '
                                 'detected!')
-            self.logger.warning('         Please enable a network interface.')
+            self.logger.critical('         Please enable a network interface.')
             sys.exit(1)
 
         # Check configured ip addresses
         if not self.check_ipaddresses():
-            self.logger.warning('ERROR: No interface had IP address '
+            self.logger.critical('ERROR: No interface had IP address '
                                 'configured!')
-            self.logger.warning('         Please configure an IP address on a '
+            self.logger.critical('         Please configure an IP address on '
                                 'network interface.')
             sys.exit(1)
 
@@ -626,7 +626,7 @@ class DiverterBase(fnconfig.Config):
         # Check configured DNS servers
         dns_ok = self.check_dns_servers()
         if not dns_ok:
-            self.logger.warning('WARNING: No DNS servers configured!')
+            self.logger.debug('WARNING: No DNS servers configured!')
             if self.is_set('fixdns'):
                 dns_ok = self.fix_dns()
                 if not dns_ok:
@@ -648,11 +648,11 @@ class DiverterBase(fnconfig.Config):
         to the already-defined (and potentially some yet-to-be-defined)
         abstract methods that handle the real OS-specific stuff.
         """
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
         return self.startCallback()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        self.logger.debug('Stopping...')
         return self.stopCallback()
 
     @abc.abstractmethod
@@ -1048,14 +1048,14 @@ class DiverterBase(fnconfig.Config):
                 default_listener = self.getconfigval('defaulttcplistener').lower()
                 default_port = self.listeners_config[default_listener]['port']
                 self.default_listener['TCP'] = int(default_port)
-                self.logger.error('Using default listener %s on port %d',
+                self.logger.debug('Using default listener %s on port %d',
                                   self.getconfigval('defaulttcplistener').lower(),
                                   self.default_listener['TCP'])
 
                 default_listener = self.getconfigval('defaultudplistener').lower()
                 default_port = self.listeners_config[default_listener]['port']
                 self.default_listener['UDP'] = int(default_port)
-                self.logger.error('Using default listener %s on port %d',
+                self.logger.debug('Using default listener %s on port %d',
                                   self.getconfigval('defaultudplistener').lower(),
                                   self.default_listener['UDP'])
 
@@ -1147,7 +1147,7 @@ class DiverterBase(fnconfig.Config):
                 logline = self.formatPkt(pkt, pid, comm)
                 self.pdebug(DGENPKTV, logline)
             elif pid and (pid != self.pid) and crit.first_packet_new_session:
-                self.logger.info('  pid:  %d name: %s' %
+                self.logger.debug('  pid:  %d name: %s' %
                                  (pid, comm if comm else 'Unknown'))
 
             # 2: Call layer 3 (network) callbacks
@@ -1415,7 +1415,7 @@ class DiverterBase(fnconfig.Config):
             None
         """
         if pkt.is_icmp:
-            self.logger.info('ICMP type %d code %d %s' % (
+            self.logger.debug('ICMP type %d code %d %s' % (
                 pkt.icmp_type, pkt.icmp_code, pkt.hdrToStr()))
 
     def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
