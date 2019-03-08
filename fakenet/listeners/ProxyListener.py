@@ -155,7 +155,7 @@ def get_top_listener(config, data, listeners, diverter, orig_src_ip,
     return top_listener
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
-    
+
     def handle(self):
 
         remote_sock = self.request
@@ -208,6 +208,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 self.server.logger.debug('SSL detected')
                 ssl_remote_sock = self.sslwrapper.make_socket(remote_sock)
                 data = ssl_remote_sock.recv(BUF_SZ)
+            else:
+                ssl_remote_sock = None
             
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
