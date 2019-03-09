@@ -129,7 +129,7 @@ class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
         self.logger.error('Error: %s', value)
 
 class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
-
+    PROVIDER_DIRNAME = 'providers'
     CUSTOM_C2_KEY = 'custom_c2'
     CUSTOM_PROV_KEY = 'custom_provider'
     STATIC_C2_KEY = 'static_c2'
@@ -263,7 +263,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         return handler(customdata, post_data=post_data)
 
     def handle_custom(self, provider, post_data=None):
-        mod_path = os.path.join(self.server.webroot_path, 'modules')
+        mod_path = os.path.join(self.server.webroot_path, self.PROVIDER_DIRNAME)
         provider_path = os.path.join(mod_path, provider)
         try:
             mod = imp.load_source('mod', provider_path)
