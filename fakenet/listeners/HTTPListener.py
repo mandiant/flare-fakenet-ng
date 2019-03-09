@@ -4,10 +4,10 @@ import os
 import sys
 import imp
 
-
 import threading
 import SocketServer
 import BaseHTTPServer
+from collections import namedtuple
 
 import ssl
 import socket
@@ -18,6 +18,7 @@ import mimetypes
 import time
 
 from . import *
+
 
 MIME_FILE_RESPONSE = {
     'text/html':    'FakeNet.html',
@@ -135,14 +136,6 @@ class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
         self.logger.error('Error: %s', value)
 
 class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
-    PROVIDER_DIRNAME = 'providers'
-    CUSTOM_C2_KEY = 'custom_c2'
-    CUSTOM_PROV_KEY = 'custom_provider'
-    STATIC_C2_KEY = 'static_c2'
-    STATIC_DATA_KEY = 'static_data'
-    STATIC_FILE_C2_KEY = 'staticfile_c2'
-    STATIC_FILE_PATH_KEY = 'staticfile_path'
-
     def __init__(self, config, *args):
         self.handler_map = self.initialize_handler_map(config)
         for c2 in self.handler_map:
@@ -150,17 +143,45 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, *args)
 
     def initialize_handler_map(self, config):
+        C2Handler = namedtuple('C2Handler', 'handle data')
         _map = dict()
-        keys = [
-            (self.CUSTOM_C2_KEY, self.CUSTOM_PROV_KEY, self.handle_custom),
-            (self.STATIC_C2_KEY, self.STATIC_DATA_KEY, self.handle_static),
-            (self.STATIC_FILE_C2_KEY, self.STATIC_FILE_PATH_KEY,
-                self.handle_static_file),
-        ]
-        for c2key, datakey, handler in keys:
-            c2s, data = self.initialize_custom_config(config, c2key, datakey)
-            for c2 in c2s:
-                _map[c2] = (handler, data)
+
+        # process static file handler
+        c2list, data = [], None
+        try:
+            c2s = config.get('staticfile_c2', '').split(',')
+            data = config.get('staticfile_path', '')
+            if data:
+                c2list = [c2.strip() for c2 in c2s if c2]
+        except:
+            c2list, data = [], None
+        for c2 in c2list:
+            _map[c2] = C2Handler(self.handle_static_file, data)
+        
+        # process static data handler
+        c2list, data = [], None
+        try:
+            c2s = config.get('static_c2', '').split(',')
+            data = config.get('static_data', '')
+            if data:
+                c2list = [c2.strip() for c2 in c2s if c2]
+        except:
+            c2list, data = [], None
+        for c2 in c2list:
+            _map[c2] = C2Handler(self.handle_static, data)
+        
+        # process custom handler
+        c2list, data = [], None
+        try:
+            c2s = config.get('custom_c2', '').split(',')
+            data = config.get('custom_provider', '')
+            if data:
+                c2list = [c2.strip() for c2 in c2s if c2]
+        except:
+            c2list, data = [], None
+        for c2 in c2list:
+            _map[c2] = C2Handler(self.handle_custom, data)
+        
         return _map
 
     def initialize_custom_config(self, config, c2key, datakey):
@@ -259,8 +280,8 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                     ttp_filename)
 
         # Get response type based on the requested path
-        response, response_type = self.get_response('POST',
-                                                    self.path, post_body)
+        response, response_type = self.get_response(
+            'POST', self.path, post_body)
 
         # Prepare response
         self.send_response(200)
@@ -272,13 +293,14 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     def get_response(self, method, path, post_data=None):
         hostname = self.headers.get('Host', '')
-        handler, customdata = self.handler_map.get(
-            hostname,
-            (self.get_default_response, self.path))
-        return handler(method, customdata, post_data=post_data)
+        handler = self.handler_map.get(hostname, None)
+        if handler is None:
+            return self.get_default_response(self.path)
+        print handler.handle, handler.data
+        return handler.handle(method, handler.data, post_data=post_data)
 
     def handle_custom(self, method, provider, post_data=None):
-        mod_path = os.path.join(self.server.webroot_path, self.PROVIDER_DIRNAME)
+        mod_path = os.path.join(self.server.webroot_path, 'providers')
         provider_path = os.path.join(mod_path, provider)
         try:
             mod = imp.load_source('mod', provider_path)
