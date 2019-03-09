@@ -144,7 +144,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, *args)
 
     def initialize_handler_map(self, config):
-        map = dict()
+        _map = dict()
         keys = [
             (self.CUSTOM_C2_KEY, self.CUSTOM_PROV_KEY, self.handle_custom),
             (self.STATIC_C2_KEY, self.STATIC_DATA_KEY, self.handle_static),
@@ -153,8 +153,8 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         for c2key, datakey, handler in keys:
             c2s, data = self.initialize_custom_config(config, c2key, datakey)
             for c2 in c2s:
-                map[c2] = (handler, data)
-        return map
+                _map[c2] = (handler, data)
+        return _map
 
 
     def initialize_custom_config(self, config, c2key, datakey):
