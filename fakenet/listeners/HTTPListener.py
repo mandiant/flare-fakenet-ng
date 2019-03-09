@@ -88,7 +88,9 @@ class HTTPListener(object):
 
         def handler(*args):
             return ThreadedHTTPRequestHandler(self.config, *args)
-        self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), handler)
+        self.server = ThreadedHTTPServer(
+            (self.local_ip, int(self.config.get('port'))),
+            handler)
         self.server.logger = self.logger
         self.server.config = self.config
         self.server.webroot_path = self.webroot_path
@@ -109,7 +111,11 @@ class HTTPListener(object):
                 self.logger.error('Could not locate %s', certfile_path)
                 sys.exit(1)
 
-            self.server.socket = ssl.wrap_socket(self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers='RSA')
+            self.server.socket = ssl.wrap_socket(
+                self.server.socket,
+                keyfile=keyfile_path,
+                certfile=certfile_path,
+                server_side=True, ciphers='RSA')
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
@@ -148,14 +154,14 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         keys = [
             (self.CUSTOM_C2_KEY, self.CUSTOM_PROV_KEY, self.handle_custom),
             (self.STATIC_C2_KEY, self.STATIC_DATA_KEY, self.handle_static),
-            (self.STATIC_FILE_C2_KEY, self.STATIC_FILE_PATH_KEY, self.handle_static_file),
+            (self.STATIC_FILE_C2_KEY, self.STATIC_FILE_PATH_KEY,
+                self.handle_static_file),
         ]
         for c2key, datakey, handler in keys:
             c2s, data = self.initialize_custom_config(config, c2key, datakey)
             for c2 in c2s:
                 _map[c2] = (handler, data)
         return _map
-
 
     def initialize_custom_config(self, config, c2key, datakey):
 
@@ -231,23 +237,30 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.server.logger.info('%s', '-'*80)
 
         # Store HTTP Posts
-        if self.server.config.get('dumphttpposts') and self.server.config['dumphttpposts'].lower() == 'yes':
-                http_filename = "%s_%s.txt" % (self.server.config.get('dumphttppostsfileprefix', 'http'), time.strftime("%Y%m%d_%H%M%S"))
+        if self.server.config.get('dumphttpposts') and \
+           self.server.config['dumphttpposts'].lower() == 'yes':
+            http_filename = "%s_%s.txt" % (
+                self.server.config.get('dumphttppostsfileprefix', 'http'),
+                time.strftime("%Y%m%d_%H%M%S"))
 
-                self.server.logger.info('Storing HTTP POST headers and data to %s.', http_filename)
-                http_f = open(http_filename, 'wb')
+            self.server.logger.info(
+                'Storing HTTP POST headers and data to %s.', http_filename)
+            http_f = open(http_filename, 'wb')
 
-                if http_f:
-                    http_f.write(self.requestline + "\r\n")
-                    http_f.write(str(self.headers) + "\r\n")
-                    http_f.write(post_body)
+            if http_f:
+                http_f.write(self.requestline + "\r\n")
+                http_f.write(str(self.headers) + "\r\n")
+                http_f.write(post_body)
 
-                    http_f.close()
-                else:
-                    self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)
+                http_f.close()
+            else:
+                self.server.logger.error(
+                    'Failed to write HTTP POST headers and data to %s.', 
+                    ttp_filename)
 
         # Get response type based on the requested path
-        response, response_type = self.get_response('POST', self.path, post_body)
+        response, response_type = self.get_response('POST',
+                                                    self.path, post_body)
 
         # Prepare response
         self.send_response(200)
@@ -259,7 +272,9 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     def get_response(self, method, path, post_data=None):
         hostname = self.headers.get('Host', '')
-        handler, customdata = self.handler_map.get(hostname, (self.get_default_response, self.path))
+        handler, customdata = self.handler_map.get(
+            hostname,
+            (self.get_default_response, self.path))
         return handler(method, customdata, post_data=post_data)
 
     def handle_custom(self, method, provider, post_data=None):
@@ -268,7 +283,8 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         try:
             mod = imp.load_source('mod', provider_path)
         except:
-            response, content_type = self.get_default_response(self.path, method, post_data)
+            response, content_type = self.get_default_response(
+                self.path, method, post_data)
         else:
             response, content_type = mod.HandleRequest(self, method, post_data)
         return response, content_type
@@ -276,7 +292,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def handle_static_file(self, method, static_file_path, post_data=None):
         static_dir = os.path.abspath(os.path.join(
             self.server.webroot_path,
-            # self.headers.get('Host', '.'),        # NOTE: Should we support this?
+            # self.headers.get('Host', '.'),    # NOTE: Should we support this?
             static_file_path))
         if self.path[0] == '/':
             request_path = self.path[1:]
@@ -287,7 +303,8 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             with open(filepath, 'rb') as fd:
                 data = fd.read()
         except IOError as _ioe:
-            response, content_type = self.get_default_response(method, self.path, post_data)
+            response, content_type = self.get_default_response(
+                method, self.path, post_data)
         else:
             response, content_type = data, "text/html"
         return response, content_type
@@ -296,7 +313,10 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         return data, "text/html"
 
     def get_default_response(self, path, method, post_data=None):
-        response = "<html><head><title>FakeNet</title><body><h1>FakeNet</h1></body></html>"
+        response = "<html>"
+        response += "<head><title>FakeNet</title></head>"
+        response += "<body><h1>FakeNet</h1></body>"
+        response += "</html>"
         response_type = 'text/html'
         
         if path[-1] == '/':
@@ -307,28 +327,37 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             response_type = self.server.extensions_map.get(ext, 'text/html')
 
         # Do after checking for trailing '/' since normpath removes it
-        response_filename = ListenerBase.safe_join(self.server.webroot_path, path)
+        response_filename = ListenerBase.safe_join(self.server.webroot_path,
+            path)
 
         # Check the requested path exists
         if not os.path.exists(response_filename):
 
-            self.server.logger.debug('Could not find path: %s', response_filename)
+            self.server.logger.debug('Could not find path: %s',
+                response_filename)
 
             # Try default MIME file
-            response_filename = os.path.join(self.server.webroot_path, MIME_FILE_RESPONSE.get(response_type, 'FakeNet.html'))
+            response_filename = os.path.join(
+                self.server.webroot_path,
+                MIME_FILE_RESPONSE.get(response_type, 'FakeNet.html'))
 
             # Check default MIME file exists
             if not os.path.exists(response_filename):
-                self.server.logger.debug('Could not find path: %s', response_filename)
-                self.server.logger.error('Could not locate requested file or default handler.')
+                self.server.logger.debug(
+                    'Could not find path: %s', response_filename)
+                self.server.logger.error(
+                    'Could not locate requested file or default handler.')
                 return (response, response_type)
 
-        self.server.logger.info('Responding with mime type: %s file: %s', response_type, response_filename)
+        self.server.logger.info(
+            'Responding with mime type: %s file: %s',
+            response_type, response_filename)
 
         try:
             f = open(response_filename, 'rb')
         except Exception, e:
-            self.server.logger.error('Failed to open response file: %s', response_filename)
+            self.server.logger.error(
+                'Failed to open response file: %s', response_filename)
             response_type = 'text/html'
         else:
             response = f.read()
