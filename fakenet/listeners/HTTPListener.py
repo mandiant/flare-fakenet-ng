@@ -203,7 +203,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.server.logger.info('%s', '-'*80)
 
         # Get response type based on the requested path
-        response, response_type = self.get_response(self.path)
+        response, response_type = self.get_response('GET', self.path)
 
         # Prepare response
         self.send_response(200)
@@ -247,7 +247,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                     self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)
 
         # Get response type based on the requested path
-        response, response_type = self.get_response(self.path, post_body)
+        response, response_type = self.get_response('POST', self.path, post_body)
 
         # Prepare response
         self.send_response(200)
@@ -257,24 +257,23 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
         self.wfile.write(response)
 
-    def get_response(self, path, post_data=None):
+    def get_response(self, method, path, post_data=None):
         hostname = self.headers.get('Host', '')
         handler, customdata = self.handler_map.get(hostname, (self.get_default_response, self.path))
-        return handler(customdata, post_data=post_data)
+        return handler(method, customdata, post_data=post_data)
 
-    def handle_custom(self, provider, post_data=None):
+    def handle_custom(self, method, provider, post_data=None):
         mod_path = os.path.join(self.server.webroot_path, self.PROVIDER_DIRNAME)
         provider_path = os.path.join(mod_path, provider)
         try:
             mod = imp.load_source('mod', provider_path)
         except:
-            response, content_type = self.get_default_response(self.path, post_data)
+            response, content_type = self.get_default_response(self.path, method, post_data)
         else:
-            response, content_type = mod.HandleRequest(self, post_data)
+            response, content_type = mod.HandleRequest(self, method, post_data)
         return response, content_type
 
-
-    def handle_static_file(self, static_file_path, post_data=None):
+    def handle_static_file(self, method, static_file_path, post_data=None):
         static_dir = os.path.abspath(os.path.join(
             self.server.webroot_path,
             # self.headers.get('Host', '.'),        # NOTE: Should we support this?
@@ -288,15 +287,15 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             with open(filepath, 'rb') as fd:
                 data = fd.read()
         except IOError as _ioe:
-            response, content_type = self.get_default_response(self.path, post_data)
+            response, content_type = self.get_default_response(method, self.path, post_data)
         else:
             response, content_type = data, "text/html"
         return response, content_type
 
-    def handle_static(self, data, post_data=None):
+    def handle_static(self, method, data, post_data=None):
         return data, "text/html"
 
-    def get_default_response(self, path, post_data=None):
+    def get_default_response(self, path, method, post_data=None):
         response = "<html><head><title>FakeNet</title><body><h1>FakeNet</h1></body></html>"
         response_type = 'text/html'
         
