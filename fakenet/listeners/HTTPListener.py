@@ -375,7 +375,9 @@ def test(config):
 
     import requests
 
-    url = "%s://localhost:%s" % ('http' if config.get('usessl') == 'No' else 'https', int(config.get('port', 8080)))
+    url = "%s://localhost:%s" % (
+        'http' if config.get('usessl') == 'No' else 'https',
+        int(config.get('port', 8080)))
 
     print "\t[HTTPListener] Testing HEAD request."
     print '-'*80
@@ -389,7 +391,9 @@ def test(config):
 
     print "\t[HTTPListener] Testing POST request."
     print '-'*80
-    print requests.post(url, {'param1':'A'*80, 'param2':'B'*80}, verify=False, stream=True).text
+    print requests.post(url, 
+        {'param1':'A'*80, 'param2':'B'*80},
+        verify=False, stream=True).text
     print '-'*80
 
 def main():
@@ -399,9 +403,14 @@ def main():
        python2 -m fakenet.listeners.HTTPListener
 
     """
-    logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
+    logging.basicConfig(
+        format='%(asctime)s [%(name)15s] %(message)s',
+        datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
 
-    config = {'port': '8443', 'usessl': 'Yes', 'webroot': 'fakenet/defaultFiles' }
+    config = {
+        'port': '8443',
+        'usessl': 'Yes',
+        'webroot': 'fakenet/defaultFiles' }
 
     listener = HTTPListener(config)
     listener.start()
