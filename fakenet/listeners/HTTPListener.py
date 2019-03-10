@@ -295,7 +295,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         hostname = self.headers.get('Host', '')
         handler = self.handler_map.get(hostname, None)
         if handler is None:
-            return self.get_default_response(self.path)
+            return self.get_default_response(self.path, method)
         print handler.handle, handler.data
         return handler.handle(method, handler.data, post_data=post_data)
 
@@ -326,7 +326,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 data = fd.read()
         except IOError as _ioe:
             response, content_type = self.get_default_response(
-                method, self.path, post_data)
+                self.path, method, post_data)
         else:
             response, content_type = data, "text/html"
         return response, content_type
