@@ -1,5 +1,5 @@
 Custom HTTP response configuration can be extended to HTTPListener settings.
-The HTTPListener support the following new settings:
+The HTTPListener supports the following new settings:
 
 - Support static response. The `<static string>` is sent back as the HTTP
 response as-is, without any further logic.
@@ -41,7 +41,7 @@ Here is an example dynamic handler
 
     This method must handle the request and write the response
 '''
-def HandleRequest(req, post_data = None):
+def HandleRequest(req, post_data=None):
     content = "Dynamic Response"
     content_type = "text/html"
     return content, content_type
