@@ -145,7 +145,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.pdebug(DNFQUEUE, ('Creating NFQUEUE object for chain %s / ' +
                         'table %s / queue # %d => %s') % (hk.chain, hk.table,
                         qno, str(hk.callback)))
-            q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback)
+            q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback, 'eth0')
             self.nfqueues.append(q)
             ok = q.start()
             if not ok:

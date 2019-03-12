@@ -54,11 +54,19 @@ class LinuxDiverterNfqueue(object):
     The results are undefined if start() or stop() are called multiple times.
     """
 
-    def __init__(self, qno, chain, table, callback):
+    def __init__(self, qno, chain, table, callback, iface=None):
         self.logger = logging.getLogger('Diverter')
 
         # e.g. iptables <-I> <INPUT> -t <mangle> -j NFQUEUE --queue-num <0>'
-        fmt = 'iptables %s %s -t %s -j NFQUEUE --queue-num %d'
+        cmd = 'iptables '
+        if iface:
+            if chain in ['OUTPUT', 'POSTROUTING']:
+                cmd += ('-o %s ' % (iface))
+            elif chain in ['INPUT', 'PREROUTING']:
+                cmd += ('-i %s ' % (iface))
+            else:
+                raise NotImplementedError('Unanticipated chain %s' % (chain))
+        fmt = cmd + ' %s %s -t %s -j NFQUEUE --queue-num %d'
 
         # Specifications
         self.qno = qno
