@@ -1231,18 +1231,6 @@ class DiverterBase(fnconfig.Config):
                 self.logger.debug('Blacklisted UDP ports: %s', ', '.join(
                     [str(p) for p in self.getconfigval('BlackListPortsUDP')]))
 
-        # Ignore or drop packets to/from blacklisted interfaces
-        # Currently Linux-only
-        self.blacklist_ifaces = None
-        if self.is_set('linuxblacklistinterfaces'):
-            self.blacklist_ifaces_disp = (
-                self.getconfigval('linuxblacklistinterfacesdisposition',
-                                  'drop'))
-            self.blacklist_ifaces = (
-                self.getconfigval('linuxblacklistedinterfaces', None))
-            self.logger.debug('Blacklisted interfaces: %s. Disposition: %s' %
-                              (self.blacklist_ifaces, 
-                              self.blacklist_ifaces_disp))
 
     def write_pcap(self, pkt):
         """Writes a packet to the pcap.
@@ -1321,14 +1309,7 @@ class DiverterBase(fnconfig.Config):
                 logline = self.formatPkt(pkt, pid, comm)
                 self.pdebug(DGENPKTV, logline)
 
-            # check for no_further_processing here in order to filter out
-            # packets that are being ignored already due to a blacklisted
-            # interface. If a user is using ssh over a blacklisted interface
-            # there needs to be no per-packet output by default. If there is
-            # output for each packet, an infinite loop is generated where each
-            # packet produces output which produces a packet, etc.
-            elif (pid and (pid != self.pid) and crit.first_packet_new_session
-                  and no_further_processing is not True):
+            elif (pid and (pid != self.pid) and crit.first_packet_new_session):
                 self.logger.info('  pid:  %d name: %s' %
                                  (pid, comm if comm else 'Unknown'))
 
@@ -1525,14 +1506,6 @@ class DiverterBase(fnconfig.Config):
                                   (pkt.src_ip, pkt.dst_ip))
                 return True
 
-        if self.blacklist_ifaces and self.blacklist_ifaces_disp == 'Pass':
-            if (pkt.src_ip in self.blacklist_ifaces or 
-                        pkt.dst_ip in self.blacklist_ifaces):
-                self.logger.debug('Ignore blacklisted Interface. src: ' + 
-                                  '%s dst: %s' % (pkt.src_ip, pkt.dst_ip))
-                return True
-
-
         # Forwarding blacklisted port
         if pkt.proto:
             if set(self.blacklist_ports[pkt.proto]).intersection([sport, dport]):
@@ -1625,13 +1598,7 @@ class DiverterBase(fnconfig.Config):
                     return True
 
         # Single and multi-host checks
-        # check for blacklisted interface and drop if needed
-        if self.blacklist_ifaces and self.blacklist_ifaces_disp == 'Drop':
-            if (pkt.src_ip in self.blacklist_ifaces or
-                    pkt.dst_ip in self.blacklist_ifaces):
-                self.logger.debug('Drop blacklisted Interface. src: %s dst: %s'
-                                  % (pkt.src_ip, pkt.dst_ip))
-                return True
+        pass
 
         return False
 
