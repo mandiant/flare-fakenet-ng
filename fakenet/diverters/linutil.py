@@ -623,8 +623,12 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         return dgw
 
-    def linux_redir_icmp(self):
-        fmt = 'iptables -t nat %s OUTPUT -p icmp -j REDIRECT'
+    def linux_redir_icmp(self, iface=None):
+        cmd = 'iptables'
+        if iface:
+            cmd += (' -i %s' % (iface))
+        fmt = cmd + ' -t nat %s OUTPUT -p icmp -j REDIRECT'
+
         rule = IptCmdTemplate(fmt)
         ret = rule.add()
         return (ret == 0), rule
