@@ -1138,6 +1138,10 @@ class DiverterBase(fnconfig.Config):
             if self.network_mode.lower() == 'multihost':
                 self.single_host_mode = False
 
+        # multi-host only
+        if not self.single_host_mode:
+            self.listenerlocalignore = self.is_set('listenerlocalignore')
+
         if (self.getconfigval('processwhitelist') and
                 self.getconfigval('processblacklist')):
             self.logger.error('ERROR: Diverter can\'t have both process ' +
@@ -1496,15 +1500,15 @@ class DiverterBase(fnconfig.Config):
 
         # MultiHost mode checks
         else:
-            pass
+            if self.listenerlocalignore:
+                if crit.is_loopback0 and not crit.dport_bound:
+                    self.logger.debug('Ignore local packet destined for ' +
+                                      'unbound port. src: %s dst: %s' %
+                                      (pkt.src_ip, pkt.dst_ip))
+                    return True
 
         # Checks independent of mode
-        if self.is_set('listenerlocalignore'):
-            if crit.is_loopback0 and not crit.dport_bound:
-                self.logger.debug('Ignore local packet destined for ' +
-                                  'unbound port. src: %s dst: %s' %
-                                  (pkt.src_ip, pkt.dst_ip))
-                return True
+            pass
 
         # Forwarding blacklisted port
         if pkt.proto:
@@ -1584,7 +1588,7 @@ class DiverterBase(fnconfig.Config):
  
         # Multi-host only checks
         else:
-            if self.is_set('listenerlocalignore'):
+            if self.listenerlocalignore:
                 # If listeners are ignoring local traffic, we can drop local
                 # packets destined for listeners. However,the proxy can forward
                 # non-local traffic. We must allow local traffic to/from proxy.

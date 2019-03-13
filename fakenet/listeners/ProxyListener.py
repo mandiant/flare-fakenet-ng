@@ -114,14 +114,14 @@ class ThreadedTCPClientSocket(threading.Thread):
     def run(self):
 
         try:
-            if self.diverter.is_set('listenerlocalignore'):
+            if self.diverter.listenerlocalignore:
                 # Before connect() call need to tell the diverter to
                 # not drop the TCP handshake packets on both sides of the Proxy
                 self.diverter.proxy_conns.new_conn(self.port)
 
             self.sock.connect((self.ip, self.port))
 
-            if self.diverter.is_set('listenerlocalignore'):
+            if self.diverter.listenerlocalignore:
                 # Connection is established. Diverter will not drop local Proxy
                 # traffic for this connection
                 self.proxy_port = self.sock.getsockname()[1]
@@ -143,7 +143,7 @@ class ThreadedTCPClientSocket(threading.Thread):
         except Exception as e:
             self.logger.debug('Listener socket exception %s' % e.message)
         finally:
-            if self.diverter.is_set('listenerlocalignore'):
+            if self.diverter.listenerlocalignore:
                 # Clean up entry in list of ongoing proxy connections
                 self.diverter.proxy_conns.conn_ended(self.port,
                                                      self.proxy_port)
@@ -319,7 +319,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
                                          % sock.getsockname())
 
                 try:
-                    if self.server.diverter.is_set('listenerlocalignore'):
+                    if self.server.diverter.listenerlocalignore:
                         # Diverter will not drop local traffic
                         self.server.diverter.proxy_conns.new_conn(port,
                                                                   sock_port)
@@ -334,7 +334,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
                 finally:
                     # Clean up entry in list of ongoing proxy connections
-                    if self.server.diverter.is_set("listenerlocalignore"):
+                    if self.server.diverter.listenerlocalignore:
                         self.server.diverter.proxy_conns.conn_ended(port,
                                                                     sock_port)
         else:
