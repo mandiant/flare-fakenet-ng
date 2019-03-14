@@ -1,3 +1,12 @@
+Version 1.4.3
+-------------
+* Fixed unbound `proto` variable error in Windows PyDivert error case
+
+Version 1.4.2
+-------------
+* Updated contact information
+* Whitespace wrangling
+
 Version 1.4.1
 -------------
 * Syslog support
@@ -22,7 +31,7 @@ Version 1.3
 * Protocol autodetection (thanks Matthew Haigh)
 * Security: fix for path traversal vulnerability (thanks Cody Pierce and Antony Saba)
 * Randomized banner generation (thanks Michael Bailey!)
-* Listener: BITS protocol support
+* Listener: BITS protocol support (thanks Peter Kacherginsky)
 * Various bug fixes
 
 
@@ -46,4 +55,4 @@ Version 1.1
 Version 1.0
 -----------
 
-* Initial release
+* Initial Windows release by Peter Kacherginsky
