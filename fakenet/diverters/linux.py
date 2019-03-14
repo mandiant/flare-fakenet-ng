@@ -188,7 +188,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.stop()
                 sys.exit(1)
 
-        ok, rule = self.linux_redir_icmp()
+        ok, rule = self.linux_redir_icmp(only_this_iface)
         if not ok:
             self.logger.error('Failed to redirect ICMP')
             self.stop()
