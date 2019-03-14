@@ -95,6 +95,8 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.outgoing_trans_cbs.append(self.maybe_redir_ip)
 
     def startCallback(self):
+        only_this_iface = 'enp2s5'
+
         if not self.check_privileged():
             self.logger.error('The Linux Diverter requires administrative ' +
                               'privileges')
@@ -145,7 +147,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.pdebug(DNFQUEUE, ('Creating NFQUEUE object for chain %s / ' +
                         'table %s / queue # %d => %s') % (hk.chain, hk.table,
                         qno, str(hk.callback)))
-            q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback)
+            q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback, only_this_iface)
             self.nfqueues.append(q)
             ok = q.start()
             if not ok:
@@ -170,7 +172,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         if self.is_configured('linuxredirectnonlocal'):
             self.pdebug(DMISC, 'Processing LinuxRedirectNonlocal')
-            specified_ifaces = self.getconfigval('linuxredirectnonlocal')
+            # specified_ifaces = self.getconfigval('linuxredirectnonlocal')
+            specified_ifaces = [only_this_iface]
             self.pdebug(DMISC, 'Processing linuxredirectnonlocal on ' +
                         'interfaces: %s' % (specified_ifaces))
             ok, rules = self.linux_iptables_redir_nonlocal(specified_ifaces)
@@ -185,7 +188,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.stop()
                 sys.exit(1)
 
-        ok, rule = self.linux_redir_icmp()
+        ok, rule = self.linux_redir_icmp(only_this_iface)
         if not ok:
             self.logger.error('Failed to redirect ICMP')
             self.stop()
