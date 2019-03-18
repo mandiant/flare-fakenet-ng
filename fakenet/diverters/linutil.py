@@ -59,6 +59,7 @@ class LinuxDiverterNfqueue(object):
 
         # e.g. iptables <-I> <INPUT> -t <mangle> -j NFQUEUE --queue-num <0>'
         cmd = 'iptables '
+
         if iface:
             if chain in ['OUTPUT', 'POSTROUTING']:
                 cmd += ('-o %s ' % (iface))
@@ -66,6 +67,7 @@ class LinuxDiverterNfqueue(object):
                 cmd += ('-i %s ' % (iface))
             else:
                 raise NotImplementedError('Unanticipated chain %s' % (chain))
+
         fmt = cmd + ' %s %s -t %s -j NFQUEUE --queue-num %d'
 
         # Specifications
@@ -367,9 +369,9 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         return next_qnos
 
-    def linux_iptables_redir_nonlocal(self, specified_ifaces):
-        """Linux-specific iptables processing for 'LinuxRedirectNonlocal'
-        configuration item.
+    def linux_iptables_redir_iface(self, fn_iface):
+        """Linux-specific iptables processing for interface-based redirect
+        rules.
 
         returns:
             tuple(bool, list(IptCmdTemplate))
@@ -377,40 +379,22 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
             need to be undone.
         """
 
-        local_ifaces = self._linux_get_ifaces()
-        all_iface_aliases = ['any', '*']
-        acceptable_ifaces = local_ifaces + all_iface_aliases
         iptables_rules = []
+        if fn_iface:
+            fmt = 'iptables -t nat %s PREROUTING -i {} -j REDIRECT'.format(
+                fn_iface)
+        else:
+            fmt = 'iptables -t nat %s PREROUTING -j REDIRECT'
 
-        # Catch cases where the user isn't going to get what they expect
-        # because iptables does not err for non-existent ifaces...
-        if not set(specified_ifaces).issubset(acceptable_ifaces):
-            # And indicate ALL interfaces that do not appear to exist
-            for iface in specified_ifaces:
-                if iface not in acceptable_ifaces:
-                    self.logger.error(('Interface %s not found for nonlocal ' +
-                                       'packet redirection, must be one of ' +
-                                       '%s') % (iface, str(acceptable_ifaces)))
-            return (False, [])
+        rule = IptCmdTemplate(fmt)
+        ret = rule.add()
 
-        for iface in specified_ifaces:
-            fmt, args = '', list()
-            if iface in all_iface_aliases:
-                # Handle */any case by omitting -i switch and corresponding arg
-                fmt = 'iptables -t nat %s PREROUTING -j REDIRECT'
-            else:
-                fmt = 'iptables -t nat %s PREROUTING -i %s -j REDIRECT'
-                args = [iface]
+        if ret != 0:
+            self.logger.error('Failed to create PREROUTING/REDIRECT ' +
+                              'rule for %s, stopping...' % (iface))
+            return (False, iptables_rules)
 
-            rule = IptCmdTemplate(fmt, args)
-            ret = rule.add()
-
-            if ret != 0:
-                self.logger.error('Failed to create PREROUTING/REDIRECT ' +
-                                  'rule for %s, stopping...' % (iface))
-                return (False, iptables_rules)
-
-            iptables_rules.append(rule)
+        iptables_rules.append(rule)
 
         return (True, iptables_rules)
 

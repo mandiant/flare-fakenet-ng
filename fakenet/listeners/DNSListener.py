@@ -26,7 +26,8 @@ class DNSListener(object):
     def __init__(
             self, 
             config={}, 
-            name='DNSListener', 
+            name='DNSListener',
+            local_ip='0.0.0.0',
             logging_level=logging.INFO, 
             ):
 
@@ -34,7 +35,7 @@ class DNSListener(object):
         self.logger.setLevel(logging_level)
             
         self.config = config
-        self.local_ip = '0.0.0.0'
+        self.local_ip = local_ip
         self.server = None
         self.name = 'DNS'
         self.port = self.config.get('port', 53)

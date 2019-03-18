@@ -38,8 +38,9 @@ class Diverter(DiverterBase, LinUtilMixin):
         # String list configuration item that is specific to the Linux
         # Diverter, will not be parsed by DiverterBase, and needs to be
         # accessed as an array in the future.
-        slists = ['linuxredirectnonlocal', ]
-        self.reconfigure(portlists=[], stringlists=slists)
+        
+        #slists = []
+        #self.reconfigure(portlists=[], stringlists=slists)
 
         self.logger.info('Running in %s mode' % (self.network_mode))
 
@@ -95,7 +96,6 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.outgoing_trans_cbs.append(self.maybe_redir_ip)
 
     def startCallback(self):
-        only_this_iface = 'enp2s5'
 
         if not self.check_privileged():
             self.logger.error('The Linux Diverter requires administrative ' +
@@ -142,12 +142,18 @@ class Diverter(DiverterBase, LinUtilMixin):
 
         self.pdebug(DNFQUEUE, 'Enumerating queue numbers and hook ' +
                     'specifications to create NFQUEUE objects')
+        self.pdebug(DMISC, 'Processing LinuxRestrictInterface config %s' % self.getconfigval('linuxrestrictinterface'))
+        if self.is_activated('linuxrestrictinterface'):
+            fn_iface = self.getconfigval('linuxrestrictinterface')
+        else:
+            fn_iface = None
         self.nfqueues = list()
         for qno, hk in zip(qnos, callbacks):
             self.pdebug(DNFQUEUE, ('Creating NFQUEUE object for chain %s / ' +
                         'table %s / queue # %d => %s') % (hk.chain, hk.table,
                         qno, str(hk.callback)))
-            q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback, only_this_iface)
+            q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback,
+                                    fn_iface)
             self.nfqueues.append(q)
             ok = q.start()
             if not ok:
@@ -170,25 +176,21 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.logger.error('Failed to flush DNS cache. Local machine '
                                   'may use cached DNS results.')
 
-        if self.is_configured('linuxredirectnonlocal'):
-            self.pdebug(DMISC, 'Processing LinuxRedirectNonlocal')
-            # specified_ifaces = self.getconfigval('linuxredirectnonlocal')
-            specified_ifaces = [only_this_iface]
-            self.pdebug(DMISC, 'Processing linuxredirectnonlocal on ' +
-                        'interfaces: %s' % (specified_ifaces))
-            ok, rules = self.linux_iptables_redir_nonlocal(specified_ifaces)
+        self.pdebug(DMISC, 'Processing interface redirection on ' +
+                    'interface: %s' % (fn_iface))
+        ok, rules = self.linux_iptables_redir_iface(fn_iface)
 
-            # Irrespective of whether this failed, we want to add any
-            # successful iptables rules to the list so that stop() will be able
-            # to remove them using linux_remove_iptables_rules().
-            self.rules_added += rules
+        # Irrespective of whether this failed, we want to add any
+        # successful iptables rules to the list so that stop() will be able
+        # to remove them using linux_remove_iptables_rules().
+        self.rules_added += rules
 
-            if not ok:
-                self.logger.error('Failed to process LinuxRedirectNonlocal')
-                self.stop()
-                sys.exit(1)
+        if not ok:
+            self.logger.error('Failed to process interface redirection')
+            self.stop()
+            sys.exit(1)
 
-        ok, rule = self.linux_redir_icmp(only_this_iface)
+        ok, rule = self.linux_redir_icmp(fn_iface)
         if not ok:
             self.logger.error('Failed to redirect ICMP')
             self.stop()

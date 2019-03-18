@@ -159,6 +159,18 @@ class Fakenet(object):
                 if self.diverter_config['networkmode'].lower() == 'auto':
                     self.diverter_config['networkmode'] = 'multihost'
 
+                fn_addr = '0.0.0.0'
+                if self.diverter_config['networkmode'].lower() == 'multihost':
+                    if self.diverter_config['linuxrestrictinterface'].lower() != 'off':
+                        fn_iface = self.diverter_config['linuxrestrictinterface']
+                        ifaces = linux_get_ifaces(netifaces.AF_INET)
+                        if fn_iface in ifaces:
+                            fn_addr = ifaces[fn_iface]
+                        else:
+                            self.logger.error('Invalid interface %s specified. Proceeding without interface restriction. Exiting.', fn_iface)
+                            sys.exit(1)
+
+
                 from diverters.linux import Diverter
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
 
@@ -172,7 +184,6 @@ class Fakenet(object):
         for listener_name in self.listeners_config:
 
             listener_config = self.listeners_config[listener_name]
-
             # Anonymous listener
             if not 'listener' in listener_config:
                 self.logger.info('Anonymous %s listener on %s port %s...', listener_name, listener_config['protocol'], listener_config['port'])
@@ -190,7 +201,7 @@ class Fakenet(object):
             else:
 
                 listener_provider_instance = listener_provider(
-                        listener_config, listener_name, self.logging_level)
+                        config=listener_config, name=listener_name, local_ip=fn_addr, logging_level=self.logging_level)
 
                 # Store listener provider object
                 self.running_listener_providers.append(listener_provider_instance)
@@ -251,18 +262,28 @@ def get_ips(ipvers):
         else:
             raise ValueError('get_ips only supports IP versions 4 and 6')
 
-    for iface in netifaces.interfaces():
-        for spec in specs:
-            addrs = netifaces.ifaddresses(iface)
-            # If an interface only has an IPv4 or IPv6 address, then 6 or 4
-            # respectively will be absent from the keys in the interface
-            # addresses dictionary.
-            if spec in addrs:
-                for link in addrs[spec]:
-                    if 'addr' in link:
-                        results.append(link['addr'])
+    for spec in specs:
+        ifaces = linux_get_ifaces(spec)
+        if ifaces is not None:
+            results.append(ifaces.values())
 
     return results
+
+def linux_get_ifaces(spec=netifaces.AF_INET):
+	
+    results = {}
+
+    for iface in netifaces.interfaces():
+
+        addrs = netifaces.ifaddresses(iface)
+        if spec in addrs:
+            for link in addrs[spec]:
+
+                    if 'addr' in link:
+                        results[iface] = link['addr']
+
+    return results
+
 
 def main():
 

@@ -447,15 +447,22 @@ class BITSListener(object):
                 continue
 
         return confidence
-        
-    def __init__(self, config={}, name='BITSListener', 
-            logging_level=logging.DEBUG, running_listeners=None):
+
+    def __init__(
+            self,
+            config={},
+            name='BITSListener',
+            local_ip='0.0.0.0',
+            logging_level=logging.DEBUG,
+            running_listeners=None
+            ):
+
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
   
         self.config = config
         self.name = name
-        self.local_ip  = '0.0.0.0'
+        self.local_ip  = local_ip
         self.server = None
         self.running_listeners = running_listeners
         self.NAME = 'BITS'

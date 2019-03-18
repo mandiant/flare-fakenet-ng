@@ -37,6 +37,7 @@ class SMTPListener(object):
             self, 
             config, 
             name='SMTPListener', 
+            local_ip='0.0.0.0',
             logging_level=logging.INFO,
             ):
 
@@ -45,7 +46,7 @@ class SMTPListener(object):
 
         self.config = config
         self.name = name
-        self.local_ip = '0.0.0.0'
+        self.local_ip = local_ip
         self.server = None
         self.name = 'SMTP'
         self.port = self.config.get('port', 25)

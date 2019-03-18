@@ -19,6 +19,7 @@ class RawListener(object):
     def __init__(self, 
             config, 
             name='RawListener', 
+            local_ip='0.0.0.0',
             logging_level=logging.INFO, 
             ):
 
@@ -27,7 +28,7 @@ class RawListener(object):
             
         self.config = config
         self.name = name
-        self.local_ip = '0.0.0.0'
+        self.local_ip = local_ip
         self.server = None
         self.name = 'Raw'
         self.port = self.config.get('port', 1337)
