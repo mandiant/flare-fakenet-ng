@@ -171,9 +171,10 @@ class Fakenet(object):
                             # default to first interface
                             fn_addr = iface_ip_info.get_ips([4], fn_iface)[0]
                         else:
-                            self.logger.error('Invalid interface %s specified.'
-                            + 'Proceeding without interface restriction.'
-                            + 'Exiting.', fn_iface)
+                            self.logger.error(
+                                'Invalid interface %s specified. Proceeding '
+                                'without interface restriction. Exiting.',
+                                fn_iface)
                             sys.exit(1)
 
                 from diverters.linux import Diverter
