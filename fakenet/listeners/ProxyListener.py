@@ -20,9 +20,9 @@ class ProxyListener(object):
 
 
     def __init__(
-            self, 
-            config={}, 
-            name ='ProxyListener',
+            self,
+            config={},
+            name='ProxyListener',
             logging_level=logging.DEBUG,
             ):
 
@@ -52,7 +52,7 @@ class ProxyListener(object):
 
                 self.server = ThreadedTCPServer((self.local_ip,
                     int(self.config.get('port'))), ThreadedTCPRequestHandler)
-            
+
             elif proto == 'UDP':
 
                 self.logger.debug('Starting UDP ...')
@@ -68,7 +68,7 @@ class ProxyListener(object):
         else:
             self.logger.error('Protocol is not defined')
             return
-   
+
         self.server.config = self.config
         self.server.logger = self.logger
         self.server.local_ip = self.local_ip
@@ -93,7 +93,7 @@ class ProxyListener(object):
 
     def acceptDiverter(self, diverter):
         self.server.diverter = diverter
-        
+
 class ThreadedTCPClientSocket(threading.Thread):
 
 
@@ -217,7 +217,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
             if top_listener:
                 self.server.logger.debug('Likely listener: %s' %
-                        top_listener.name)
+                                         top_listener.name)
                 listener_sock = ThreadedTCPClientSocket(self.server.local_ip,
                         top_listener.port, listener_q, remote_q,
                         self.server.config, self.server.logger)

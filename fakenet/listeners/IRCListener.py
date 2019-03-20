@@ -65,15 +65,14 @@ class IRCListener(object):
 
         return confidence
 
-    def __init__(self, 
-            config, 
-            name='IRCListener', 
-            logging_level=logging.INFO, 
+    def __init__(self,
+            config,
+            name='IRCListener',
+            logging_level=logging.INFO,
             ):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
-
         self.config = config
         self.name = name
         self.local_ip = config.get('ipaddr')
@@ -91,7 +90,6 @@ class IRCListener(object):
 
     def start(self):
         self.logger.debug('Starting...')
-        
         self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
 
         self.banner = self.genBanner()

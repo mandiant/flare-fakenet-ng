@@ -168,17 +168,13 @@ class Fakenet(object):
                             != 'off'):
                         fn_iface = self.diverter_config['linuxrestrictinterface']
                         if fn_iface in iface_ip_info.ifaces:
-                            # default to first interfaces
+                            # default to first interface
                             fn_addr = iface_ip_info.get_ips([4], fn_iface)[0]
                         else:
                             self.logger.error('Invalid interface %s specified.'
                             + 'Proceeding without interface restriction.'
                             + 'Exiting.', fn_iface)
                             sys.exit(1)
-
-                        print('get_ips: %r' % (ip_addrs))
-                        print('fn_addr: %r' % (fn_addr))
-
 
                 from diverters.linux import Diverter
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
@@ -211,7 +207,7 @@ class Fakenet(object):
             else:
 
                 listener_provider_instance = listener_provider(
-                        config=listener_config, name=listener_name, logging_level=self.logging_level)
+                        listener_config, listener_name, self.logging_level)
 
                 # Store listener provider object
                 self.running_listener_providers.append(listener_provider_instance)

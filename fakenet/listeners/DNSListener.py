@@ -24,15 +24,15 @@ class DNSListener(object):
         return confidence + 2
 
     def __init__(
-            self, 
-            config={}, 
+            self,
+            config={},
             name='DNSListener',
-            logging_level=logging.INFO, 
+            logging_level=logging.INFO,
             ):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
-            
+
         self.config = config
         self.local_ip = config.get('ipaddr')
         self.server = None
@@ -46,7 +46,7 @@ class DNSListener(object):
             self.logger.debug('  %10s: %s', key, value)
 
     def start(self):
-        
+
         # Start UDP listener  
         if self.config['protocol'].lower() == 'udp':
             self.logger.debug('Starting UDP ...')

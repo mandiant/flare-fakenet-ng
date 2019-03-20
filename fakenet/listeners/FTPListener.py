@@ -222,19 +222,19 @@ class FTPListener(object):
             if data.startswith(command):
                 return confidence + 1
 
-        return confidence 
+        return confidence
 
-    def __init__(self, 
+    def __init__(self,
             config,
             name='FTPListener',
-            logging_level=logging.INFO, 
-            running_listeners=None, 
+            logging_level=logging.INFO,
+            running_listeners=None,
             diverter=None
             ):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
-            
+
         self.config = config
         self.name = name
         self.local_ip = config.get('ipaddr')

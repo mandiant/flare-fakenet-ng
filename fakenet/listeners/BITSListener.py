@@ -458,7 +458,7 @@ class BITSListener(object):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
-  
+
         self.config = config
         self.name = name
         self.local_ip = config.get('ipaddr')
