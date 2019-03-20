@@ -50,9 +50,9 @@ class IptCmdTemplate(object):
         iface : string or NoneType
             Name of interface to restrict the rule to (e.g. 'eth0'), or None
         argfmt : string
-            Format string for remaining iptables arguments. This format string will
-            not be included in format string evaluation but is appended as-is to
-            the iptables command.
+            Format string for remaining iptables arguments. This format string
+            will not be included in format string evaluation but is appended
+            as-is to the iptables command.
         """
         flag_iface = ''
         if iface:
@@ -73,7 +73,7 @@ class IptCmdTemplate(object):
 
     def nfqueue_init(self, chain, qno, table, iface=None):
         fmt = '-t {} -j NFQUEUE --queue-num {}'.format(table, qno)
-        self._addcmd, self._remcmd =  self.iptables_format(chain, iface, fmt)
+        self._addcmd, self._remcmd = self.iptables_format(chain, iface, fmt)
 
     def redir_iface_init(self, iface=None):
         fmt = '-t nat -j REDIRECT'
@@ -82,7 +82,7 @@ class IptCmdTemplate(object):
 
     def redir_icmp_init(self, iface=None):
         fmt = '-t nat -p icmp -j REDIRECT'
-        self._addcmd, self._remcmd = self.iptables_format('OUTPUT', iface, fmt) 
+        self._addcmd, self._remcmd = self.iptables_format('OUTPUT', iface, fmt)
 
 
 class LinuxDiverterNfqueue(object):
@@ -759,4 +759,3 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
                         (ip, port, t))
 
         return False
-

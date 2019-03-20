@@ -135,14 +135,14 @@ class Diverter(DiverterBase, LinUtilMixin):
         if (self.is_configured('linuxrestrictinterface') and
                 not self.is_clear('linuxrestrictinterface')):
             self.pdebug(DMISC, 'Processing LinuxRestrictInterface config %s' %
-                self.getconfigval('linuxrestrictinterface'))
+                    self.getconfigval('linuxrestrictinterface'))
             fn_iface = self.getconfigval('linuxrestrictinterface')
 
         self.pdebug(DNFQUEUE, 'Next available NFQUEUE numbers: ' + str(qnos))
 
         self.pdebug(DNFQUEUE, 'Enumerating queue numbers and hook ' +
                     'specifications to create NFQUEUE objects')
-        
+
         self.nfqueues = list()
         for qno, hk in zip(qnos, callbacks):
             self.pdebug(DNFQUEUE, ('Creating NFQUEUE object for chain %s / ' +
