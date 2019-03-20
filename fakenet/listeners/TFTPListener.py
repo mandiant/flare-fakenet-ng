@@ -69,7 +69,6 @@ class TFTPListener(object):
     def __init__(self, 
             config, 
             name='TFTPListener', 
-            local_ip='0.0.0.0',
             logging_level=logging.INFO, 
             ):
 
@@ -78,7 +77,7 @@ class TFTPListener(object):
             
         self.config = config
         self.name = name
-        self.local_ip = local_ip
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.name = 'TFTP'
         self.port = self.config.get('port', 69)
@@ -97,7 +96,7 @@ class TFTPListener(object):
 
     def start(self):
         self.logger.info('Starting...')
-
+        
         # Start listener
         self.server = ThreadedUDPServer((self.local_ip, int(self.config['port'])), ThreadedUDPRequestHandler)
 

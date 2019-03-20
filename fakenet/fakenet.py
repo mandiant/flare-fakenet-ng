@@ -23,6 +23,7 @@ from ConfigParser import ConfigParser
 import platform
 
 from optparse import OptionParser
+from collections import namedtuple
 
 ###############################################################################
 # Listener services
@@ -137,9 +138,12 @@ class Fakenet(object):
             # Select platform specific diverter
             platform_name = platform.system()
 
+            iface_ip_info = IfaceIpInfo()
+
             ip_addrs = dict()
-            ip_addrs[4] = get_ips([4])  # Get IPv4 addrs
-            ip_addrs[6] = get_ips([6])  # Get IPv6 addrs
+            ip_addrs[4] = iface_ip_info.get_ips([4])
+            ip_addrs[6] = iface_ip_info.get_ips([6])
+            fn_addr = '0.0.0.0'
 
             if platform_name == 'Windows':
 
@@ -159,16 +163,21 @@ class Fakenet(object):
                 if self.diverter_config['networkmode'].lower() == 'auto':
                     self.diverter_config['networkmode'] = 'multihost'
 
-                fn_addr = '0.0.0.0'
                 if self.diverter_config['networkmode'].lower() == 'multihost':
-                    if self.diverter_config['linuxrestrictinterface'].lower() != 'off':
+                    if (self.diverter_config['linuxrestrictinterface'].lower()
+                            != 'off'):
                         fn_iface = self.diverter_config['linuxrestrictinterface']
-                        ifaces = linux_get_ifaces(netifaces.AF_INET)
-                        if fn_iface in ifaces:
-                            fn_addr = ifaces[fn_iface]
+                        if fn_iface in iface_ip_info.ifaces:
+                            # default to first interfaces
+                            fn_addr = iface_ip_info.get_ips([4], fn_iface)[0]
                         else:
-                            self.logger.error('Invalid interface %s specified. Proceeding without interface restriction. Exiting.', fn_iface)
+                            self.logger.error('Invalid interface %s specified.'
+                            + 'Proceeding without interface restriction.'
+                            + 'Exiting.', fn_iface)
                             sys.exit(1)
+
+                        print('get_ips: %r' % (ip_addrs))
+                        print('fn_addr: %r' % (fn_addr))
 
 
                 from diverters.linux import Diverter
@@ -184,6 +193,7 @@ class Fakenet(object):
         for listener_name in self.listeners_config:
 
             listener_config = self.listeners_config[listener_name]
+            listener_config['ipaddr'] = fn_addr
             # Anonymous listener
             if not 'listener' in listener_config:
                 self.logger.info('Anonymous %s listener on %s port %s...', listener_name, listener_config['protocol'], listener_config['port'])
@@ -201,7 +211,7 @@ class Fakenet(object):
             else:
 
                 listener_provider_instance = listener_provider(
-                        config=listener_config, name=listener_name, local_ip=fn_addr, logging_level=self.logging_level)
+                        config=listener_config, name=listener_name, logging_level=self.logging_level)
 
                 # Store listener provider object
                 self.running_listener_providers.append(listener_provider_instance)
@@ -242,47 +252,57 @@ class Fakenet(object):
         if self.diverter:
             self.diverter.stop()
 
-def get_ips(ipvers):
-    """Return IP addresses bound to local interfaces including loopbacks.
 
-    Parameters
-    ----------
-    ipvers : list
-        IP versions desired (4, 6, or both); ensures the netifaces semantics
-        (e.g. netiface.AF_INET) are localized to this function.
-    """
-    specs = []
-    results = []
+class IfaceIpInfo():
+    """Make netifaces queryable via listcomps of namedtuples"""
 
-    for ver in ipvers:
-        if ver == 4:
-            specs.append(netifaces.AF_INET)
-        elif ver == 6:
-            specs.append(netifaces.AF_INET6)
-        else:
-            raise ValueError('get_ips only supports IP versions 4 and 6')
+    IfaceIp = namedtuple('IfaceIp', 'iface ip ver')
 
-    for spec in specs:
-        ifaces = linux_get_ifaces(spec)
-        if ifaces is not None:
-            results.append(ifaces.values())
+    _ver_to_spec = {4: netifaces.AF_INET, 6: netifaces.AF_INET6}
+    _valid_ipvers = [4, 6]
 
-    return results
+    def __init__(self):
+        self.ifaces = netifaces.interfaces()
+        self.ips = []
 
-def linux_get_ifaces(spec=netifaces.AF_INET):
-	
-    results = {}
+        for iface in self.ifaces:
+            addrs = netifaces.ifaddresses(iface)
+            for ipver in self._valid_ipvers:
+                self._tabulate_iface(iface, addrs, ipver)
 
-    for iface in netifaces.interfaces():
-
-        addrs = netifaces.ifaddresses(iface)
+    def _tabulate_iface(self, iface, addrs, ipver):
+        spec = self._ver_to_spec[ipver]
         if spec in addrs:
             for link in addrs[spec]:
+                self._tabulate_link(iface, link, ipver)
 
-                    if 'addr' in link:
-                        results[iface] = link['addr']
+    def _tabulate_link(self, iface, link, ipver):
+        if 'addr' in link:
+            addr = link['addr']
+            self.ips.append(self.IfaceIp(iface, addr, ipver))
 
-    return results
+    def get_ips(self, ipvers, iface=None):
+        """Return IP addresses bound to local interfaces including loopbacks.
+
+        Parameters
+        ----------
+        ipvers : list(int)
+            IP versions desired (4, 6, or both)
+        iface : str or NoneType
+            Optional interface to limit the query
+        returns:
+            list(str): IP addresses as requested
+        """
+        if not all(ver in self._valid_ipvers for ver in ipvers):
+            raise ValueError('Only IP versions 4 and 6 are supported')
+
+        if iface and (iface not in self.ifaces):
+            raise ValueError('Unrecognized iface %s' % (iface))
+
+        downselect = [i for i in self.ips if i.ver in ipvers]
+        if iface:
+            downselect = [i for i in downselect if i.iface == iface]
+        return [i.ip for i in downselect]
 
 
 def main():

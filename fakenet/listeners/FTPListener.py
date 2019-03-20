@@ -225,9 +225,8 @@ class FTPListener(object):
         return confidence 
 
     def __init__(self, 
-            config, 
+            config,
             name='FTPListener',
-            local_ip='0.0.0.0',
             logging_level=logging.INFO, 
             running_listeners=None, 
             diverter=None
@@ -238,7 +237,7 @@ class FTPListener(object):
             
         self.config = config
         self.name = name
-        self.local_ip = local_ip
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.running_listeners = running_listeners
         self.diverter = diverter

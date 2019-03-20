@@ -23,9 +23,9 @@ class IptCmdTemplate(object):
     LinUtilMixin.linux_{capture,restore}_iptables().
     """
 
-    def __init__(self, fmt, args=[], add='-I', rem='-D', add_idx=0, rem_idx=0):
-        self._addcmd = fmt % tuple(args[0:add_idx] + [add] + args[add_idx:])
-        self._remcmd = fmt % tuple(args[0:add_idx] + [rem] + args[rem_idx:])
+    def __init__(self):
+        self._addcmd = None
+        self._remcmd = None
 
     def gen_add_cmd(self):
         return self._addcmd
@@ -38,6 +38,51 @@ class IptCmdTemplate(object):
 
     def remove(self):
         return subprocess.call(self._remcmd.split())
+
+    def iptables_format(self, chain, iface, argfmt):
+        """Format iptables command line with optional interface restriction.
+
+        Parameters
+        ----------
+        chain : string
+            One of 'OUTPUT', 'POSTROUTING', 'INPUT', or 'PREROUTING', used for
+            deciding the correct flag (-i versus -o)
+        iface : string or NoneType
+            Name of interface to restrict the rule to (e.g. 'eth0'), or None
+        argfmt : string
+            Format string for remaining iptables arguments. This format string will
+            not be included in format string evaluation but is appended as-is to
+            the iptables command.
+        """
+        flag_iface = ''
+        if iface:
+            if chain in ['OUTPUT', 'POSTROUTING']:
+                flag_iface = '-o'
+            elif chain in ['INPUT', 'PREROUTING']:
+                flag_iface = '-i'
+            else:
+                raise NotImplementedError('Unanticipated chain %s' % (chain))
+
+        add_cmd = 'iptables -I {chain} {flag_if} {iface} {fmt}'
+        add_cmd = add_cmd.format(chain=chain, flag_if=flag_iface,
+                                 iface=(iface or ''), fmt=argfmt)
+        rem_cmd = 'iptables -D {chain} {flag_if} {iface} {fmt}'
+        rem_cmd = rem_cmd.format(chain=chain, flag_if=flag_iface,
+                                 iface=(iface or ''), fmt=argfmt)
+        return add_cmd, rem_cmd
+
+    def nfqueue_init(self, chain, qno, table, iface=None):
+        fmt = '-t {} -j NFQUEUE --queue-num {}'.format(table, qno)
+        self._addcmd, self._remcmd =  self.iptables_format(chain, iface, fmt)
+
+    def redir_iface_init(self, iface=None):
+        fmt = '-t nat -j REDIRECT'
+        self._addcmd, self._remcmd = self.iptables_format('PREROUTING', iface,
+                                                          fmt)
+
+    def redir_icmp_init(self, iface=None):
+        fmt = '-t nat -p icmp -j REDIRECT'
+        self._addcmd, self._remcmd = self.iptables_format('OUTPUT', iface, fmt) 
 
 
 class LinuxDiverterNfqueue(object):
@@ -57,24 +102,12 @@ class LinuxDiverterNfqueue(object):
     def __init__(self, qno, chain, table, callback, iface=None):
         self.logger = logging.getLogger('Diverter')
 
-        # e.g. iptables <-I> <INPUT> -t <mangle> -j NFQUEUE --queue-num <0>'
-        cmd = 'iptables '
-
-        if iface:
-            if chain in ['OUTPUT', 'POSTROUTING']:
-                cmd += ('-o %s ' % (iface))
-            elif chain in ['INPUT', 'PREROUTING']:
-                cmd += ('-i %s ' % (iface))
-            else:
-                raise NotImplementedError('Unanticipated chain %s' % (chain))
-
-        fmt = cmd + ' %s %s -t %s -j NFQUEUE --queue-num %d'
-
         # Specifications
         self.qno = qno
         self.chain = chain
         self.table = table
-        self._rule = IptCmdTemplate(fmt, [self.chain, self.table, self.qno])
+        self._rule = IptCmdTemplate()
+        self._rule.nfqueue_init(self.chain, self.qno, self.table, iface)
         self._callback = callback
         self._nfqueue = netfilterqueue.NetfilterQueue()
         self._sk = None
@@ -369,7 +402,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         return next_qnos
 
-    def linux_iptables_redir_iface(self, fn_iface):
+    def linux_iptables_redir_iface(self, iface):
         """Linux-specific iptables processing for interface-based redirect
         rules.
 
@@ -380,13 +413,8 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         """
 
         iptables_rules = []
-        if fn_iface:
-            fmt = 'iptables -t nat %s PREROUTING -i {} -j REDIRECT'.format(
-                fn_iface)
-        else:
-            fmt = 'iptables -t nat %s PREROUTING -j REDIRECT'
-
-        rule = IptCmdTemplate(fmt)
+        rule = IptCmdTemplate()
+        rule.redir_iface_init(iface)
         ret = rule.add()
 
         if ret != 0:
@@ -608,12 +636,8 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         return dgw
 
     def linux_redir_icmp(self, iface=None):
-        cmd = 'iptables'
-        if iface:
-            cmd += (' -o %s' % (iface))
-        fmt = cmd + ' -t nat %s OUTPUT -p icmp -j REDIRECT'
-
-        rule = IptCmdTemplate(fmt)
+        rule = IptCmdTemplate()
+        rule.redir_icmp_init(iface)
         ret = rule.add()
         return (ret == 0), rule
 

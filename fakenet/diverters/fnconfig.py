@@ -75,9 +75,6 @@ class Config(object):
         return (self.is_configured(opt) and
                 self._fuzzy_false(self._dict[opt.lower()]))
 
-    def is_activated(self, opt):
-        return not self.is_clear(opt)
-
     def getconfigval(self, opt, default=None):
         return self._dict[opt.lower()] if self.is_configured(opt) else default
 

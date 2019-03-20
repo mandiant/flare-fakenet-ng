@@ -37,7 +37,6 @@ class SMTPListener(object):
             self, 
             config, 
             name='SMTPListener', 
-            local_ip='0.0.0.0',
             logging_level=logging.INFO,
             ):
 
@@ -46,7 +45,7 @@ class SMTPListener(object):
 
         self.config = config
         self.name = name
-        self.local_ip = local_ip
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.name = 'SMTP'
         self.port = self.config.get('port', 25)
@@ -59,7 +58,7 @@ class SMTPListener(object):
 
     def start(self):
         self.logger.debug('Starting...')
-
+        
         self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
 
         if self.config.get('usessl') == 'Yes':

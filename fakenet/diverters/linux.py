@@ -35,12 +35,6 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def init_diverter_linux(self):
         """Linux-specific Diverter initialization."""
-        # String list configuration item that is specific to the Linux
-        # Diverter, will not be parsed by DiverterBase, and needs to be
-        # accessed as an array in the future.
-        
-        #slists = []
-        #self.reconfigure(portlists=[], stringlists=slists)
 
         self.logger.info('Running in %s mode' % (self.network_mode))
 
@@ -96,7 +90,6 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.outgoing_trans_cbs.append(self.maybe_redir_ip)
 
     def startCallback(self):
-
         if not self.check_privileged():
             self.logger.error('The Linux Diverter requires administrative ' +
                               'privileges')
@@ -138,22 +131,25 @@ class Diverter(DiverterBase, LinUtilMixin):
                               'netfilter queue numbers')
             sys.exit(1)
 
+        fn_iface = None
+        if (self.is_configured('linuxrestrictinterface') and
+                not self.is_clear('linuxrestrictinterface')):
+            self.pdebug(DMISC, 'Processing LinuxRestrictInterface config %s' %
+                self.getconfigval('linuxrestrictinterface'))
+            fn_iface = self.getconfigval('linuxrestrictinterface')
+
         self.pdebug(DNFQUEUE, 'Next available NFQUEUE numbers: ' + str(qnos))
 
         self.pdebug(DNFQUEUE, 'Enumerating queue numbers and hook ' +
                     'specifications to create NFQUEUE objects')
-        self.pdebug(DMISC, 'Processing LinuxRestrictInterface config %s' % self.getconfigval('linuxrestrictinterface'))
-        if self.is_activated('linuxrestrictinterface'):
-            fn_iface = self.getconfigval('linuxrestrictinterface')
-        else:
-            fn_iface = None
+        
         self.nfqueues = list()
         for qno, hk in zip(qnos, callbacks):
             self.pdebug(DNFQUEUE, ('Creating NFQUEUE object for chain %s / ' +
                         'table %s / queue # %d => %s') % (hk.chain, hk.table,
                         qno, str(hk.callback)))
             q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback,
-                                    fn_iface)
+                                     fn_iface)
             self.nfqueues.append(q)
             ok = q.start()
             if not ok:

@@ -27,7 +27,6 @@ class DNSListener(object):
             self, 
             config={}, 
             name='DNSListener',
-            local_ip='0.0.0.0',
             logging_level=logging.INFO, 
             ):
 
@@ -35,7 +34,7 @@ class DNSListener(object):
         self.logger.setLevel(logging_level)
             
         self.config = config
-        self.local_ip = local_ip
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.name = 'DNS'
         self.port = self.config.get('port', 53)
@@ -47,7 +46,7 @@ class DNSListener(object):
             self.logger.debug('  %10s: %s', key, value)
 
     def start(self):
-
+        
         # Start UDP listener  
         if self.config['protocol'].lower() == 'udp':
             self.logger.debug('Starting UDP ...')

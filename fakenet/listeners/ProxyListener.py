@@ -15,9 +15,6 @@ from . import *
 import os
 
 BUF_SZ = 1024
-# When interface restriction is on, the proxy cannot connect to the Diverter
-# via localhost so the configured IP must be preserved.
-LOCAL_FN_IP = '0.0.0.0'
 
 class ProxyListener(object):
 
@@ -26,7 +23,6 @@ class ProxyListener(object):
             self, 
             config={}, 
             name ='ProxyListener',
-            local_ip='0.0.0.0',
             logging_level=logging.DEBUG,
             ):
 
@@ -35,9 +31,7 @@ class ProxyListener(object):
 
         self.config = config
         self.name = name
-        self.local_ip = local_ip
-        global LOCAL_FN_IP
-        LOCAL_FN_IP = local_ip
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.udp_fwd_table = dict()
 
@@ -77,6 +71,7 @@ class ProxyListener(object):
    
         self.server.config = self.config
         self.server.logger = self.logger
+        self.server.local_ip = self.local_ip
         self.server.running_listeners = None
         self.server.diverter = None
         self.server_thread = threading.Thread(
@@ -223,7 +218,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             if top_listener:
                 self.server.logger.debug('Likely listener: %s' %
                         top_listener.name)
-                listener_sock = ThreadedTCPClientSocket(LOCAL_FN_IP,
+                listener_sock = ThreadedTCPClientSocket(self.server.local_ip,
                         top_listener.port, listener_q, remote_q,
                         self.server.config, self.server.logger)
                 listener_sock.daemon = True
@@ -289,9 +284,9 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             if top_listener:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                sock.bind((LOCAL_FN_IP, 0))
+                sock.bind((self.server.local_ip, 0))
 
-                sock.sendto(data, (LOCAL_FN_IP, int(top_listener.port)))
+                sock.sendto(data, (self.server.local_ip, int(top_listener.port)))
                 reply = sock.recv(BUF_SZ)
                 self.server.logger.info('Received %d bytes.', len(data))
                 sock.close()

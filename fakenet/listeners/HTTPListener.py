@@ -55,8 +55,7 @@ class HTTPListener(object):
     def __init__(
             self, 
             config={}, 
-            name='HTTPListener', 
-            local_ip='0.0.0.0',
+            name='HTTPListener',
             logging_level=logging.DEBUG,
             ):
 
@@ -65,10 +64,10 @@ class HTTPListener(object):
   
         self.config = config
         self.name = name
-        self.local_ip  = local_ip
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.name = 'HTTP'
-        self.port = self.config.get('port', 80)
+        self.port = self.config.get('port', 80)        
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
