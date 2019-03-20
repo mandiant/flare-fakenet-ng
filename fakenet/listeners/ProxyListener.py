@@ -72,6 +72,8 @@ class ProxyListener(object):
         self.server.config = self.config
         self.server.logger = self.logger
         self.server.local_ip = self.local_ip
+        if self.local_ip == '0.0.0.0':
+            self.server.local_ip = 'localhost'
         self.server.running_listeners = None
         self.server.diverter = None
         self.server_thread = threading.Thread(
