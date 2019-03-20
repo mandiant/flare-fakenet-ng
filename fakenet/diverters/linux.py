@@ -173,7 +173,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                     self.logger.error('Failed to flush DNS cache. Local machine '
                                       'may use cached DNS results.')
         
-            ok, rule = self.linux_redir_icmp()
+            ok, rule = self.linux_redir_icmp(fn_iface)
             if not ok:
                 self.logger.error('Failed to redirect ICMP')
                 self.stop()
@@ -193,14 +193,6 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.logger.error('Failed to process interface redirection')
             self.stop()
             sys.exit(1)
-
-        ok, rule = self.linux_redir_icmp(fn_iface)
-        if not ok:
-            self.logger.error('Failed to redirect ICMP')
-            self.stop()
-            sys.exit(1)
-
-        self.rules_added.append(rule)
 
         return True
 
