@@ -130,9 +130,11 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, *args)
 
     def version_string(self):
-	return self.server.config.get('version', "FakeNet/1.3")
+        return self.server.config.get('version', "FakeNet/1.3")
 
     def setup(self):
+        self.server.logger.info(
+            'New HTTP connection: %s:%s' % self.client_address)
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
         BaseHTTPServer.BaseHTTPRequestHandler.setup(self)
 
