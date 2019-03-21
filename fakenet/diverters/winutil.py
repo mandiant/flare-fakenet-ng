@@ -384,7 +384,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                           "on interface %s." % (gw_address, 
                                           interface_name))
                     else:
-                        self.logger.debug("         Setting gateway %s on "+
+                        self.logger.info("         Setting gateway %s on "+
                                           "interface %s" % (gw_address, 
                                           interface_name))
                         fixed = True
@@ -426,7 +426,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                         self.logger.error("         Failed to set DNS %s on interface %s." 
                                           % (dns_address, interface_name))
                     else:
-                        self.logger.debug("         Setting DNS %s on interface %s" 
+                        self.logger.info("         Setting DNS %s on interface %s" 
                                           % (dns_address, interface_name))
                         fixed = True
 
@@ -656,7 +656,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                 self.logger.warning(
                     'Failed to enable the service %s. (sc config)', service_name)
             else:
-                self.logger.debug(
+                self.logger.error(
                     'Successfully enabled the service %s. (sc config)', service_name)
 
         else:
@@ -684,10 +684,10 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                 'Successfully started the service %s.', service_name)
                             break
                     else:
-                        self.logger.warning(
+                        self.logger.error(
                             'Timed out while trying to start the service %s.', service_name)
                 else:
-                    self.logger.warning(
+                    self.logger.error(
                         'Failed to start the service %s.', service_name)
             else:
                 self.logger.debug(
@@ -1201,7 +1201,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             subprocess.check_call(
                 'ipconfig /flushdns', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except subprocess.CalledProcessError, e:
-            self.logger.warning("Failed to flush DNS cache. Local machine may "
+            self.logger.error("Failed to flush DNS cache. Local machine may "
                               "use cached DNS results.")
         else:
             self.logger.debug('Flushed DNS cache.')

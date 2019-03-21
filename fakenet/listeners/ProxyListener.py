@@ -192,7 +192,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             self.server.logger.debug('%s', '-'*80,)
 
         except Exception as e:
-            self.server.logger.warning('recv() error: %s' % e.message)
+            self.server.logger.info('recv() error: %s' % e.message)
 
         if data:
 

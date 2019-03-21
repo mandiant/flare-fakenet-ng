@@ -82,11 +82,11 @@ class DNSHandler():
             d = DNSRecord.parse(data)
 
         except Exception, e:
-            self.server.logger.error('Error: Invalid DNS Request')
-            self.server.logger.debug('%s', '-'*80)
+            self.server.logger.warning('Error: Invalid DNS Request')
+            self.server.logger.warning('%s', '-'*80)
             for line in hexdump_table(data):
-                self.server.logger.info(line)
-            self.server.logger.debug('%s', '-'*80,)
+                self.server.logger.warning(line)
+            self.server.logger.warning('%s', '-'*80,)
 
         else:                 
             # Only Process DNS Queries

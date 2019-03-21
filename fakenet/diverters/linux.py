@@ -303,7 +303,6 @@ class Diverter(DiverterBase, LinUtilMixin):
         Diverter's internal log_nonlocal_only_once flag is set. Otherwise, any
         foreign destination IP address will be logged each time it is observed.
         """
-
         if pkt.dst_ip not in self.ip_addrs[pkt.ipver]:
             self.pdebug(DNONLOC, 'Nonlocal %s' % pkt.hdrToStr())
             first_sighting = (pkt.dst_ip not in self.nonlocal_ips_already_seen)

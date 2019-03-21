@@ -36,7 +36,7 @@ class Fakenet(object):
 
     def __init__(self, logging_level = logging.INFO):
 
-        self.logger = logging.getLogger('Fakenet')
+        self.logger = logging.getLogger('FakeNet')
         self.logger.setLevel(logging_level)
 
         self.logging_level = logging_level
@@ -75,7 +75,7 @@ class Fakenet(object):
         config = ConfigParser()
         config.read(config_filename)
 
-        self.logger.debug('Loaded configuration file: %s', config_filename)
+        self.logger.info('Loaded configuration file: %s', config_filename)
 
         # Parse configuration
         for section in config.sections():
@@ -180,7 +180,7 @@ class Fakenet(object):
 
             # Anonymous listener
             if not 'listener' in listener_config:
-                self.logger.debug('Anonymous %s listener on %s port %s...', 
+                self.logger.info('Anonymous %s listener on %s port %s...', 
                                   listener_name, listener_config['protocol'], 
                                   listener_config['port'])
                 continue
