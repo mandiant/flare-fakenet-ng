@@ -298,11 +298,11 @@ class Diverter(DiverterBase, WinUtilMixin):
         """
         if (pkt.is_icmp and
                 pkt.dst_ip not in [self.loopback_ip, self.external_ip]):
-            self.logger.debug('Modifying ICMP packet (type %d, code %d):' %
+            self.logger.info('Modifying ICMP packet (type %d, code %d):' %
                              (pkt.icmp_type, pkt.icmp_code))
-            self.logger.debug('  from: %s' % (pkt.hdrToStr()))
+            self.logger.info('  from: %s' % (pkt.hdrToStr()))
             pkt.dst_ip = self.getNewDestinationIp(pkt.src_ip)
-            self.logger.debug('  to:   %s' % (pkt.hdrToStr()))
+            self.logger.info('  to:   %s' % (pkt.hdrToStr()))
 
         return pkt
 

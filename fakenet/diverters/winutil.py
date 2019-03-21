@@ -380,7 +380,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                               stdout=subprocess.PIPE,
                                               stderr=subprocess.PIPE)
                     except subprocess.CalledProcessError, e:
-                        self.logger.debug("         Failed to set gateway %s" +
+                        self.logger.error("         Failed to set gateway %s" +
                                           "on interface %s." % (gw_address, 
                                           interface_name))
                     else:
@@ -423,7 +423,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                               stdout=subprocess.PIPE,
                                               stderr=subprocess.PIPE)
                     except subprocess.CalledProcessError, e:
-                        self.logger.debug("         Failed to set DNS %s on interface %s." 
+                        self.logger.error("         Failed to set DNS %s on interface %s." 
                                           % (dns_address, interface_name))
                     else:
                         self.logger.debug("         Setting DNS %s on interface %s" 
@@ -493,7 +493,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         sc_handle = windll.advapi32.OpenSCManagerA(0, 0, SC_MANAGER_ALL_ACCESS)
         if sc_handle == 0:
-            self.logger.debug("Failed to call OpenSCManager")
+            self.logger.warning("Failed to call OpenSCManager")
             return
 
         return sc_handle
@@ -508,7 +508,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
     def close_service_handle(self, sc_handle):
 
         if windll.advapi32.CloseServiceHandle(sc_handle) == 0:
-            self.logger.debug('Failed to call CloseServiceHandle')
+            self.logger.warning('Failed to call CloseServiceHandle')
             return False
 
         return True
@@ -532,7 +532,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                                       dwDesiredAccess)
 
         if service_handle == 0:
-            self.logger.debug('Failed to call OpenService')
+            self.logger.warning('Failed to call OpenService')
             return
 
         return service_handle
@@ -555,7 +555,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         pcbBytesNeeded = DWORD()
 
         if windll.advapi32.QueryServiceStatusEx(service_handle, SC_STATUS_PROCESS_INFO, byref(lpBuffer), cbBufSize, byref(pcbBytesNeeded)) == 0:
-            self.logger.debug('Failed to call QueryServiceStatusEx')
+            self.logger.warning('Failed to call QueryServiceStatusEx')
             return
 
         return lpBuffer
@@ -574,7 +574,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         lpServiceStatus = SERVICE_STATUS_PROCESS()
 
         if windll.advapi32.ControlService(service_handle, dwControl, byref(lpServiceStatus)) == 0:
-            self.logger.debug('Failed to call ControlService')
+            self.logger.warning('Failed to call ControlService')
             return
 
         return lpServiceStatus
@@ -591,7 +591,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
     def start_service(self, service_handle):
 
         if windll.advapi32.StartServiceA(service_handle, 0, 0) == 0:
-            self.logger.error('Failed to call StartService')
+            self.logger.warning('Failed to call StartService')
             return False
 
         else:
@@ -618,7 +618,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                               dwStartType=SERVICE_DISABLED):
 
         if windll.advapi32.ChangeServiceConfigA(service_handle, SERVICE_NO_CHANGE, dwStartType, SERVICE_NO_CHANGE, 0, 0, 0, 0, 0, 0, 0) == 0:
-            self.logger.debug('Failed to call ChangeServiceConfig')
+            self.logger.warning('Failed to call ChangeServiceConfig')
             raise WinError(get_last_error())
             return False
 
@@ -653,7 +653,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
-                self.logger.debug(
+                self.logger.warning(
                     'Failed to enable the service %s. (sc config)', service_name)
             else:
                 self.logger.debug(
@@ -684,10 +684,10 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                 'Successfully started the service %s.', service_name)
                             break
                     else:
-                        self.logger.debug(
+                        self.logger.warning(
                             'Timed out while trying to start the service %s.', service_name)
                 else:
-                    self.logger.debug(
+                    self.logger.warning(
                         'Failed to start the service %s.', service_name)
             else:
                 self.logger.debug(
@@ -701,7 +701,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                       shell=True, stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
-                self.logger.debug(
+                self.logger.warning(
                     'Failed to start the service %s. (net stop)', service_name)
             else:
                 self.logger.debug('Successfully started the service %s.',
@@ -740,7 +740,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
-                self.logger.debug(
+                self.logger.warning(
                     'Failed to disable the service %s. (sc config)', service_name)
             else:
                 self.logger.debug(
@@ -772,10 +772,10 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                             break
 
                     else:
-                        self.logger.debug(
+                        self.logger.warning(
                             'Timed out while trying to stop the service %s.', service_name)
                 else:
-                    self.logger.debug(
+                    self.logger.warning(
                         'Failed to stop the service %s.', service_name)
             else:
                 self.logger.debug(
@@ -789,7 +789,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                       shell=True, stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
-                self.logger.debug(
+                self.logger.warning(
                     'Failed to stop the service %s. (net stop)', service_name)
             else:
                 self.logger.debug(
@@ -821,7 +821,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         TcpTable = MIB_TCPTABLE_OWNER_PID()
 
         if windll.iphlpapi.GetExtendedTcpTable(byref(TcpTable), byref(dwSize), False, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0) != NO_ERROR:
-            self.logger.debug("Failed to call GetExtendedTcpTable")
+            self.logger.warning("Failed to call GetExtendedTcpTable")
             return
 
         for item in TcpTable.table[:TcpTable.dwNumEntries]:
@@ -859,7 +859,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         UdpTable = MIB_UDPTABLE_OWNER_PID()
 
         if windll.iphlpapi.GetExtendedUdpTable(byref(UdpTable), byref(dwSize), False,  AF_INET, UDP_TABLE_OWNER_PID, 0) != NO_ERROR:
-            self.logger.debug("Failed to call GetExtendedUdpTable")
+            self.logger.warning("Failed to call GetExtendedUdpTable")
             return
 
         for item in UdpTable.table[:UdpTable.dwNumEntries]:
@@ -904,7 +904,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                 if windll.psapi.GetProcessImageFileNameA(hProcess, lpImageFileName, MAX_PATH) > 0:
                     process_name = os.path.basename(lpImageFileName.value)
                 else:
-                    self.logger.debug('Failed to call GetProcessImageFileNameA, %d' %
+                    self.logger.warning('Failed to call GetProcessImageFileNameA, %d' %
                                       (ctypes.GetLastError()))
 
                 windll.kernel32.CloseHandle(hProcess)
@@ -956,7 +956,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                  POINTER(IP_ADAPTER_ADDRESSES))
 
         if not windll.iphlpapi.GetAdaptersAddresses(AF_INET, 0, None, pAdapterAddresses, byref(Size)) == NO_ERROR:
-            self.logger.debug('Failed calling GetAdaptersAddresses')
+            self.logger.warning('Failed calling GetAdaptersAddresses')
             return
 
         while pAdapterAddresses:
@@ -1010,7 +1010,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         pAdapterInfo = cast(AdapterInfo, POINTER(IP_ADAPTER_INFO))
 
         if not windll.iphlpapi.GetAdaptersInfo(byref(AdapterInfo), byref(OutBufLen)) == NO_ERROR:
-            self.logger.debug('Failed calling GetAdaptersInfo')
+            self.logger.warning('Failed calling GetAdaptersInfo')
             return
 
         while pAdapterInfo:
@@ -1082,7 +1082,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         FixedInfo = FIXED_INFO()
 
         if not windll.iphlpapi.GetNetworkParams(byref(FixedInfo), byref(OutBufLen)) == NO_ERROR:
-            self.logger.debug('Failed calling GetNetworkParams')
+            self.logger.warning('Failed calling GetNetworkParams')
             return None
 
         return FixedInfo
@@ -1114,7 +1114,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         DestAddr = socket.inet_aton(ip)
 
         if not windll.iphlpapi.GetBestInterface(DestAddr, byref(BestIfIndex)) == NO_ERROR:
-            self.logger.debug('Failed calling GetBestInterface')
+            self.logger.warning('Failed calling GetBestInterface')
             return None
 
         return BestIfIndex.value
@@ -1161,13 +1161,13 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         InterfaceLuid = ULONG64()
 
         if not windll.iphlpapi.ConvertInterfaceIndexToLuid(index, byref(InterfaceLuid)) == NO_ERROR:
-            self.logger.debug('Failed calling ConvertInterfaceIndexToLuid')
+            self.logger.warning('Failed calling ConvertInterfaceIndexToLuid')
             return None
 
         InterfaceName = create_string_buffer(NDIS_IF_MAX_STRING_SIZE + 1)
 
         if not windll.iphlpapi.ConvertInterfaceLuidToNameA(byref(InterfaceLuid), InterfaceName, NDIS_IF_MAX_STRING_SIZE + 1) == NO_ERROR:
-            self.logger.debug('Failed calling ConvertInterfaceLuidToName')
+            self.logger.warning('Failed calling ConvertInterfaceLuidToName')
             return None
 
         return InterfaceName.value
@@ -1190,7 +1190,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             self.logger.debug(
                 'Successfully performed adapter change notification on %s', adapter_name)
         else:
-            self.logger.debug('Failed to notify adapter change on %s',
+            self.logger.warning('Failed to notify adapter change on %s',
                               adapter_name)
 
     ###########################################################################
@@ -1201,7 +1201,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             subprocess.check_call(
                 'ipconfig /flushdns', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except subprocess.CalledProcessError, e:
-            self.logger.debug("Failed to flush DNS cache. Local machine may "
+            self.logger.warning("Failed to flush DNS cache. Local machine may "
                               "use cached DNS results.")
         else:
             self.logger.debug('Flushed DNS cache.')
@@ -1218,7 +1218,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             return data
 
         except WindowsError:
-            self.logger.debug('Failed getting registry value %s.', value)
+            self.logger.warning('Failed getting registry value %s.', value)
             return None
 
     def set_reg_value(self, key, sub_key, value, data, type=REG_SZ, sam=KEY_WRITE):
@@ -1231,7 +1231,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             return True
 
         except WindowsError:
-            self.logger.debug('Failed setting registry value %s', value)
+            self.logger.warning('Failed setting registry value %s', value)
             return False
 
     ###########################################################################
@@ -1264,7 +1264,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                  dns_server, adapter.FriendlyName)
                 self.notify_ip_change(adapter.AdapterName)
             else:
-                self.logger.debug(
+                self.logger.warning(
                     'Failed to set DNS server %s on the adapter: %s', dns_server, adapter.FriendlyName)
 
     def restore_dns_server(self):
@@ -1283,7 +1283,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                 self.logger.debug('Restored DNS server %s on the adapter: %s',
                                  dns_server, adapter_friendlyname)
             else:
-                self.logger.debug(
+                self.logger.warning(
                     'Failed to restore DNS server %s on the adapter: %s', dns_server, adapter_friendlyname)
 
 

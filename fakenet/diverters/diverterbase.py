@@ -626,7 +626,7 @@ class DiverterBase(fnconfig.Config):
         # Check configured DNS servers
         dns_ok = self.check_dns_servers()
         if not dns_ok:
-            self.logger.debug('WARNING: No DNS servers configured!')
+            self.logger.warning('WARNING: No DNS servers configured!')
             if self.is_set('fixdns'):
                 dns_ok = self.fix_dns()
                 if not dns_ok:
@@ -652,7 +652,7 @@ class DiverterBase(fnconfig.Config):
         return self.startCallback()
 
     def stop(self):
-        self.logger.debug('Stopping...')
+        self.logger.info('Stopping...')
         return self.stopCallback()
 
     @abc.abstractmethod
@@ -1147,7 +1147,7 @@ class DiverterBase(fnconfig.Config):
                 logline = self.formatPkt(pkt, pid, comm)
                 self.pdebug(DGENPKTV, logline)
             elif pid and (pid != self.pid) and crit.first_packet_new_session:
-                self.logger.debug('  pid:  %d name: %s' %
+                self.logger.info('  pid:  %d name: %s' %
                                  (pid, comm if comm else 'Unknown'))
 
             # 2: Call layer 3 (network) callbacks
@@ -1415,7 +1415,7 @@ class DiverterBase(fnconfig.Config):
             None
         """
         if pkt.is_icmp:
-            self.logger.debug('ICMP type %d code %d %s' % (
+            self.logger.info('ICMP type %d code %d %s' % (
                 pkt.icmp_type, pkt.icmp_code, pkt.hdrToStr()))
 
     def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):

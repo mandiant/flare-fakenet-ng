@@ -264,7 +264,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
             # set logging level to debug because of erroneous output
             #TODO confirm validity of this check
             if self.iptables_captured == '':
-                self.logger.debug('Null iptables-save output, likely not ' +
+                self.logger.warning('Null iptables-save output, likely not ' +
                                   'privileged')
             ret = p.wait()
         except OSError as e:

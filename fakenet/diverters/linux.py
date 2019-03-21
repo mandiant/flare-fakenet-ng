@@ -213,7 +213,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.pdebug(DPCAP, 'Closing pcap file %s' % (self.pcap_filename))
             self.pcap.close()  # Only after all queues are stopped
 
-        self.logger.debug('Stopped Linux Diverter')
+        self.logger.info('Stopped Linux Diverter')
 
         if self.single_host_mode and self.is_set('modifylocaldns'):
             self.linux_restore_local_dns()
@@ -312,7 +312,7 @@ class Diverter(DiverterBase, LinUtilMixin):
             # Log when a new IP is observed OR if we are not restricted to
             # logging only the first occurrence of a given nonlocal IP.
             if first_sighting or (not self.log_nonlocal_only_once):
-                self.logger.debug(
+                self.logger.info(
                     'Received nonlocal IPv%d datagram destined for %s' %
                     (pkt.ipver, pkt.dst_ip))
 
