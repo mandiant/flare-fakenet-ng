@@ -34,10 +34,16 @@ class IptCmdTemplate(object):
         return self._remcmd
 
     def add(self):
-        return subprocess.call(self._addcmd.split())
+        self.pdebug(DIPTBLS, 'Adding iptables rule: %s' % (self._addcmd))
+        ret = subprocess.call(self._addcmd.split())
+        self.pdebug(DIPTBLS, 'iptables returned %d' % (ret))
+        return ret
 
     def remove(self):
-        return subprocess.call(self._remcmd.split())
+        self.pdebug(DIPTBLS, 'Removing iptables rule: %s' % (self._remcmd))
+        ret = subprocess.call(self._remcmd.split())
+        self.pdebug(DIPTBLS, 'iptables returned %d' % (ret))
+        return ret
 
     def iptables_format(self, chain, iface, argfmt):
         """Format iptables command line with optional interface restriction.
@@ -316,6 +322,8 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
     def linux_restore_iptables(self):
         ret = None
+
+        self.pdebug(DIPTBLS, 'Restoring iptables')
 
         try:
             p = subprocess.Popen(['iptables-restore'], stdin=subprocess.PIPE)

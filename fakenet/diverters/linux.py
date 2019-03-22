@@ -218,7 +218,8 @@ class Diverter(DiverterBase, LinUtilMixin):
         if self.single_host_mode and self.is_set('modifylocaldns'):
             self.linux_restore_local_dns()
 
-        self.linux_restore_iptables()
+        if self.is_set('linuxflushiptables'):
+            self.linux_restore_iptables()
 
         return True
 
