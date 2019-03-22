@@ -88,8 +88,6 @@ class DivertParms(object):
         Returns:
             True if this pair of endpoints hasn't conversed before, else False
         """
-        pkt_session = (self.pkt.dst_ip, self.pkt.dport)
-        prev_session = self.diverter.sessions.get(self.pkt.sport)
         return not (self.diverter.sessions.get(self.pkt.sport) ==
                     (self.pkt.dst_ip, self.pkt.dport))
 
