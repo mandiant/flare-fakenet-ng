@@ -15,6 +15,198 @@ from collections import namedtuple
 from collections import OrderedDict
 
 
+class ProxyConns(object):
+    """Class to track all proxy connections from within the diverter so a
+    connection status can be obtained when deciding to ignore a local packet
+    """
+
+    def __init__(self):
+        self.connections = {}
+        self.lock = threading.Lock()
+        self.logger = logging.getLogger('Diverter')
+
+    def conn_establishing(self, proxy_port):
+        """Check if a connection is in the TCP handshake phase
+
+        Args:
+            proxy_port (int): The ephemeral port of the proxy side
+
+        Returns:
+            bool: True if handshake is occurring on this port
+        """
+
+        return self.connections.get(proxy_port).is_connecting()
+
+    def proxy_to_listener(self, sport, dport):
+        """Is this packet coming from the proxy to a bound listener
+
+        Args:
+            sport (int): source port
+            dport (int): destination port
+
+        Returns:
+            bool: True if the packet is from the proxy to a bound listener
+        """
+        with self.lock:
+            if dport in self.connections:
+                return (self.conn_establishing(dport) or
+                        sport in self.connections.get(dport).get_peers())
+        return False
+
+    def listener_to_proxy(self, sport, dport):
+        """Is this packet coming from a bound listener to the proxy
+
+        Args:
+            sport (int): source port
+            dport (int): destination port
+
+        Returns:
+            bool: True if the packet is from the proxy to a bound listener
+        """
+        with self.lock:
+            if sport in self.connections:
+                return (self.conn_establishing(sport) or
+                        dport in self.connections.get(sport).get_peers())
+        return False
+
+    def proxy_related(self, sport, dport, diverter):
+        """Does this packet meet any of the following conditions?
+        diverter to proxy, proxy to diverter, proxy to listener, listener to
+        proxy
+        
+        Args:
+            sport (int): source port
+            dport (int): destination port
+
+        Returns:
+            bool: True if the packet is part of the proxy pipeline
+        """
+        proxy_ports = set(
+            [int(diverter.listeners_config['proxytcplistener']['port']),
+             int(diverter.listeners_config['proxyudplistener']['port'])])
+        packet_ports = set([sport, dport])
+
+        return (not proxy_ports.isdisjoint(packet_ports) or 
+                self.proxy_to_listener(sport, dport) or 
+                self.listener_to_proxy(sport, dport))
+ 
+    def new_conn(self, listener_port, proxy_port=None):
+        """Establish a new connection
+
+        Args:
+            listener_port (int): port of bound listener end of connection
+            proxy_port (int): ephemeral port of proxy end. New TCP connections
+                              are unknown during handshake phase thus None
+        """
+        # UDP
+        if proxy_port:
+            with self.lock:
+                if listener_port in self.connections:
+                    self.connections[listener_port].add_peer(proxy_port)
+                else:
+                    self.connections[listener_port] = ProxyConnMeta(proxy_port)
+        # TCP
+        else:
+            with self.lock:
+                if listener_port in self.connections:
+                    self.connections[listener_port].connecting()
+                else:
+                    self.connections[listener_port] = ProxyConnMeta()
+
+    def conn_established(self, listener_port, proxy_port):
+        """TCP handshake phase is completed. Change handshake_phase
+
+        Args:
+            listener port (int): The port of the bound listener
+            proxy_port (int): The ephemeral port of the proxy end
+        """
+
+        with self.lock:
+            self.connections[listener_port].connected(proxy_port)
+
+    def conn_ended(self, listener_port, proxy_port):
+        """Remove a connection that has terminated
+
+        Args:
+            listener port (int): The port of the bound listener
+            proxy_port (int): The ephemeral port of the proxy end
+        """
+
+        with self.lock:
+            if listener_port in self.connections:
+                self.connections[listener_port].remove(proxy_port)
+
+
+class ProxyConnMeta(object):
+    """Class to track proxy connection status by port so a connection status
+    can be determined when deciding whether to ignore a local packet.
+    Each object represents a bound listener and each ephemeral proxy port
+    it is connected to.
+    """
+
+    def __init__(self, proxy_port=None):
+        # UDP
+        if proxy_port:
+            self.handshake_phase = False
+            self.peer_ports = [proxy_port]
+        # TCP
+        else:
+            self.handshake_phase = True
+            self.peer_ports = []
+
+    def __str__(self):
+        return 'ProxyConnMeta: connecting:{} | peers:{}'.format(
+            self.handshake_phase, [p for p in self.peer_ports])
+
+    def __repr__(self):
+        return 'ProxyConnMeta: connecting:{} | peers:{}'.format(
+            self.handshake_phase, [p for p in self.peer_ports])
+
+    def connecting(self):
+        """Mark the connection as currently executing TCP handshake"""
+        self.handshake_phase = True
+
+    def is_connecting(self):
+        """Is the connection currently executing TCP handshake?
+
+        Returns:
+            bool: True if handshake phase
+        """
+        return self.handshake_phase
+
+    def connected(self, proxy_port):
+        """TCP handshake complete. Mark as such and add ephemeral proxy port
+
+        Args:
+            proxy_port (int): The ephemeral port of the proxy endpoint
+        """
+        #print 'ProxyConnMeta connected(%s)' % proxy_port
+        self.handshake_phase = False
+        self.add_peer(proxy_port)
+
+    def add_peer(self, proxy_port):
+        """New proxy endpoint to existing connection object
+
+        Args:
+            proxy_port (int): The ephemeral port of the proxy endpoint
+        """
+        if proxy_port not in self.peer_ports:
+            self.peer_ports.append(proxy_port)
+
+    def get_peers(self):
+        """Get a list of all proxy ports connected to this listener
+
+        Returns:
+            list: ephemeral proxy ports connected to this listener
+        """
+        return self.peer_ports
+
+    def remove(self, proxy_port):
+        """Remove a proxy endpoint from the connections to this listener"""
+        if proxy_port in self.peer_ports:
+            self.peer_ports.remove(proxy_port)
+
+
 class DivertParms(object):
     """Class to abstract all criteria possible out of the Windows and Linux
     diverters.
@@ -90,7 +282,6 @@ class DivertParms(object):
         """
         return not (self.diverter.sessions.get(self.pkt.sport) ==
                     (self.pkt.dst_ip, self.pkt.dport))
-
 
 class DiverterPerOSDelegate(object):
     """Delegate class for OS-specific methods that FakeNet-NG implementors must
@@ -308,7 +499,7 @@ class ListenerPorts(object):
         proto = listener.proto
         port = listener.port
 
-        if not proto in self.protos:
+        if proto not in self.protos:
             self.protos[proto] = {}
 
         if port in self.protos[proto]:
@@ -521,6 +712,10 @@ class DiverterBase(fnconfig.Config):
         # NOTE: A dictionary of source ports mapped to destination address,
         # port tuples
         self.sessions = dict()
+
+        # A dictionary of bound listener ports mapped to lists of proxy ports
+        # that have a current connection to that listener.
+        self.proxy_conns = ProxyConns()
 
         # Manage logging of foreign-destined packets
         self.nonlocal_ips_already_seen = []
@@ -996,6 +1191,10 @@ class DiverterBase(fnconfig.Config):
             self.pcap = dpkt.pcap.Writer(open(self.pcap_filename, 'wb'),
                                          linktype=dpkt.pcap.DLT_RAW)
             self.pcap_lock = threading.Lock()
+            self.pcap_visibility = [item.lower().strip() for item in
+                self.getconfigval('pcapvisibility').split(',')]
+            self.logger.debug('Packets visible in pcap: %s', ', '.join(
+                [str(p) for p in self.pcap_visibility]))
 
         # Do not redirect blacklisted processes
         if self.is_configured('processblacklist'):
@@ -1075,6 +1274,19 @@ class DiverterBase(fnconfig.Config):
                 self.logger.debug('Blacklisted UDP ports: %s', ', '.join(
                     [str(p) for p in self.getconfigval('BlackListPortsUDP')]))
 
+        # Ignore or drop packets to/from blacklisted interfaces
+        # Currently Linux-only
+        self.blacklist_ifaces = None
+        if self.is_set('linuxblacklistinterfaces'):
+            self.blacklist_ifaces_disp = (
+                self.getconfigval('linuxblacklistinterfacesdisposition',
+                                  'drop'))
+            self.blacklist_ifaces = (
+                self.getconfigval('linuxblacklistedinterfaces', None))
+            self.logger.debug('Blacklisted interfaces: %s. Disposition: %s' %
+                              (self.blacklist_ifaces, 
+                              self.blacklist_ifaces_disp))
+
     def write_pcap(self, pkt):
         """Writes a packet to the pcap.
 
@@ -1129,8 +1341,15 @@ class DiverterBase(fnconfig.Config):
             None
         """
 
-        # 1: Unconditionally write unmangled packet to pcap
-        self.write_pcap(pkt)
+        # 1: Write raw/unmangled packet to pcap
+        if 'raw' in self.pcap_visibility:
+            if 'proxied' in self.pcap_visibility:
+                self.write_pcap(pkt)
+            else:
+                if not self.proxy_conns.proxy_related(pkt.sport, pkt.dport,
+                                                      self):
+                    self.write_pcap(pkt)
+
 
         no_further_processing = False
 
@@ -1141,12 +1360,25 @@ class DiverterBase(fnconfig.Config):
 
             crit = DivertParms(self, pkt)
 
+            pkt.drop = self.check_should_drop(crit, pkt)
+
+            if pkt.drop:
+                no_further_processing = True
+
             # fnpacket has parsed all that can be parsed, so
             pid, comm = self.get_pid_comm(pkt)
             if self.pdebug_level & DGENPKTV:
                 logline = self.formatPkt(pkt, pid, comm)
                 self.pdebug(DGENPKTV, logline)
-            elif pid and (pid != self.pid) and crit.first_packet_new_session:
+
+            # check for no_further_processing here in order to filter out
+            # packets that are being ignored already due to a blacklisted
+            # interface. If a user is using ssh over a blacklisted interface
+            # there needs to be no per-packet output by default. If there is
+            # output for each packet, an infinite loop is generated where each
+            # packet produces output which produces a packet, etc.
+            elif (pid and (pid != self.pid) and crit.first_packet_new_session
+                  and no_further_processing is not True):
                 self.logger.info('  pid:  %d name: %s' %
                                  (pid, comm if comm else 'Unknown'))
 
@@ -1164,14 +1396,6 @@ class DiverterBase(fnconfig.Config):
             if pkt.proto:
 
                 if len(callbacks4):
-                    # Windows Diverter has always allowed loopback packets to
-                    # fall where they may. This behavior now applies to all
-                    # Diverters.
-                    if crit.is_loopback:
-                        self.logger.debug('Ignoring loopback packet')
-                        self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip,
-                                          pkt.sport, pkt.dst_ip, pkt.dport)
-                        no_further_processing = True
 
                     # 3: Layer 4 (Transport layer) callbacks
                     if not no_further_processing:
@@ -1192,8 +1416,13 @@ class DiverterBase(fnconfig.Config):
 
         # 4: Double write mangled packets to represent changes made by
         # FakeNet-NG while still allowing SSL decoding with the old packets
-        if pkt.mangled:
-            self.write_pcap(pkt)
+        if pkt.mangled and 'mangled' in self.pcap_visibility:
+            if 'proxied' in self.pcap_visibility:
+                self.write_pcap(pkt)
+            else:
+                if not self.proxy_conns.proxy_related(pkt.sport, pkt.dport,
+                                                      self):
+                    self.write_pcap(pkt)
 
     def formatPkt(self, pkt, pid, comm):
         """Format a packet analysis log line for DGENPKTV.
@@ -1272,7 +1501,7 @@ class DiverterBase(fnconfig.Config):
                 )
         return logline
 
-    def check_should_ignore(self, pkt, pid, comm):
+    def check_should_ignore(self, pkt, pid, comm, crit):
         """Indicate whether a packet should be passed without mangling.
 
         Checks whether the packet matches black and whitelists, or whether it
@@ -1341,9 +1570,23 @@ class DiverterBase(fnconfig.Config):
 
         # MultiHost mode checks
         else:
-            pass  # None as of yet
+            pass
 
         # Checks independent of mode
+        if self.is_set('listenerlocalignore'):
+            if crit.is_loopback0 and not crit.dport_bound:
+                self.logger.debug('Ignore local packet destined for ' +
+                                  'unbound port. src: %s dst: %s' %
+                                  (pkt.src_ip, pkt.dst_ip))
+                return True
+
+        if self.blacklist_ifaces and self.blacklist_ifaces_disp == 'Pass':
+            if (pkt.src_ip in self.blacklist_ifaces or 
+                        pkt.dst_ip in self.blacklist_ifaces):
+                self.logger.debug('Ignore blacklisted Interface. src: ' + 
+                                  '%s dst: %s' % (pkt.src_ip, pkt.dst_ip))
+                return True
+
 
         # Forwarding blacklisted port
         if pkt.proto:
@@ -1404,6 +1647,49 @@ class DiverterBase(fnconfig.Config):
 
         return False
 
+    def check_should_drop(self, crit, pkt):
+        """ Determine if packet should be dropped.
+
+        Based on configuration items 'listenerlocalignore', 'blacklist_ifaces'
+
+        Args:
+            crit: a DivertParms object
+            pkt: a fnpacket.PacketCtx or derived object
+
+        Returns:
+            bool: True if packet meets drop requirements
+        """
+
+        # Single-host only checks
+        if self.single_host_mode:
+            pass
+ 
+        # Multi-host only checks
+        else:
+            if self.is_set('listenerlocalignore'):
+                # If listeners are ignoring local traffic, we can drop local
+                # packets destined for listeners. However,the proxy can forward
+                # non-local traffic. We must allow local traffic to/from proxy.
+                if (crit.is_loopback0 and crit.dport_bound and not
+                        self.proxy_conns.proxy_to_listener(crit.pkt.sport,
+                                                    crit.pkt.dport)):
+                    self.logger.debug('Drop local packet destined for bound ' +
+                                      'port. src: %s:%s dst: %s:%s' %
+                                      (pkt.src_ip, pkt.sport, pkt.dst_ip,
+                                      pkt.dport))
+                    return True
+
+        # Single and multi-host checks
+        # check for blacklisted interface and drop if needed
+        if self.blacklist_ifaces and self.blacklist_ifaces_disp == 'Drop':
+            if (pkt.src_ip in self.blacklist_ifaces or
+                    pkt.dst_ip in self.blacklist_ifaces):
+                self.logger.debug('Drop blacklisted Interface. src: %s dst: %s'
+                                  % (pkt.src_ip, pkt.dst_ip))
+                return True
+
+        return False
+
     def check_log_icmp(self, crit, pkt):
         """Log an ICMP packet if the header was parsed as ICMP.
 
@@ -1458,7 +1744,7 @@ class DiverterBase(fnconfig.Config):
         Returns:
             None
         """
-        if self.check_should_ignore(pkt, pid, comm):
+        if self.check_should_ignore(pkt, pid, comm, crit):
             return
 
         self.pdebug(DIPNAT, 'Condition 1 test')
@@ -1592,7 +1878,7 @@ class DiverterBase(fnconfig.Config):
                     # client was trying to talk to. Leave it alone.
                     return
 
-            if self.check_should_ignore(pkt, pid, comm):
+            if self.check_should_ignore(pkt, pid, comm, crit):
                 with self.ignore_table_lock:
                     self.ignore_table[pkt.skey] = pkt.dport
                 return
@@ -1742,4 +2028,3 @@ class DiverterBase(fnconfig.Config):
         if execCmd:
             self.logger.info('Executing command: %s' % (execCmd))
             self.execute_detached(execCmd)
-
