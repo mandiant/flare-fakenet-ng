@@ -217,7 +217,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         do_handshake_on_connect=True,
                         certfile=certfile_path, 
                         ssl_version=ssl_version,
-                        keyfile=keyfile_path )
+                        keyfile=keyfile_path)
                 ssl_remote_sock.settimeout(1)
                 try:
                     data = ssl_remote_sock.recv(BUF_SZ)
@@ -231,7 +231,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 finally:
                     remote_sock.settimeout(None)
-            
+
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
             
