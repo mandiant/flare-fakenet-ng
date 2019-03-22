@@ -34,15 +34,15 @@ class IptCmdTemplate(object):
         return self._remcmd
 
     def add(self):
-        self.pdebug(DIPTBLS, 'Adding iptables rule: %s' % (self._addcmd))
+#        self.pdebug(DIPTBLS, 'Adding iptables rule: %s' % (self._addcmd))
         ret = subprocess.call(self._addcmd.split())
-        self.pdebug(DIPTBLS, 'iptables returned %d' % (ret))
+#        self.pdebug(DIPTBLS, 'iptables returned %d' % (ret))
         return ret
 
     def remove(self):
-        self.pdebug(DIPTBLS, 'Removing iptables rule: %s' % (self._remcmd))
+#        self.pdebug(DIPTBLS, 'Removing iptables rule: %s' % (self._remcmd))
         ret = subprocess.call(self._remcmd.split())
-        self.pdebug(DIPTBLS, 'iptables returned %d' % (ret))
+#        self.pdebug(DIPTBLS, 'iptables returned %d' % (ret))
         return ret
 
     def iptables_format(self, chain, iface, argfmt):
