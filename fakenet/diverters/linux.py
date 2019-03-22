@@ -132,10 +132,11 @@ class Diverter(DiverterBase, LinUtilMixin):
             sys.exit(1)
 
         fn_iface = None
-        if (self.is_configured('linuxrestrictinterface') and
-                not self.is_clear('linuxrestrictinterface')):
+        if ((not self.single_host_mode) and
+                self.is_configured('linuxrestrictinterface') and not
+                self.is_clear('linuxrestrictinterface')):
             self.pdebug(DMISC, 'Processing LinuxRestrictInterface config %s' %
-                    self.getconfigval('linuxrestrictinterface'))
+                        self.getconfigval('linuxrestrictinterface'))
             fn_iface = self.getconfigval('linuxrestrictinterface')
 
         self.pdebug(DNFQUEUE, 'Next available NFQUEUE numbers: ' + str(qnos))
@@ -158,7 +159,7 @@ class Diverter(DiverterBase, LinUtilMixin):
                 sys.exit(1)
 
         if self.single_host_mode:
-            
+
             if self.is_set('fixgateway'):
                 if not self.linux_get_default_gw():
                     self.linux_set_default_gw()
@@ -170,14 +171,14 @@ class Diverter(DiverterBase, LinUtilMixin):
                 cmd = self.getconfigval('linuxflushdnscommand')
                 ret = subprocess.call(cmd.split())
                 if ret != 0:
-                    self.logger.error('Failed to flush DNS cache. Local machine '
-                                      'may use cached DNS results.')
-        
+                    self.logger.error('Failed to flush DNS cache. Local '
+                                      'machine may use cached DNS results.')
+
             ok, rule = self.linux_redir_icmp(fn_iface)
             if not ok:
                 self.logger.error('Failed to redirect ICMP')
                 self.stop()
-                sys.exit(1) 
+                sys.exit(1)
             self.rules_added.append(rule)
 
         self.pdebug(DMISC, 'Processing interface redirection on ' +
