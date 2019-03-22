@@ -245,7 +245,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 self.server.logger.error('Could not locate requested file or default handler.')
                 return (response, response_type)
 
-        self.server.logger.debug('Responding with mime type: %s file: %s', 
+        self.server.logger.debug('Responding with mime type: %s file: %s',
                                  response_type, response_filename)
 
         try:

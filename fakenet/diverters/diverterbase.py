@@ -597,16 +597,16 @@ class DiverterBase(fnconfig.Config):
         # Check active interfaces
         if not self.check_active_ethernet_adapters():
             self.logger.critical('WARNING: No active ethernet interfaces '
-                                'detected!')
+                                 'detected!')
             self.logger.critical('         Please enable a network interface.')
             sys.exit(1)
 
         # Check configured ip addresses
         if not self.check_ipaddresses():
             self.logger.critical('ERROR: No interface had IP address '
-                                'configured!')
+                                 'configured!')
             self.logger.critical('         Please configure an IP address on '
-                                'network interface.')
+                                 'network interface.')
             sys.exit(1)
 
         # Check configured gateways
@@ -1621,7 +1621,7 @@ class DiverterBase(fnconfig.Config):
             # already-bound port on the FakeNet system.
 
             self.delete_stale_port_fwd_key(pkt.skey)
-        
+
         if crit.first_packet_new_session:
             self.addSession(pkt)
 

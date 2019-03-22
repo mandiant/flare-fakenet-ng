@@ -148,7 +148,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         except socket.timeout:
             self.server.logger.info('Connection timeout')
-            
+
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)
 

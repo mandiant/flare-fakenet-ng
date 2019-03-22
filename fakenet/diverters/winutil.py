@@ -381,12 +381,12 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                               stderr=subprocess.PIPE)
                     except subprocess.CalledProcessError, e:
                         self.logger.error("         Failed to set gateway %s" +
-                                          "on interface %s." % (gw_address, 
+                                          "on interface %s." % (gw_address,
                                           interface_name))
                     else:
-                        self.logger.info("         Setting gateway %s on "+
-                                          "interface %s" % (gw_address, 
-                                          interface_name))
+                        self.logger.info("         Setting gateway %s on " +
+                                         "interface %s" % (gw_address,
+                                         interface_name))
                         fixed = True
 
         return fixed
@@ -423,11 +423,11 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                               stdout=subprocess.PIPE,
                                               stderr=subprocess.PIPE)
                     except subprocess.CalledProcessError, e:
-                        self.logger.error("         Failed to set DNS %s on interface %s." 
+                        self.logger.error("         Failed to set DNS %s on interface %s."
                                           % (dns_address, interface_name))
                     else:
-                        self.logger.info("         Setting DNS %s on interface %s" 
-                                          % (dns_address, interface_name))
+                        self.logger.info("         Setting DNS %s on interface %s"
+                                         % (dns_address, interface_name))
                         fixed = True
 
         return fixed
@@ -654,10 +654,12 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                       stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
                 self.logger.warning(
-                    'Failed to enable the service %s. (sc config)', service_name)
+                    'Failed to enable the service %s. (sc config)'
+                    service_name)
             else:
                 self.logger.error(
-                    'Successfully enabled the service %s. (sc config)', service_name)
+                    'Successfully enabled the service %s. (sc config)',
+                    service_name)
 
         else:
             self.logger.debug('Successfully enabled the service %s.',

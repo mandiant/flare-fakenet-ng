@@ -97,7 +97,7 @@ class Diverter(DiverterBase, LinUtilMixin):
     def startCallback(self):
         if not self.check_privileged():
             self.logger.critical('The Linux Diverter requires ' +
-                              'administrative privileges')
+                                 'administrative privileges')
             sys.exit(1)
 
         ret = self.linux_capture_iptables()
@@ -133,7 +133,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         qnos = self.linux_get_next_nfqueue_numbers(nhooks)
         if len(qnos) != nhooks:
             self.logger.critical('Could not procure a sufficient number of ' +
-                              'netfilter queue numbers')
+                                 'netfilter queue numbers')
             sys.exit(1)
 
         self.pdebug(DNFQUEUE, 'Next available NFQUEUE numbers: ' + str(qnos))
@@ -150,7 +150,8 @@ class Diverter(DiverterBase, LinUtilMixin):
             ok = q.start()
             if not ok:
                 self.logger.critical('Failed to start NFQUEUE for %s'
-                                    % (str(q)))
+                                     % (str(q)))
+
                 self.stop()
                 sys.exit(1)
 

@@ -100,7 +100,7 @@ class Diverter(DiverterBase, WinUtilMixin):
 
         if not self.single_host_mode:
             self.logger.critical('Windows diverter currently only supports '
-                              'SingleHost mode')
+                                 'SingleHost mode')
             sys.exit(1)
 
         # Used (by winutil) for caching of DNS server names prior to changing
@@ -114,7 +114,7 @@ class Diverter(DiverterBase, WinUtilMixin):
             self.external_ip = socket.gethostbyname(socket.gethostname())
 
         self.logger.debug('External IP: %s Loopback IP: %s' %
-                         (self.external_ip, self.loopback_ip))
+                          (self.external_ip, self.loopback_ip))
 
         #######################################################################
         # Initialize filter and WinDivert driver
@@ -130,19 +130,19 @@ class Diverter(DiverterBase, WinUtilMixin):
         except WindowsError, e:
             if e.winerror == 5:
                 self.logger.critical('ERROR: Insufficient privileges to run '
-                                  'windows diverter.')
+                                     'windows diverter.')
                 self.logger.critical('       Please restart with '
-                                  'Administrator privileges.')
+                                     'Administrator privileges.')
                 sys.exit(1)
             elif e.winerror == 3:
                 self.logger.critical('ERROR: Could not locate WinDivert DLL '
-                                  'or one of its components.')
+                                     'or one of its components.')
                 self.logger.critical('       Please make sure you have copied '
-                                  'FakeNet-NG to the C: drive.')
+                                     'FakeNet-NG to the C: drive.')
                 sys.exit(1)
             else:
                 self.logger.critical('ERROR: Failed to open a handle to the '
-                                  'WinDivert driver: %s', e)
+                                     'WinDivert driver: %s', e)
                 sys.exit(1)
 
     ###########################################################################

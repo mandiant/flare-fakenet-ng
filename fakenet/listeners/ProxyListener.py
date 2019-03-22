@@ -78,7 +78,7 @@ class ProxyListener(object):
         self.server_thread.daemon = True
         self.server_thread.start()
         server_ip, server_port = self.server.server_address
-        self.logger.debug("%s Server(%s:%d) thread: %s" % (proto, server_ip, 
+        self.logger.debug("%s Server(%s:%d) thread: %s" % (proto, server_ip,
             server_port, self.server_thread.name))
 
     def stop(self):
@@ -316,7 +316,7 @@ def main():
     TCP_server_thread.daemon = True
     TCP_server_thread.start()
     tcp_server_ip, tcp_server_port = TCP_server.server_address
-    logger.debug("TCP Server(%s:%d) thread: %s" % (tcp_server_ip, 
+    logger.debug("TCP Server(%s:%d) thread: %s" % (tcp_server_ip,
         tcp_server_port, TCP_server_thread.name))
 
     try:

@@ -161,7 +161,7 @@ class DNSHandler():
                                                  ' %d', self.server.nxdomains)
                         self.server.nxdomains -= 1
                     else:
-                        self.server.logger.debug('Responding with \'%s\'', 
+                        self.server.logger.debug('Responding with \'%s\'',
                                                  fake_record)
                         response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
 
@@ -172,7 +172,8 @@ class DNSHandler():
                     # dnslib doesn't like trailing dots
                     if fake_record[-1] == ".": fake_record = fake_record[:-1]
 
-                    self.server.logger.debug('Responding with \'%s\'', fake_record)
+                    self.server.logger.debug('Responding with \'%s\'',
+                                             fake_record)
                     response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
 
 

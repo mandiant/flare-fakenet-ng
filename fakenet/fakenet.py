@@ -68,7 +68,7 @@ class Fakenet(object):
 
             if not os.path.exists(config_filename):
 
-                self.logger.critical('Could not open configuration file %s', 
+                self.logger.critical('Could not open configuration file %s',
                                      config_filename)
                 sys.exit(1)
 
@@ -130,7 +130,7 @@ class Fakenet(object):
 
             if (('networkmode' not in self.diverter_config) or
                     (self.diverter_config['networkmode'].lower() not in
-                    ['singlehost', 'multihost', 'auto'])):
+                     ['singlehost', 'multihost', 'auto'])):
                 self.logger.critical('Error: You must configure a ' +
                                      'NetworkMode for Diverter, either ' +
                                      'SingleHost, MultiHost, or Auto')
@@ -180,9 +180,9 @@ class Fakenet(object):
 
             # Anonymous listener
             if not 'listener' in listener_config:
-                self.logger.info('Anonymous %s listener on %s port %s...', 
-                                  listener_name, listener_config['protocol'], 
-                                  listener_config['port'])
+                self.logger.info('Anonymous %s listener on %s port %s...',
+                                 listener_name, listener_config['protocol'],
+                                 listener_config['port'])
                 continue
 
             # Get a specific provider for the listener name
