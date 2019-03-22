@@ -153,20 +153,28 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.stop()
                 sys.exit(1)
 
-        if self.single_host_mode and self.is_set('fixgateway'):
-            if not self.linux_get_default_gw():
-                self.linux_set_default_gw()
+        if self.single_host_mode:
+            
+            if self.is_set('fixgateway'):
+                if not self.linux_get_default_gw():
+                    self.linux_set_default_gw()
 
-        if self.single_host_mode and self.is_set('modifylocaldns'):
-            self.linux_modifylocaldns_ephemeral()
+            if self.is_set('modifylocaldns'):
+                self.linux_modifylocaldns_ephemeral()
 
-        if (self.is_configured('linuxflushdnscommand') and
-                self.single_host_mode):
-            cmd = self.getconfigval('linuxflushdnscommand')
-            ret = subprocess.call(cmd.split())
-            if ret != 0:
-                self.logger.error('Failed to flush DNS cache. Local machine '
-                                  'may use cached DNS results.')
+            if self.is_configured('linuxflushdnscommand'):
+                cmd = self.getconfigval('linuxflushdnscommand')
+                ret = subprocess.call(cmd.split())
+                if ret != 0:
+                    self.logger.error('Failed to flush DNS cache. Local machine '
+                                      'may use cached DNS results.')
+        
+            ok, rule = self.linux_redir_icmp()
+            if not ok:
+                self.logger.error('Failed to redirect ICMP')
+                self.stop()
+                sys.exit(1) 
+            self.rules_added.append(rule)
 
         if self.is_configured('linuxredirectnonlocal'):
             self.pdebug(DMISC, 'Processing LinuxRedirectNonlocal')
@@ -184,14 +192,6 @@ class Diverter(DiverterBase, LinUtilMixin):
                 self.logger.error('Failed to process LinuxRedirectNonlocal')
                 self.stop()
                 sys.exit(1)
-
-        ok, rule = self.linux_redir_icmp()
-        if not ok:
-            self.logger.error('Failed to redirect ICMP')
-            self.stop()
-            sys.exit(1)
-
-        self.rules_added.append(rule)
 
         return True
 
