@@ -34,16 +34,10 @@ class IptCmdTemplate(object):
         return self._remcmd
 
     def add(self):
-#        self.pdebug(DIPTBLS, 'Adding iptables rule: %s' % (self._addcmd))
-        ret = subprocess.call(self._addcmd.split())
-#        self.pdebug(DIPTBLS, 'iptables returned %d' % (ret))
-        return ret
+        return subprocess.call(self._addcmd.split())
 
     def remove(self):
-#        self.pdebug(DIPTBLS, 'Removing iptables rule: %s' % (self._remcmd))
-        ret = subprocess.call(self._remcmd.split())
-#        self.pdebug(DIPTBLS, 'iptables returned %d' % (ret))
-        return ret
+        return subprocess.call(self._remcmd.split())
 
     def iptables_format(self, chain, iface, argfmt):
         """Format iptables command line with optional interface restriction.

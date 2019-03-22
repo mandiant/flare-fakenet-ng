@@ -168,8 +168,13 @@ class Fakenet(object):
                             != 'off'):
                         fn_iface = self.diverter_config['linuxrestrictinterface']
                         if fn_iface in iface_ip_info.ifaces:
-                            # default to first interface
-                            fn_addr = iface_ip_info.get_ips([4], fn_iface)[0]
+                            try:
+                                # default to first link
+                                fn_addr = iface_ip_info.get_ips([4], fn_iface)[0]
+                            except LookupError as e:
+                                self.logger.error('Couldn\'t get IP for %s' %
+                                                  (fn_iface))
+                                sys.exit(1)
                         else:
                             self.logger.error(
                                 'Invalid interface %s specified. Proceeding '
