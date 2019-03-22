@@ -3,7 +3,8 @@
 # FakeNet-NG is a next generation dynamic network analysis tool for malware
 # analysts and penetration testers.
 #
-# Developed by Peter Kacherginsky
+# Original developer: Peter Kacherginsky
+# Current developer: FireEye FLARE Team (FakeNet@fireeye.com)
 
 import logging
 import logging.handlers
@@ -156,7 +157,7 @@ class Fakenet(object):
 
                 if self.diverter_config['networkmode'].lower() == 'auto':
                     self.diverter_config['networkmode'] = 'singlehost'
-                
+
                 from diverters.windows import Diverter
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
 
@@ -214,14 +215,14 @@ class Fakenet(object):
 
         for listener in self.running_listener_providers:
 
-            # Only listeners that implement acceptListeners(listeners) 
+            # Only listeners that implement acceptListeners(listeners)
             # interface receive running_listener_providers
             try:
                 listener.acceptListeners(self.running_listener_providers)
             except AttributeError:
                 self.logger.debug("acceptListeners() not implemented by Listener %s" % listener.name)
 
-            # Only listeners that implement acceptDiverter(diverter) 
+            # Only listeners that implement acceptDiverter(diverter)
             # interface receive diverter
             try:
                 listener.acceptDiverter(self.diverter)
@@ -240,7 +241,7 @@ class Fakenet(object):
 
 def get_ips(ipvers):
     """Return IP addresses bound to local interfaces including loopbacks.
-    
+
     Parameters
     ----------
     ipvers : list
@@ -274,17 +275,17 @@ def get_ips(ipvers):
 def main():
 
     print """
-  ______      _  ________ _   _ ______ _______     _   _  _____ 
+  ______      _  ________ _   _ ______ _______     _   _  _____
  |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
- | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __ 
+ | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
  |  __/ /\ \ |  < |  __| | . ` |  __|    | |______| . ` | | |_ |
  | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
  |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                        Version 1.4.1
+                        Version 1.4.4
   _____________________________________________________________
                    Developed by FLARE Team
-  _____________________________________________________________               
+  _____________________________________________________________
                                                """
 
     # Parse command line arguments

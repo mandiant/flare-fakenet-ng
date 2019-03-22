@@ -203,11 +203,11 @@ class Diverter(DiverterBase, WinUtilMixin):
                     if pkt.proto:
                         protocol = pkt.proto
                     elif pkt.is_icmp:
-                        proto = 'ICMP'
+                        protocol = 'ICMP'
 
                     self.logger.error('ERROR: Failed to send %s %s %s packet',
                                       self.pktDirectionStr(pkt),
-                                      self.pktInterfaceStr(pkt), proto)
+                                      self.pktInterfaceStr(pkt), protocol)
                     self.logger.error('  %s' % (pkt.hdrToStr()))
                     self.logger.error('  %s', e)
 
