@@ -71,7 +71,7 @@ class SSLWrapper(object):
             return certfile, keyfile
 
         if ca_cert is not None and ca_key is not None:
-        ``    cacert = self._load_cert(ca_cert)
+            cacert = self._load_cert(ca_cert)
             if cacert is None:
                 return None, None
 
