@@ -50,7 +50,7 @@ class SSLWrapper(object):
             return ctx.wrap_socket(s, server_side=True)
         else:
             ctx.set_servername_callback(self.sni_callback)
-            ctx.load_cert_chain(certfile=self.ca_cert, keyfile=self.ca_key)
+            ctx.load_cert_chain(cert_file=self.ca_cert, keyfile=self.ca_key)
             return ctx.wrap_socket(s, server_side=True)
 
     def create_cert(self, cn, ca_cert=None, ca_key=None, cert_dir=None):
@@ -65,18 +65,18 @@ class SSLWrapper(object):
         f_selfsign = ca_cert is None or ca_key is None
         if not cert_dir:
             cert_dir = self.CERT_DIR
-        certfile = os.path.join(cert_dir, "%s.crt" % (cn))
-        keyfile = os.path.join(cert_dir, "%s.key" % (cn))
-        if os.path.exists(certfile) and os.path.exists(keyfile):
-            return certfile, keyfile
+        cert_file = os.path.join(cert_dir, "%s.crt" % (cn))
+        key_file = os.path.join(cert_dir, "%s.key" % (cn))
+        if os.path.exists(cert_file) and os.path.exists(key_file):
+            return cert_file, key_file
 
         if ca_cert is not None and ca_key is not None:
-            cacert = self._load_cert(ca_cert)
-            if cacert is None:
+            ca_cert_data = self._load_cert(ca_cert)
+            if ca_cert_data is None:
                 return None, None
 
-            cakey = self._load_private_key(ca_key)
-            if cakey is None:
+            ca_key_data = self._load_private_key(ca_key)
+            if ca_key_data is None:
                 return None, None
 
         # generate crypto keys:
@@ -98,38 +98,38 @@ class SSLWrapper(object):
             cert.set_issuer(cert.get_subject())
             cert.sign(key, "sha1")
         else:
-            cert.set_issuer(cacert.get_subject())
-            cert.sign(cakey, "sha1")
+            cert.set_issuer(ca_cert_data.get_subject())
+            cert.sign(ca_key_data, "sha1")
 
         try:
-            with open(certfile, "wb") as cert_file:
-                cert_file.write(crypto.dump_certificate(
+            with open(cert_file, "wb") as cert_file_input:
+                cert_file_input.write(crypto.dump_certificate(
                     crypto.FILETYPE_PEM, cert)
                 )
-            with open(keyfile, "wb") as key_file:
+            with open(key_file, "wb") as key_file:
                 key_file.write(crypto.dump_privatekey(
                     crypto.FILETYPE_PEM, key)
                 )
         except:
             traceback.print_exc()
             return None, None
-        return certfile, keyfile
+        return cert_file, key_file
 
     def sni_callback(self, sslsock, servername, sslctx):
         newctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
-        certfile, keyfile = self.create_cert(servername, self.ca_cert, self.ca_key)
-        if certfile is None or keyfile is None:
-            return None
+        cert_file, key_file = self.create_cert(servername, self.ca_cert, self.ca_key)
+        if cert_file is None or key_file is None:
+            return
 
         newctx.check_hostname = False
-        newctx.load_cert_chain(certfile=certfile, keyfile=keyfile)
+        newctx.load_cert_chain(certfile=cert_file, keyfile=key_file)
         sslsock.context = newctx
-        return None
+        return
 
     def _load_cert(self, certpath):
         try:
-            with open(certpath, 'rb') as certfile:
-                data = certfile.read()
+            with open(certpath, 'rb') as cert_file_input:
+                cert_file_input = cert_file.read()
             self.ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, data)
         except:
             traceback.format_exc()
@@ -138,8 +138,8 @@ class SSLWrapper(object):
     
     def _load_private_key(self, keypath):
         try:
-            with open(keypath, 'rb') as keyfile:
-                data = keyfile.read()
+            with open(keypath, 'rb') as key_file_input:
+                data = key_file_input.read()
             self.privkey = crypto.load_privatekey(crypto.FILETYPE_PEM, data)
         except:
             traceback.print_exc()
