@@ -24,7 +24,7 @@ class SMTPListener(object):
                 'RSET', 'VRFY', 'HELP', 'QUIT', 'X-EXPS GSSAPI', 
                 'X-EXPS=LOGIN', 'X-EXCH50', 'X-LINK2STATE']
         ports = [25, 587, 465]
-        confidence = 1 if dport in ports else 0
+        confidence = 2 if dport in ports else 0
 
         for command in commands:
             if data.lstrip().startswith(command):

@@ -184,22 +184,35 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             sys.exit(1)
 
         ssl_version = ssl.PROTOCOL_SSLv23
+        possible_srvr_first_proto = False
+        is_ssl = False
 
         try:
+            remote_sock.settimeout(1)
             data = remote_sock.recv(BUF_SZ, socket.MSG_PEEK)
 
-            self.server.logger.info('Received %d bytes.', len(data))
-            self.server.logger.debug('%s', '-'*80,)
-            for line in hexdump_table(data):
-                self.server.logger.debug(line)
-            self.server.logger.debug('%s', '-'*80,)
+        except socket.timeout:
+            self.logger.debug('Socket timeout. Possible server-first protocol')
+            possible_srvr_first_proto = True
+            # prepare to send an arbitrary byte to initiate protocol
+            data = '\x01'
 
         except Exception as e:
             self.server.logger.info('recv() error: %s' % e.message)
 
+        finally:
+            remote_sock.settimeout(None)
+
         if data:
+            if not possible_srvr_first_proto:
+                self.server.logger.info('Received %d bytes.', len(data))
+                self.server.logger.debug('%s', '-'*80,)
+                for line in hexdump_table(data):
+                    self.server.logger.debug(line)
+                self.server.logger.debug('%s', '-'*80,)
 
             if ssl_detector.looks_like_ssl(data):
+                is_ssl = True
                 self.server.logger.debug('SSL detected')
                 ssl_remote_sock = ssl.wrap_socket(
                         remote_sock, 
@@ -207,9 +220,21 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         do_handshake_on_connect=True,
                         certfile=certfile_path, 
                         ssl_version=ssl_version,
-                        keyfile=keyfile_path )
-                data = ssl_remote_sock.recv(BUF_SZ)
-            
+                        keyfile=keyfile_path)
+                ssl_remote_sock.settimeout(1)
+                try:
+                    data = ssl_remote_sock.recv(BUF_SZ)
+                except ssl.SSLError as e:
+                    self.server.logger.info(
+                            'SSL timeout. Possible server-first protocol')
+                    possible_srvr_first_proto = True
+
+                except Exception as e:
+                    self.server.logger.info('recv() error: %s' % e.message)
+
+                finally:
+                    remote_sock.settimeout(None)
+
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
             
@@ -229,10 +254,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 # ssl has no 'peek' option, so we need to process the first
                 # packet that is already consumed from the socket
-                if ssl_remote_sock:
-                    ssl_remote_sock.setblocking(0)
+                if is_ssl and not possible_srvr_first_proto:
                     remote_q.put(data)
-                
+
+                # send the first packet to the listener twice to initiate
+                # server-first protocol
+                elif not is_ssl and possible_srvr_first_proto:
+                    remote_q.put(data)
+
                 while True:
                     readable, writable, exceptional = select.select(
                             [remote_sock], [], [], .001)
