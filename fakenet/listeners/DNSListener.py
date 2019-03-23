@@ -24,17 +24,17 @@ class DNSListener(object):
         return confidence + 2
 
     def __init__(
-            self, 
-            config={}, 
-            name='DNSListener', 
-            logging_level=logging.INFO, 
+            self,
+            config={},
+            name='DNSListener',
+            logging_level=logging.INFO,
             ):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
-            
+
         self.config = config
-        self.local_ip = '0.0.0.0'
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.name = 'DNS'
         self.port = self.config.get('port', 53)

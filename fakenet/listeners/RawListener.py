@@ -27,7 +27,7 @@ class RawListener(object):
             
         self.config = config
         self.name = name
-        self.local_ip = '0.0.0.0'
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.name = 'Raw'
         self.port = self.config.get('port', 1337)
@@ -42,7 +42,7 @@ class RawListener(object):
 
         # Start listener
         if self.config.get('protocol') != None:
-
+        
             if self.config['protocol'].lower() == 'tcp':
                 self.logger.debug('Starting TCP ...')
                 self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)

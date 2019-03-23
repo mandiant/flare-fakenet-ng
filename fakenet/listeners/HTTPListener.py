@@ -53,18 +53,17 @@ class HTTPListener(object):
         })
 
     def __init__(
-            self, 
-            config={}, 
-            name='HTTPListener', 
-            logging_level=logging.DEBUG, 
+            self,
+            config={},
+            name='HTTPListener',
+            logging_level=logging.DEBUG,
             ):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
-  
         self.config = config
         self.name = name
-        self.local_ip  = '0.0.0.0'
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.name = 'HTTP'
         self.port = self.config.get('port', 80)
@@ -83,7 +82,6 @@ class HTTPListener(object):
 
     def start(self):
         self.logger.debug('Starting...')
-            
         self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), ThreadedHTTPRequestHandler)
         self.server.logger = self.logger
         self.server.config = self.config

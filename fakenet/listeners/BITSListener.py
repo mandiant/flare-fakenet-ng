@@ -447,15 +447,21 @@ class BITSListener(object):
                 continue
 
         return confidence
-        
-    def __init__(self, config={}, name='BITSListener', 
-            logging_level=logging.DEBUG, running_listeners=None):
+
+    def __init__(
+            self,
+            config={},
+            name='BITSListener',
+            logging_level=logging.DEBUG,
+            running_listeners=None
+            ):
+
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
-  
+
         self.config = config
         self.name = name
-        self.local_ip  = '0.0.0.0'
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.running_listeners = running_listeners
         self.NAME = 'BITS'
@@ -471,7 +477,6 @@ class BITSListener(object):
 
     def start(self):
         self.logger.debug('Starting...')
-
         self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), SimpleBITSRequestHandler)
         self.server.logger = self.logger
         self.server.bits_file_prefix = self.bits_file_prefix
