@@ -67,7 +67,7 @@ class SSLWrapper(object):
             cert_dir = self.CERT_DIR
         certfile = os.path.join(cert_dir, "%s.crt" % (cn))
         keyfile = os.path.join(cert_dir, "%s.key" % (cn))
-        if os.path.exists(certfile):
+        if os.path.exists(certfile) and os.path.exists(keyfile)
             return certfile, keyfile
 
         f_selfsign = True
