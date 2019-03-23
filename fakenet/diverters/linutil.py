@@ -13,33 +13,18 @@ from collections import defaultdict
 from . import diverterbase
 
 
-class IptCmdTemplate(object):
+class IptCmdTemplateBase(object):
     """For managing insertion and removal of iptables rules.
 
     Construct and execute iptables command lines to add (-I or -A) and remove
-    (-D) rules.
-
-    The removal half of this is now redundant with
-    LinUtilMixin.linux_{capture,restore}_iptables().
+    (-D) rules in the abstract. Base only handles iptables -I/-D and -i/-o args
     """
 
-    def __init__(self):
+    def __init(self):
         self._addcmd = None
         self._remcmd = None
 
-    def gen_add_cmd(self):
-        return self._addcmd
-
-    def gen_remove_cmd(self):
-        return self._remcmd
-
-    def add(self):
-        return subprocess.call(self._addcmd.split())
-
-    def remove(self):
-        return subprocess.call(self._remcmd.split())
-
-    def iptables_format(self, chain, iface, argfmt):
+    def _iptables_format(self, chain, iface, argfmt):
         """Format iptables command line with optional interface restriction.
 
         Parameters
@@ -63,26 +48,43 @@ class IptCmdTemplate(object):
             else:
                 raise NotImplementedError('Unanticipated chain %s' % (chain))
 
-        add_cmd = 'iptables -I {chain} {flag_if} {iface} {fmt}'
-        add_cmd = add_cmd.format(chain=chain, flag_if=flag_iface,
-                                 iface=(iface or ''), fmt=argfmt)
-        rem_cmd = 'iptables -D {chain} {flag_if} {iface} {fmt}'
-        rem_cmd = rem_cmd.format(chain=chain, flag_if=flag_iface,
-                                 iface=(iface or ''), fmt=argfmt)
-        return add_cmd, rem_cmd
+        self._addcmd = 'iptables -I {chain} {flag_if} {iface} {fmt}'
+        self._addcmd = self._addcmd.format(chain=chain, flag_if=flag_iface,
+                                           iface=(iface or ''), fmt=argfmt)
+        self._remcmd = 'iptables -D {chain} {flag_if} {iface} {fmt}'
+        self._remcmd = self._remcmd.format(chain=chain, flag_if=flag_iface,
+                                           iface=(iface or ''), fmt=argfmt)
 
-    def nfqueue_init(self, chain, qno, table, iface=None):
+    def add(self):
+        if not self._addcmd:
+            raise ValueError('Iptables rule addition command not initialized')
+        return subprocess.call(self._addcmd.split())
+
+    def remove(self):
+        if not self._remcmd:
+            raise ValueError('Iptables rule removal command not initialized')
+        return subprocess.call(self._remcmd.split())
+
+
+class IptCmdTemplateNfq(IptCmdTemplateBase):
+    """For constructing and executing NFQUEUE iptables rules"""
+    def __init__(self, chain, qno, table, iface=None):
         fmt = '-t {} -j NFQUEUE --queue-num {}'.format(table, qno)
-        self._addcmd, self._remcmd = self.iptables_format(chain, iface, fmt)
+        self._iptables_format(chain, iface, fmt)
 
-    def redir_iface_init(self, iface=None):
+
+class IptCmdTemplateRedir(IptCmdTemplateBase):
+    """For constructing and executing REDIRECT iptables rules"""
+    def __init__(self, iface=None):
         fmt = '-t nat -j REDIRECT'
-        self._addcmd, self._remcmd = self.iptables_format('PREROUTING', iface,
-                                                          fmt)
+        self._iptables_format('PREROUTING', iface, fmt)
 
-    def redir_icmp_init(self, iface=None):
+
+class IptCmdTemplateIcmpRedir(IptCmdTemplateBase):
+    """For constructing and executing ICMP REDIRECT iptables rules"""
+    def __init__(self, iface=None):
         fmt = '-t nat -p icmp -j REDIRECT'
-        self._addcmd, self._remcmd = self.iptables_format('OUTPUT', iface, fmt)
+        self._iptables_format('OUTPUT', iface, fmt)
 
 
 class LinuxDiverterNfqueue(object):
@@ -106,8 +108,7 @@ class LinuxDiverterNfqueue(object):
         self.qno = qno
         self.chain = chain
         self.table = table
-        self._rule = IptCmdTemplate()
-        self._rule.nfqueue_init(self.chain, self.qno, self.table, iface)
+        self._rule = IptCmdTemplateNfq(self.chain, self.qno, self.table, iface)
         self._callback = callback
         self._nfqueue = netfilterqueue.NetfilterQueue()
         self._sk = None
@@ -415,8 +416,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         """
 
         iptables_rules = []
-        rule = IptCmdTemplate()
-        rule.redir_iface_init(iface)
+        rule = IptCmdTemplateRedir(iface)
         ret = rule.add()
 
         if ret != 0:
@@ -638,8 +638,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         return dgw
 
     def linux_redir_icmp(self, iface=None):
-        rule = IptCmdTemplate()
-        rule.redir_icmp_init(iface)
+        rule = IptCmdTemplateIcmpRedir(iface)
         ret = rule.add()
         return (ret == 0), rule
 
