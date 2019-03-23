@@ -43,7 +43,7 @@ class SSLWrapper(object):
         self.logger.error("adding root cert: %s", self.ca_cert)
         return self._add_root_ca(self.ca_cert)
     
-    def make_socket(self, s):
+    def wrap_socket(self, s):
         self.logger.error('making socket')
         try:
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)

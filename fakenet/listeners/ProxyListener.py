@@ -206,7 +206,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     raise RuntimeError('Failed to initialize SSLWrapper')
 
                 self.server.logger.debug('SSL detected')
-                ssl_remote_sock = self.sslwrapper.make_socket(remote_sock)
+                ssl_remote_sock = self.sslwrapper.wrap_socket(remote_sock)
                 data = ssl_remote_sock.recv(BUF_SZ)
             else:
                 ssl_remote_sock = None

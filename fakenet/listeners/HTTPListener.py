@@ -118,7 +118,7 @@ class HTTPListener(object):
             self.logger.error('initializing wrapper socket')
             if not self.sslwrapper.initialize():
                 raise RuntimeError("Failed to initialize SSLWrapper")
-            self.server.socket = self.sslwrapper.make_socket(self.server.socket)
+            self.server.socket = self.sslwrapper.wrap_socket(self.server.socket)
 
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
