@@ -146,6 +146,23 @@ class SSLWrapper(object):
             traceback.print_exc()
             self.privkey = None
         return self.privkey
+    def _run_win_certutil(self, argv):
+        rc = False
+        if sys.platform.startswith('win'):
+        try:
+            subprocess.check_call(argv, shell=True, stdout=None)
+            rc = True
+        except subprocess.CalledProcessError:
+            self.logger.error('Failed to add root CA')
+        return rc
+
+    def _add_root_ca(self, ca_cert_file):
+        argv = ['certutil', '-addstore', 'Root', ca_cert_file]
+        return self._run_win_certutil(argv)
+
+    def _remove_root_ca(self, cn):
+        argv = ['certutil', '-delstore', 'Root', cn]
+        return self._run_win_certutil(argv)
     
     def _add_root_ca(self, ca_cert_file):
         if not sys.platform.startswith('win'):
@@ -184,7 +201,7 @@ class SSLWrapper(object):
         try:
             shutil.rmtree(self.config.get('certdir', self.CERT_DIR))
         except:
-            traceback.print_exc()
+            self.logger.warn(traceback.format_exc())
         return
     
 
