@@ -132,7 +132,8 @@ class SSLWrapper(object):
                 cert_file_input = cert_file.read()
             self.ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, data)
         except:
-            traceback.format_exc()
+            self.logger.error(traceback.format_exc())
+            self.logger.error("Failed to load certficate")
             self.ca_cert = None
         return self.ca_cert
     
