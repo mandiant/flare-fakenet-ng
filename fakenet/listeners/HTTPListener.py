@@ -104,7 +104,7 @@ class HTTPListener(object):
             self.prepare_certs()
             self.logger.debug('Using SSL socket.')
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
-            self.logger.error("setting callback to %s" % str(self.sni_callback))
+            self.logger.info("setting callback to %s" % str(self.sni_callback))
             ctx.set_servername_callback(self.sni_callback)
             ctx.load_cert_chain(certfile=self.ca_cert, keyfile=self.ca_key)
             self.server.socket = ctx.wrap_socket(self.server.socket, server_side=True)

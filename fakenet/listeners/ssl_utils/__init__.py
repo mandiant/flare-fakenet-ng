@@ -23,7 +23,7 @@ class SSLWrapper(object):
         self.ca_key = None
         
         certdir = self.config.get('certdir', self.CERT_DIR)
-        self.logger.error("Cert dir is %s", certdir)
+        self.logger.info("Cert dir is %s", certdir)
         if certdir is None:
             raise RuntimeError("certdir key is not specified in config")
 
@@ -36,12 +36,12 @@ class SSLWrapper(object):
             self.ca_key = self.config.get('ca_key', None)
         else:
             self.ca_cert, self.ca_key = self.create_cert(self.CN)
-        self.logger.error("adding root cert: %s", self.ca_cert)
+        self.logger.info("adding root cert: %s", self.ca_cert)
         if not self._add_root_ca(self.ca_cert):
             raise RuntimeError("Failed to add root ca")
     
     def wrap_socket(self, s):
-        self.logger.error('making socket')
+        self.logger.info('making socket')
         try:
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
         except:
