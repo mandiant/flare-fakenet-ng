@@ -115,9 +115,6 @@ class HTTPListener(object):
                 'ca_key': self.config.get('ca_key'),
             }
             self.sslwrapper = SSLWrapper(config)
-            self.logger.error('initializing wrapper socket')
-            if not self.sslwrapper.initialize():
-                raise RuntimeError("Failed to initialize SSLWrapper")
             self.server.socket = self.sslwrapper.wrap_socket(self.server.socket)
 
 

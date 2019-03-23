@@ -11,7 +11,6 @@ import ssl
 from OpenSSL import crypto
 
 
-
 class SSLWrapper(object):
     NOT_AFTER_DELTA_SECONDS = 300  * 24 * 60 * 60
     CERT_DIR = "temp_certs"
@@ -22,12 +21,12 @@ class SSLWrapper(object):
         self.config = config
         self.ca_cert = None
         self.ca_key = None
-    
-    def initialize(self):
+        
         certdir = self.config.get('certdir', self.CERT_DIR)
         self.logger.error("Cert dir is %s", certdir)
         if certdir is None:
-            return False
+            raise RuntimeError("certdir key is not specified in config")
+
         if not os.path.isdir(certdir):
             os.makedirs(certdir)
 
@@ -36,12 +35,10 @@ class SSLWrapper(object):
             self.ca_cert = self.config.get('ca_cert', None)
             self.ca_key = self.config.get('ca_key', None)
         else:
-            cn = self.CN
-            if cn is None:
-                return False
-            self.ca_cert, self.ca_key = self.create_cert(cn)
+            self.ca_cert, self.ca_key = self.create_cert(self.CN)
         self.logger.error("adding root cert: %s", self.ca_cert)
-        return self._add_root_ca(self.ca_cert)
+        if not self._add_root_ca(self.ca_cert):
+            raise RuntimeError("Failed to add root ca")
     
     def wrap_socket(self, s):
         self.logger.error('making socket')

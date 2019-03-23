@@ -202,9 +202,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     'ca_key': self.server.config.get('ca_key')
                 }
                 self.sslwrapper = SSLWrapper(config)
-                if not self.sslwrapper.initialize():
-                    raise RuntimeError('Failed to initialize SSLWrapper')
-
                 self.server.logger.debug('SSL detected')
                 ssl_remote_sock = self.sslwrapper.wrap_socket(remote_sock)
                 data = ssl_remote_sock.recv(BUF_SZ)
