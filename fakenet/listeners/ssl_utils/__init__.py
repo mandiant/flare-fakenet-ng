@@ -45,10 +45,16 @@ class SSLWrapper(object):
     
     def make_socket(self, s):
         self.logger.error('making socket')
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
-        ctx.set_servername_callback(self.sni_callback)
-        ctx.load_cert_chain(certfile=self.ca_cert, keyfile=self.ca_key)
-        return ctx.wrap_socket(s, server_side=True)
+        try:
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
+        except:
+            self.logger.error(traceback.format_exc())
+            self.logger.error("Exception when calling ssl.SSLContext")
+            return ctx.wrap_socket(s, server_side=True)
+        else:
+            ctx.set_servername_callback(self.sni_callback)
+            ctx.load_cert_chain(certfile=self.ca_cert, keyfile=self.ca_key)
+            return ctx.wrap_socket(s, server_side=True)
 
     def create_cert(self, cn, ca_cert=None, ca_key=None, cert_dir=None):
         """
