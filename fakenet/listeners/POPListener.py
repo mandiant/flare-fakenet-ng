@@ -53,7 +53,7 @@ class POPListener(object):
 
         self.config = config
         self.name = name
-        self.local_ip = '0.0.0.0'
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.name = 'POP'
         self.port = self.config.get('port', 110)
@@ -66,7 +66,7 @@ class POPListener(object):
 
     def start(self):
         self.logger.debug('Starting...')
-
+        
         self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
 
         if self.config.get('usessl') == 'Yes':

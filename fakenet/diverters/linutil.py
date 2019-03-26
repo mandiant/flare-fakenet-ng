@@ -13,31 +13,78 @@ from collections import defaultdict
 from . import diverterbase
 
 
-class IptCmdTemplate(object):
+class IptCmdTemplateBase(object):
     """For managing insertion and removal of iptables rules.
 
     Construct and execute iptables command lines to add (-I or -A) and remove
-    (-D) rules.
-
-    The removal half of this is now redundant with
-    LinUtilMixin.linux_{capture,restore}_iptables().
+    (-D) rules in the abstract. Base only handles iptables -I/-D and -i/-o args
     """
 
-    def __init__(self, fmt, args=[], add='-I', rem='-D', add_idx=0, rem_idx=0):
-        self._addcmd = fmt % tuple(args[0:add_idx] + [add] + args[add_idx:])
-        self._remcmd = fmt % tuple(args[0:add_idx] + [rem] + args[rem_idx:])
+    def __init(self):
+        self._addcmd = None
+        self._remcmd = None
 
-    def gen_add_cmd(self):
-        return self._addcmd
+    def _iptables_format(self, chain, iface, argfmt):
+        """Format iptables command line with optional interface restriction.
 
-    def gen_remove_cmd(self):
-        return self._remcmd
+        Parameters
+        ----------
+        chain : string
+            One of 'OUTPUT', 'POSTROUTING', 'INPUT', or 'PREROUTING', used for
+            deciding the correct flag (-i versus -o)
+        iface : string or NoneType
+            Name of interface to restrict the rule to (e.g. 'eth0'), or None
+        argfmt : string
+            Format string for remaining iptables arguments. This format string
+            will not be included in format string evaluation but is appended
+            as-is to the iptables command.
+        """
+        flag_iface = ''
+        if iface:
+            if chain in ['OUTPUT', 'POSTROUTING']:
+                flag_iface = '-o'
+            elif chain in ['INPUT', 'PREROUTING']:
+                flag_iface = '-i'
+            else:
+                raise NotImplementedError('Unanticipated chain %s' % (chain))
+
+        self._addcmd = 'iptables -I {chain} {flag_if} {iface} {fmt}'
+        self._addcmd = self._addcmd.format(chain=chain, flag_if=flag_iface,
+                                           iface=(iface or ''), fmt=argfmt)
+        self._remcmd = 'iptables -D {chain} {flag_if} {iface} {fmt}'
+        self._remcmd = self._remcmd.format(chain=chain, flag_if=flag_iface,
+                                           iface=(iface or ''), fmt=argfmt)
 
     def add(self):
+        if not self._addcmd:
+            raise ValueError('Iptables rule addition command not initialized')
         return subprocess.call(self._addcmd.split())
 
     def remove(self):
+        if not self._remcmd:
+            raise ValueError('Iptables rule removal command not initialized')
         return subprocess.call(self._remcmd.split())
+
+
+class IptCmdTemplateNfq(IptCmdTemplateBase):
+    """For constructing and executing NFQUEUE iptables rules"""
+    def __init__(self, chain, qno, table, iface=None):
+        fmt = '-t {} -j NFQUEUE --queue-num {}'.format(table, qno)
+        self._iptables_format(chain, iface, fmt)
+
+
+class IptCmdTemplateRedir(IptCmdTemplateBase):
+    """For constructing and executing REDIRECT iptables rules"""
+    def __init__(self, iface=None):
+        fmt = '-t nat -j REDIRECT'
+        self._iptables_format('PREROUTING', iface, fmt)
+
+
+class IptCmdTemplateIcmpRedir(IptCmdTemplateBase):
+    """For constructing and executing ICMP REDIRECT iptables rules"""
+    def __init__(self, iface=None):
+        fmt = '-t nat -p icmp -j REDIRECT'
+        self._iptables_format('OUTPUT', iface, fmt)
 
 
 class LinuxDiverterNfqueue(object):
@@ -54,17 +101,14 @@ class LinuxDiverterNfqueue(object):
     The results are undefined if start() or stop() are called multiple times.
     """
 
-    def __init__(self, qno, chain, table, callback):
+    def __init__(self, qno, chain, table, callback, iface=None):
         self.logger = logging.getLogger('Diverter')
-
-        # e.g. iptables <-I> <INPUT> -t <mangle> -j NFQUEUE --queue-num <0>'
-        fmt = 'iptables %s %s -t %s -j NFQUEUE --queue-num %d'
 
         # Specifications
         self.qno = qno
         self.chain = chain
         self.table = table
-        self._rule = IptCmdTemplate(fmt, [self.chain, self.table, self.qno])
+        self._rule = IptCmdTemplateNfq(self.chain, self.qno, self.table, iface)
         self._callback = callback
         self._nfqueue = netfilterqueue.NetfilterQueue()
         self._sk = None
@@ -274,6 +318,8 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
     def linux_restore_iptables(self):
         ret = None
 
+        self.pdebug(DIPTBLS, 'Restoring iptables')
+
         try:
             p = subprocess.Popen(['iptables-restore'], stdin=subprocess.PIPE)
             p.communicate(self.iptables_captured)
@@ -359,9 +405,9 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         return next_qnos
 
-    def linux_iptables_redir_nonlocal(self, specified_ifaces):
-        """Linux-specific iptables processing for 'LinuxRedirectNonlocal'
-        configuration item.
+    def linux_iptables_redir_iface(self, iface):
+        """Linux-specific iptables processing for interface-based redirect
+        rules.
 
         returns:
             tuple(bool, list(IptCmdTemplate))
@@ -369,40 +415,16 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
             need to be undone.
         """
 
-        local_ifaces = self._linux_get_ifaces()
-        all_iface_aliases = ['any', '*']
-        acceptable_ifaces = local_ifaces + all_iface_aliases
         iptables_rules = []
+        rule = IptCmdTemplateRedir(iface)
+        ret = rule.add()
 
-        # Catch cases where the user isn't going to get what they expect
-        # because iptables does not err for non-existent ifaces...
-        if not set(specified_ifaces).issubset(acceptable_ifaces):
-            # And indicate ALL interfaces that do not appear to exist
-            for iface in specified_ifaces:
-                if iface not in acceptable_ifaces:
-                    self.logger.error(('Interface %s not found for nonlocal ' +
-                                       'packet redirection, must be one of ' +
-                                       '%s') % (iface, str(acceptable_ifaces)))
-            return (False, [])
+        if ret != 0:
+            self.logger.error('Failed to create PREROUTING/REDIRECT ' +
+                              'rule for %s, stopping...' % (iface))
+            return (False, iptables_rules)
 
-        for iface in specified_ifaces:
-            fmt, args = '', list()
-            if iface in all_iface_aliases:
-                # Handle */any case by omitting -i switch and corresponding arg
-                fmt = 'iptables -t nat %s PREROUTING -j REDIRECT'
-            else:
-                fmt = 'iptables -t nat %s PREROUTING -i %s -j REDIRECT'
-                args = [iface]
-
-            rule = IptCmdTemplate(fmt, args)
-            ret = rule.add()
-
-            if ret != 0:
-                self.logger.error('Failed to create PREROUTING/REDIRECT ' +
-                                  'rule for %s, stopping...' % (iface))
-                return (False, iptables_rules)
-
-            iptables_rules.append(rule)
+        iptables_rules.append(rule)
 
         return (True, iptables_rules)
 
@@ -615,9 +637,8 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         return dgw
 
-    def linux_redir_icmp(self):
-        fmt = 'iptables -t nat %s OUTPUT -p icmp -j REDIRECT'
-        rule = IptCmdTemplate(fmt)
+    def linux_redir_icmp(self, iface=None):
+        rule = IptCmdTemplateIcmpRedir(iface)
         ret = rule.add()
         return (ret == 0), rule
 

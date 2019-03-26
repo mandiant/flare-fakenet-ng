@@ -15,16 +15,15 @@ from . import *
 import os
 
 BUF_SZ = 1024
-IP = '0.0.0.0'
 
 class ProxyListener(object):
 
 
     def __init__(
-            self, 
-            config={}, 
-            name ='ProxyListener', 
-            logging_level=logging.DEBUG, 
+            self,
+            config={},
+            name='ProxyListener',
+            logging_level=logging.DEBUG,
             ):
 
         self.logger = logging.getLogger(name)
@@ -32,6 +31,7 @@ class ProxyListener(object):
 
         self.config = config
         self.name = name
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.udp_fwd_table = dict()
 
@@ -50,14 +50,14 @@ class ProxyListener(object):
 
                 self.logger.debug('Starting TCP ...')
 
-                self.server = ThreadedTCPServer((IP, 
+                self.server = ThreadedTCPServer((self.local_ip,
                     int(self.config.get('port'))), ThreadedTCPRequestHandler)
-            
+
             elif proto == 'UDP':
 
                 self.logger.debug('Starting UDP ...')
 
-                self.server = ThreadedUDPServer((IP, 
+                self.server = ThreadedUDPServer((self.local_ip,
                     int(self.config.get('port'))), ThreadedUDPRequestHandler)
                 self.server.fwd_table = self.udp_fwd_table
 
@@ -68,9 +68,12 @@ class ProxyListener(object):
         else:
             self.logger.error('Protocol is not defined')
             return
-   
+
         self.server.config = self.config
         self.server.logger = self.logger
+        self.server.local_ip = self.local_ip
+        if self.local_ip == '0.0.0.0':
+            self.server.local_ip = 'localhost'
         self.server.running_listeners = None
         self.server.diverter = None
         self.server_thread = threading.Thread(
@@ -92,7 +95,7 @@ class ProxyListener(object):
 
     def acceptDiverter(self, diverter):
         self.server.diverter = diverter
-        
+
 class ThreadedTCPClientSocket(threading.Thread):
 
 
@@ -112,7 +115,7 @@ class ThreadedTCPClientSocket(threading.Thread):
         try:
             self.sock.connect((self.ip, self.port))
             while True:
-                readable, writable, exceptional = select.select([self.sock], 
+                readable, writable, exceptional = select.select([self.sock],
                         [], [], .001)
                 if not self.remote_q.empty():
                     data = self.remote_q.get()
@@ -133,7 +136,7 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 class ThreadedUDPServer(SocketServer.ThreadingMixIn, SocketServer.UDPServer):
     daemon_threads = True
 
-def get_top_listener(config, data, listeners, diverter, orig_src_ip, 
+def get_top_listener(config, data, listeners, diverter, orig_src_ip,
         orig_src_port, proto):
     
 
@@ -210,21 +213,21 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
             
-            top_listener = get_top_listener(self.server.config, data, 
-                    self.server.listeners, self.server.diverter, 
+            top_listener = get_top_listener(self.server.config, data,
+                    self.server.listeners, self.server.diverter,
                     orig_src_ip, orig_src_port, 'TCP')
 
             if top_listener:
-                self.server.logger.debug('Likely listener: %s' % 
-                        top_listener.name)
-                listener_sock = ThreadedTCPClientSocket('localhost', 
-                        top_listener.port, listener_q, remote_q, 
+                self.server.logger.debug('Likely listener: %s' %
+                                         top_listener.name)
+                listener_sock = ThreadedTCPClientSocket(self.server.local_ip,
+                        top_listener.port, listener_q, remote_q,
                         self.server.config, self.server.logger)
                 listener_sock.daemon = True
                 listener_sock.start()
                 remote_sock.setblocking(0)
 
-                # ssl has no 'peek' option, so we need to process the first 
+                # ssl has no 'peek' option, so we need to process the first
                 # packet that is already consumed from the socket
                 if ssl_remote_sock:
                     ssl_remote_sock.setblocking(0)
@@ -262,7 +265,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
         data = self.request[0]
         remote_sock = self.request[1]
 
-        self.server.logger.debug('Received UDP packet from %s.' % 
+        self.server.logger.debug('Received UDP packet from %s.' %
                 self.client_address[0])
 
         if data:
@@ -276,16 +279,16 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
 
-            top_listener = get_top_listener(self.server.config, data, 
-                    self.server.listeners, self.server.diverter, 
+            top_listener = get_top_listener(self.server.config, data,
+                    self.server.listeners, self.server.diverter,
                     orig_src_ip, orig_src_port, 'UDP')
 
             if top_listener:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                sock.bind(('localhost', 0))
+                sock.bind((self.server.local_ip, 0))
 
-                sock.sendto(data, ('localhost', int(top_listener.port)))
+                sock.sendto(data, (self.server.local_ip, int(top_listener.port)))
                 reply = sock.recv(BUF_SZ)
                 self.server.logger.debug('Received %d bytes.', len(data))
                 sock.close()
@@ -305,12 +308,12 @@ def hexdump_table(data, length=16):
 
 def main():
 
-    logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', 
+    logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s',
             datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
     global listeners
     listeners = load_plugins()
 
-    TCP_server = ThreadedTCPServer((IP, int(sys.argv[1])), 
+    TCP_server = ThreadedTCPServer((sys.argv[1], int(sys.argv[2])),
             ThreadedTCPRequestHandler)
     TCP_server_thread = threading.Thread(target=TCP_server.serve_forever)
     TCP_server_thread.daemon = True
