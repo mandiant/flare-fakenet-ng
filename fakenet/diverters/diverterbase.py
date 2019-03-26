@@ -507,6 +507,10 @@ class DiverterBase(fnconfig.Config):
         self.logger = logging.getLogger('Diverter')
         self.logger.setLevel(logging_level)
 
+        # Cheap rate limiting
+        self.PidComm = namedtuple('PidComm', 'pid comm')
+        self.last_conn = None
+
         portlists = ['BlackListPortsTCP', 'BlackListPortsUDP']
         stringlists = ['HostBlackList']
         self.configure(diverter_config, portlists, stringlists)
@@ -1148,8 +1152,11 @@ class DiverterBase(fnconfig.Config):
                 self.pdebug(DGENPKTV, logline)
             
             elif pid and (pid != self.pid) and crit.first_packet_new_session:
-                self.logger.debug('  pid:  %d name: %s' %
-                                 (pid, comm if comm else 'Unknown'))
+                pc = self.PidComm(pid, comm)
+                if pc != self.last_conn:
+                    self.last_conn = pc
+                    self.logger.info('  pid:  %d name: %s' %
+                                     (pid, comm if comm else 'Unknown'))
 
             # 2: Call layer 3 (network) callbacks
             for cb in callbacks3:
