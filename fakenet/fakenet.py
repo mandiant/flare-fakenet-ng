@@ -204,7 +204,7 @@ class Fakenet(object):
             listener_config['ipaddr'] = fn_addr
             # Anonymous listener
             if not 'listener' in listener_config:
-                self.logger.info('Anonymous %s listener on %s port %s...',
+                self.logger.debug('Anonymous %s listener on %s port %s...',
                                  listener_name, listener_config['protocol'],
                                  listener_config['port'])
                 continue
