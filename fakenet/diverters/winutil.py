@@ -654,7 +654,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                       stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
                 self.logger.warning(
-                    'Failed to enable the service %s. (sc config)'
+                    'Failed to enable the service %s. (sc config)',
                     service_name)
             else:
                 self.logger.error(
