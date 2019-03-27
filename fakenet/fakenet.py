@@ -187,7 +187,7 @@ class Fakenet(object):
                 self.logger.error("%s" % e)
 
             else:
-
+                listener_config['networkmode'] = self.diverter_config['networkmode']
                 listener_provider_instance = listener_provider(
                         listener_config, listener_name, self.logging_level)
 
