@@ -100,15 +100,6 @@ class HTTPListener(object):
         self.server.extensions_map = self.extensions_map
 
         if self.config.get('usessl') == 'Yes':
-            '''
-            self.prepare_certs()
-            self.logger.debug('Using SSL socket.')
-            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
-            self.logger.info("setting callback to %s" % str(self.sni_callback))
-            ctx.set_servername_callback(self.sni_callback)
-            ctx.load_cert_chain(certfile=self.ca_cert, keyfile=self.ca_key)
-            self.server.socket = ctx.wrap_socket(self.server.socket, server_side=True)
-            '''
             config = {
                 'static_ca': self.config.get('static_ca'),
                 'ca_cert': self.config.get('ca_cert'),
