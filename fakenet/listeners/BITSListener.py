@@ -23,6 +23,8 @@ from SimpleHTTPServer import SimpleHTTPRequestHandler
 
 from . import *
 
+INDENT = '  '
+
 # BITS Protocol header keys
 K_BITS_SESSION_ID = 'BITS-Session-Id'
 K_BITS_ERROR_CONTEXT = 'BITS-Error-Context'
@@ -207,11 +209,9 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
         self.server.logger.info('Received HEAD request')
 
         # Process request
-        self.server.logger.info('%s', '-'*80)
         self.server.logger.info(self.requestline)
         for line in str(self.headers).split("\n"):
-            self.server.logger.info(line)
-        self.server.logger.info('%s', '-'*80)
+            self.server.logger.info(INDENT + line)
 
         # Prepare response
         self.send_response(200)

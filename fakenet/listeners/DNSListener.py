@@ -10,6 +10,8 @@ import socket
 
 from . import *
 
+INDENT = '  '
+
 class DNSListener(object):
 
     def taste(self, data, dport):
@@ -83,10 +85,8 @@ class DNSHandler():
 
         except Exception, e:
             self.server.logger.error('Error: Invalid DNS Request')
-            self.server.logger.warning('%s', '-'*80)
             for line in hexdump_table(data):
-                self.server.logger.warning(line)
-            self.server.logger.warning('%s', '-'*80,)
+                self.server.logger.warning(INDENT + line)
 
         else:                 
             # Only Process DNS Queries
