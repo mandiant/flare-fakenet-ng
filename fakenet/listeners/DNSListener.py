@@ -82,7 +82,7 @@ class DNSHandler():
             d = DNSRecord.parse(data)
 
         except Exception, e:
-            self.server.logger.warning('Error: Invalid DNS Request')
+            self.server.logger.error('Error: Invalid DNS Request')
             self.server.logger.warning('%s', '-'*80)
             for line in hexdump_table(data):
                 self.server.logger.warning(line)
@@ -157,7 +157,7 @@ class DNSHandler():
                         fake_record = socket.gethostbyname(socket.gethostname())
 
                     if self.server.nxdomains > 0:
-                        self.server.logger.debug('Ignoring query. NXDomains:' +
+                        self.server.logger.info('Ignoring query. NXDomains:' +
                                                  ' %d', self.server.nxdomains)
                         self.server.nxdomains -= 1
                     else:
@@ -228,7 +228,7 @@ class TCPHandler(DNSHandler, SocketServer.BaseRequestHandler):
                 self.request.sendall(length+response)      
 
         except socket.timeout:
-            self.server.logger.debug('Connection timeout.')
+            self.server.logger.warning('Connection timeout.')
 
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror)
