@@ -8,12 +8,13 @@ import logging
 import shutil
 import sys
 import ssl
+import random
+from listeners import ListenerBase
 from OpenSSL import crypto
 
 
 class SSLWrapper(object):
     NOT_AFTER_DELTA_SECONDS = 300  * 24 * 60 * 60
-    CERT_DIR = "temp_certs"
     CN="fakenet.flare"
 
     def __init__(self, config):
@@ -21,14 +22,13 @@ class SSLWrapper(object):
         self.config = config
         self.ca_cert = None
         self.ca_key = None
-        
-        certdir = self.config.get('certdir', self.CERT_DIR)
-        self.logger.info("Cert dir is %s", certdir)
-        if certdir is None:
+
+        cert_dir = self.config.get('cert_dir', None)
+        if cert_dir is None:
             raise RuntimeError("certdir key is not specified in config")
 
-        if not os.path.isdir(certdir):
-            os.makedirs(certdir)
+        if not os.path.isdir(cert_dir):
+            os.makedirs(cert_dir)
 
         # generate and add root CA, which is used to sign for other certs:
         if self.config.get('static_ca') == 'Yes':
@@ -36,10 +36,11 @@ class SSLWrapper(object):
             self.ca_key = self.config.get('ca_key', None)
         else:
             self.ca_cert, self.ca_key = self.create_cert(self.CN)
-        self.logger.info("adding root cert: %s", self.ca_cert)
-        if not self._add_root_ca(self.ca_cert):
-            raise RuntimeError("Failed to add root ca")
-    
+        if ( not self.config.get('networkmode', None) == 'multihost' and 
+             not self.config.get('static_ca') == 'Yes'): 
+            self.logger.info("adding root cert: %s", self.ca_cert)
+            self._add_root_ca(self.ca_cert)
+
     def wrap_socket(self, s):
         self.logger.info('making socket')
         try:
@@ -47,11 +48,26 @@ class SSLWrapper(object):
         except:
             self.logger.error(traceback.format_exc())
             self.logger.error("Exception when calling ssl.SSLContext")
-            return ctx.wrap_socket(s, server_side=True)
+            return self.wrap_socket_fallback(s)
         else:
             ctx.set_servername_callback(self.sni_callback)
-            ctx.load_cert_chain(cert_file=self.ca_cert, keyfile=self.ca_key)
+            ctx.load_cert_chain(certfile=self.ca_cert, keyfile=self.ca_key)
             return ctx.wrap_socket(s, server_side=True)
+
+    def wrap_socket_fallback(self, s):
+        keyfile_path = 'listeners/ssl_utils/privkey.pem'
+        keyfile_path = ListenerBase.abs_config_path(keyfile_path)
+        if keyfile_path is None:
+            raise RuntimeError('Could not locate %s', (key_file,))
+
+        certfile_path = 'listeners/ssl_utils/server.pem'
+        certfile_path = ListenerBase.abs_config_path(certfile_path)
+        if certfile_path is None:
+            raise RuntimeError('Cound not locate %s' % (certfile_path,))
+        
+        return ssl.wrap_socket(s, keyfile=keyfile_path, certfile=certfile_path,
+                               server_side=True, ciphers='RSA')
+
 
     def create_cert(self, cn, ca_cert=None, ca_key=None, cert_dir=None):
         """
@@ -64,7 +80,10 @@ class SSLWrapper(object):
 
         f_selfsign = ca_cert is None or ca_key is None
         if not cert_dir:
-            cert_dir = self.CERT_DIR
+            cert_dir = os.path.abspath(self.config.get('cert_dir'))
+        else:
+            cert_dir = os.path.abspath(cert_dir)
+        
         cert_file = os.path.join(cert_dir, "%s.crt" % (cn))
         key_file = os.path.join(cert_dir, "%s.key" % (cn))
         if os.path.exists(cert_file) and os.path.exists(key_file):
@@ -88,7 +107,7 @@ class SSLWrapper(object):
         cert = crypto.X509()
         cert.get_subject().C = "US"
         cert.get_subject().CN = cn
-        cert.set_serial_number(0x31337)
+        cert.set_serial_number(random.randint(1, 0x31337))
         now = time.time() / 1000000
         na = int(now + self.NOT_AFTER_DELTA_SECONDS)
         cert.gmtime_adj_notBefore(0)
@@ -106,8 +125,8 @@ class SSLWrapper(object):
                 cert_file_input.write(crypto.dump_certificate(
                     crypto.FILETYPE_PEM, cert)
                 )
-            with open(key_file, "wb") as key_file:
-                key_file.write(crypto.dump_privatekey(
+            with open(key_file, "wb") as key_file_output:
+                key_file_output.write(crypto.dump_privatekey(
                     crypto.FILETYPE_PEM, key)
                 )
         except:
@@ -129,13 +148,13 @@ class SSLWrapper(object):
     def _load_cert(self, certpath):
         try:
             with open(certpath, 'rb') as cert_file_input:
-                cert_file_input = cert_file.read()
-            self.ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, data)
+                data = cert_file_input.read()
+            ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, data)
         except:
-            self.logger.error(traceback.format_exc())
-            self.logger.error("Failed to load certficate")
-            self.ca_cert = None
-        return self.ca_cert
+            self.logger.warn(traceback.format_exc())
+            self.logger.warn("Failed to load certficate")
+            ca_cert = None
+        return ca_cert
     
     def _load_private_key(self, keypath):
         try:
@@ -146,14 +165,16 @@ class SSLWrapper(object):
             traceback.print_exc()
             self.privkey = None
         return self.privkey
+
     def _run_win_certutil(self, argv):
-        rc = False
+        rc = True
         if sys.platform.startswith('win'):
-        try:
-            subprocess.check_call(argv, shell=True, stdout=None)
-            rc = True
-        except subprocess.CalledProcessError:
-            self.logger.error('Failed to add root CA')
+            try:
+                subprocess.check_call(argv, shell=True, stdout=None)
+                rc = True
+            except subprocess.CalledProcessError:
+                self.logger.error('Failed to add root CA')
+                rc = False
         return rc
 
     def _add_root_ca(self, ca_cert_file):
@@ -164,44 +185,17 @@ class SSLWrapper(object):
         argv = ['certutil', '-delstore', 'Root', cn]
         return self._run_win_certutil(argv)
     
-    def _add_root_ca(self, ca_cert_file):
-        if not sys.platform.startswith('win'):
-            return False
-        try:
-            subprocess.check_call(
-                ["certutil", "-addstore", "Root", ca_cert_file],
-                shell=True, stdout=None
-            )
-            rc = True
-        except subprocess.CalledProcessError:
-            rc = False
-            self.logger.error("Failed to add root CA")
-            self.logger.error(traceback.format_exc())
-        return rc
-    
-    def _remove_root_ca(self, cn):
-        if not sys.platform.startswith('win'):
-            return False
-        try:
-            subprocess.check_call(
-                ["certutil", "-delstore", "Root", cn],
-                shell=True
-            )
-            rc = True
-        except subprocess.CalledProcessError:
-            rc = False
-            self.logger.error("Failed to add root CA")
-            self.logger.error(traceback.format_exc())
-        return rc
     
     def __del__(self):
         cert = self._load_cert(self.ca_cert)
-        if cert is not None:
+        if ( cert is not None and
+             not self.config.get('networkmode', None) == 'multihost' and 
+             not self.config.get('static_ca') == 'Yes'): 
             self._remove_root_ca(cert.get_subject().CN)
         try:
-            shutil.rmtree(self.config.get('certdir', self.CERT_DIR))
+            shutil.rmtree(self.config.get('cert_dir', self.CERT_DIR))
         except:
-            self.logger.warn(traceback.format_exc())
+            pass
         return
     
 
