@@ -598,7 +598,7 @@ class DiverterBase(fnconfig.Config):
 
         # Check active interfaces
         if not self.check_active_ethernet_adapters():
-            self.logger.critical('WARNING: No active ethernet interfaces '
+            self.logger.critical('ERROR: No active ethernet interfaces '
                                  'detected!')
             self.logger.critical('         Please enable a network interface.')
             sys.exit(1)
