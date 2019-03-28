@@ -35,7 +35,7 @@ class ProxyListener(object):
         self.server = None
         self.udp_fwd_table = dict()
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -81,7 +81,7 @@ class ProxyListener(object):
         self.server_thread.daemon = True
         self.server_thread.start()
         server_ip, server_port = self.server.server_address
-        self.logger.info("%s Server(%s:%d) thread: %s" % (proto, server_ip,
+        self.logger.debug("%s Server(%s:%d) thread: %s" % (proto, server_ip,
             server_port, self.server_thread.name))
 
     def stop(self):
@@ -188,14 +188,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         try:
             data = remote_sock.recv(BUF_SZ, socket.MSG_PEEK)
 
-            self.server.logger.info('Received %d bytes.', len(data))
+            self.server.logger.debug('Received %d bytes.', len(data))
             self.server.logger.debug('%s', '-'*80,)
             for line in hexdump_table(data):
                 self.server.logger.debug(line)
             self.server.logger.debug('%s', '-'*80,)
 
         except Exception as e:
-            self.server.logger.info('recv() error: %s' % e.message)
+            self.server.logger.warning('recv() error: %s' % e.message)
 
         if data:
 
@@ -270,7 +270,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
         if data:
 
-            self.server.logger.info('Received %d bytes.', len(data))
+            self.server.logger.debug('Received %d bytes.', len(data))
             self.server.logger.debug('%s', '-'*80,)
             for line in hexdump_table(data):
                 self.server.logger.debug(line)
@@ -290,7 +290,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
                 sock.sendto(data, (self.server.local_ip, int(top_listener.port)))
                 reply = sock.recv(BUF_SZ)
-                self.server.logger.info('Received %d bytes.', len(data))
+                self.server.logger.debug('Received %d bytes.', len(data))
                 sock.close()
                 remote_sock.sendto(reply, (orig_src_ip, int(orig_src_port)))
         else:
@@ -319,7 +319,7 @@ def main():
     TCP_server_thread.daemon = True
     TCP_server_thread.start()
     tcp_server_ip, tcp_server_port = TCP_server.server_address
-    logger.info("TCP Server(%s:%d) thread: %s" % (tcp_server_ip,
+    logger.debug("TCP Server(%s:%d) thread: %s" % (tcp_server_ip,
         tcp_server_port, TCP_server_thread.name))
 
     try:
@@ -329,9 +329,9 @@ def main():
         logger.info(e)
         TCP_server.shutdown()
     finally:
-        logger.info('Closing ProxyListener')
+        logger.debug('Closing ProxyListener')
         exit(1)
-    logger.info('Exiting')
+    logger.debug('Exiting')
     TCP_server.shutdown()
 
 if __name__ == '__main__':

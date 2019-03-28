@@ -29,6 +29,9 @@ MIME_FILE_RESPONSE = {
     'application/xml': 'FakeNet.html'
 }
 
+INDENT = '  '
+
+
 class HTTPListener(object):
 
     def taste(self, data, dport):
@@ -110,7 +113,7 @@ class HTTPListener(object):
         self.server_thread.start()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        self.logger.debug('Stopping...')
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -135,14 +138,10 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         BaseHTTPServer.BaseHTTPRequestHandler.setup(self)
 
     def do_HEAD(self):
-        self.server.logger.info('Received HEAD request')
-
         # Process request
-        self.server.logger.info('%s', '-'*80)
-        self.server.logger.info(self.requestline)
+        self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
-            self.server.logger.info(line)
-        self.server.logger.info('%s', '-'*80)
+            self.server.logger.info(INDENT + line)
 
         # Prepare response
         self.send_response(200)
@@ -150,15 +149,10 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-
-        self.server.logger.info('Received a GET request.')
-
         # Process request
-        self.server.logger.info('%s', '-'*80)
-        self.server.logger.info(self.requestline)
+        self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
-            self.server.logger.info(line)
-        self.server.logger.info('%s', '-'*80)
+            self.server.logger.info(INDENT + line)
 
         # Get response type based on the requested path
         response, response_type = self.get_response(self.path)
@@ -172,21 +166,17 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.wfile.write(response)
 
     def do_POST(self):
-        self.server.logger.info('Received a POST request')
-
         post_body = ''
 
         content_len = int(self.headers.get('content-length', 0))
         post_body = self.rfile.read(content_len)
 
         # Process request
-        self.server.logger.info('%s', '-'*80)
-        self.server.logger.info(self.requestline)
+        self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
-            self.server.logger.info(line)
+            self.server.logger.info(INDENT + line)
         for line in post_body.split("\n"):
-            self.server.logger.info(line)
-        self.server.logger.info('%s', '-'*80)
+            self.server.logger.info(INDENT + line)
 
         # Store HTTP Posts
         if self.server.config.get('dumphttpposts') and self.server.config['dumphttpposts'].lower() == 'yes':
@@ -243,7 +233,8 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 self.server.logger.error('Could not locate requested file or default handler.')
                 return (response, response_type)
 
-        self.server.logger.info('Responding with mime type: %s file: %s', response_type, response_filename)
+        self.server.logger.debug('Responding with mime type: %s file: %s',
+                                 response_type, response_filename)
 
         try:
             f = open(response_filename, 'rb')

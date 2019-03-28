@@ -58,7 +58,7 @@ class POPListener(object):
         self.name = 'POP'
         self.port = self.config.get('port', 110)
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -94,7 +94,7 @@ class POPListener(object):
         self.server_thread.start()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        self.logger.debug('Stopping...')
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -132,7 +132,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         except socket.timeout:
             self.server.logger.warning('Connection timeout')
-            
+
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)
 

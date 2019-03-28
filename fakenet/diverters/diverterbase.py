@@ -457,6 +457,32 @@ class ListenerPorts(object):
         return self._isBlackListHit(host, listener.host_bl)
 
 
+class PidCommDest():
+    """Helper for recognizing connections that were already displayed."""
+    def __init__(self, pid, comm, proto, ip, port):
+        self.pid = pid
+        self.comm = comm or 'program name unknown'
+        self.proto = proto or 'unknown protocol'
+        self.ip = ip or 'unknown IP'
+        self.port = str(port) or 'port unknown/not applicable'
+
+    def isDistinct(self, prev, bound_ips):
+        """Not quite inequality.
+
+        Requires list of bound IPs for that IP protocol version and recognizes
+        when a foreign-destined packet was redirected to localhost or to an IP
+        occupied by an adapter local to the system to be able to suppress
+        output of these near-duplicates.
+        """
+        return ((not prev) or (self.pid != prev.pid) or
+                (self.comm != prev.comm) or (self.port != prev.port) or
+                ((self.ip != prev.ip) and (self.ip not in bound_ips)))
+
+    def __str__(self):
+        return '%s (%s) requested %s %s:%s' % (self.comm, self.pid, self.proto,
+                                               self.ip, self.port)
+
+
 class DiverterBase(fnconfig.Config):
     """The beating heart.
 
@@ -506,6 +532,9 @@ class DiverterBase(fnconfig.Config):
 
         self.logger = logging.getLogger('Diverter')
         self.logger.setLevel(logging_level)
+
+        # Rate limiting for displaying pid/comm/proto/IP/port
+        self.last_conn = None
 
         portlists = ['BlackListPortsTCP', 'BlackListPortsUDP']
         stringlists = ['HostBlackList']
@@ -594,17 +623,17 @@ class DiverterBase(fnconfig.Config):
 
         # Check active interfaces
         if not self.check_active_ethernet_adapters():
-            self.logger.warning('WARNING: No active ethernet interfaces '
-                                'detected!')
-            self.logger.warning('         Please enable a network interface.')
+            self.logger.critical('ERROR: No active ethernet interfaces '
+                                 'detected!')
+            self.logger.critical('         Please enable a network interface.')
             sys.exit(1)
 
         # Check configured ip addresses
         if not self.check_ipaddresses():
-            self.logger.warning('ERROR: No interface had IP address '
-                                'configured!')
-            self.logger.warning('         Please configure an IP address on a '
-                                'network interface.')
+            self.logger.critical('ERROR: No interface had IP address '
+                                 'configured!')
+            self.logger.critical('         Please configure an IP address on '
+                                 'network interface.')
             sys.exit(1)
 
         # Check configured gateways
@@ -648,7 +677,7 @@ class DiverterBase(fnconfig.Config):
         to the already-defined (and potentially some yet-to-be-defined)
         abstract methods that handle the real OS-specific stuff.
         """
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
         return self.startCallback()
 
     def stop(self):
@@ -1048,14 +1077,14 @@ class DiverterBase(fnconfig.Config):
                 default_listener = self.getconfigval('defaulttcplistener').lower()
                 default_port = self.listeners_config[default_listener]['port']
                 self.default_listener['TCP'] = int(default_port)
-                self.logger.error('Using default listener %s on port %d',
+                self.logger.debug('Using default listener %s on port %d',
                                   self.getconfigval('defaulttcplistener').lower(),
                                   self.default_listener['TCP'])
 
                 default_listener = self.getconfigval('defaultudplistener').lower()
                 default_port = self.listeners_config[default_listener]['port']
                 self.default_listener['UDP'] = int(default_port)
-                self.logger.error('Using default listener %s on port %d',
+                self.logger.debug('Using default listener %s on port %d',
                                   self.getconfigval('defaultudplistener').lower(),
                                   self.default_listener['UDP'])
 
@@ -1146,9 +1175,12 @@ class DiverterBase(fnconfig.Config):
             if self.pdebug_level & DGENPKTV:
                 logline = self.formatPkt(pkt, pid, comm)
                 self.pdebug(DGENPKTV, logline)
+
             elif pid and (pid != self.pid) and crit.first_packet_new_session:
-                self.logger.info('  pid:  %d name: %s' %
-                                 (pid, comm if comm else 'Unknown'))
+                pc = PidCommDest(pid, comm, pkt.proto, pkt.dst_ip0, pkt.dport0)
+                if pc.isDistinct(self.last_conn, self.ip_addrs[pkt.ipver]):
+                    self.last_conn = pc
+                    self.logger.info('%s' % (str(pc)))
 
             # 2: Call layer 3 (network) callbacks
             for cb in callbacks3:

@@ -36,7 +36,7 @@ class Diverter(DiverterBase, LinUtilMixin):
     def init_diverter_linux(self):
         """Linux-specific Diverter initialization."""
 
-        self.logger.info('Running in %s mode' % (self.network_mode))
+        self.logger.debug('Running in %s mode' % (self.network_mode))
 
         self.nfqueues = list()
 
@@ -91,8 +91,8 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def startCallback(self):
         if not self.check_privileged():
-            self.logger.error('The Linux Diverter requires administrative ' +
-                              'privileges')
+            self.logger.critical('The Linux Diverter requires ' +
+                                 'administrative privileges')
             sys.exit(1)
 
         ret = self.linux_capture_iptables()
@@ -127,8 +127,8 @@ class Diverter(DiverterBase, LinUtilMixin):
                     'numbers') % (nhooks))
         qnos = self.linux_get_next_nfqueue_numbers(nhooks)
         if len(qnos) != nhooks:
-            self.logger.error('Could not procure a sufficient number of ' +
-                              'netfilter queue numbers')
+            self.logger.critical('Could not procure a sufficient number of ' +
+                                 'netfilter queue numbers')
             sys.exit(1)
 
         fn_iface = None
@@ -154,7 +154,9 @@ class Diverter(DiverterBase, LinUtilMixin):
             self.nfqueues.append(q)
             ok = q.start()
             if not ok:
-                self.logger.error('Failed to start NFQUEUE for %s' % (str(q)))
+                self.logger.critical('Failed to start NFQUEUE for %s'
+                                     % (str(q)))
+
                 self.stop()
                 sys.exit(1)
 
@@ -176,7 +178,7 @@ class Diverter(DiverterBase, LinUtilMixin):
 
             ok, rule = self.linux_redir_icmp(fn_iface)
             if not ok:
-                self.logger.error('Failed to redirect ICMP')
+                self.logger.critical('Failed to redirect ICMP')
                 self.stop()
                 sys.exit(1)
             self.rules_added.append(rule)
@@ -191,7 +193,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.rules_added += rules
 
         if not ok:
-            self.logger.error('Failed to process interface redirection')
+            self.logger.critical('Failed to process interface redirection')
             self.stop()
             sys.exit(1)
 
@@ -305,7 +307,6 @@ class Diverter(DiverterBase, LinUtilMixin):
         Diverter's internal log_nonlocal_only_once flag is set. Otherwise, any
         foreign destination IP address will be logged each time it is observed.
         """
-
         if pkt.dst_ip not in self.ip_addrs[pkt.ipver]:
             self.pdebug(DNONLOC, 'Nonlocal %s' % pkt.hdrToStr())
             first_sighting = (pkt.dst_ip not in self.nonlocal_ips_already_seen)

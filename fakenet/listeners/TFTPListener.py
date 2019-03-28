@@ -94,7 +94,7 @@ class TFTPListener(object):
         self.tftp_file_prefix = self.config.get('tftpfileprefix', 'tftp')
 
     def start(self):
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
         # Start listener
         self.server = ThreadedUDPServer((self.local_ip, int(self.config['port'])), ThreadedUDPRequestHandler)
 

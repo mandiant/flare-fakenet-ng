@@ -50,7 +50,7 @@ class SMTPListener(object):
         self.name = 'SMTP'
         self.port = self.config.get('port', 25)
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -85,7 +85,7 @@ class SMTPListener(object):
         self.server_thread.start()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        self.logger.debug('Stopping...')
         if self.server:
             self.server.shutdown()
             self.server.server_close()

@@ -11,6 +11,9 @@ import socket
 
 from . import *
 
+INDENT = '  '
+
+
 class RawListener(object):
 
     def taste(self, data, dport):
@@ -32,7 +35,7 @@ class RawListener(object):
         self.name = 'Raw'
         self.port = self.config.get('port', 1337)
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -104,11 +107,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 if not data:
                     break
 
-                self.server.logger.info('Received %d bytes.', len(data))
-                self.server.logger.info('%s', '-'*80)
                 for line in hexdump_table(data):
-                    self.server.logger.info(line)
-                self.server.logger.info('%s', '-'*80,)
+                    self.server.logger.info(INDENT + line)
 
                 self.request.sendall(data)
 
@@ -131,11 +131,8 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             if not data:
                 return
 
-            self.server.logger.info('Received %d bytes.', len(data))
-            self.server.logger.debug('%s', '-'*80,)
             for line in hexdump_table(data):
-                self.server.logger.debug(line)
-            self.server.logger.debug('%s', '-'*80,)
+                self.server.logger.info(INDENT + line)
 
             socket.sendto(data, self.client_address)
 

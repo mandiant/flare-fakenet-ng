@@ -244,7 +244,7 @@ class FTPListener(object):
         self.name = 'FTP'
         self.port = self.config.get('port', 21)
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():

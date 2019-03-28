@@ -380,11 +380,13 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                               stdout=subprocess.PIPE,
                                               stderr=subprocess.PIPE)
                     except subprocess.CalledProcessError, e:
-                        self.logger.error("         Failed to set gateway %s on interface %s." % (
-                            gw_address, interface_name))
+                        self.logger.error("         Failed to set gateway %s" +
+                                          "on interface %s." % (gw_address,
+                                          interface_name))
                     else:
-                        self.logger.info("         Setting gateway %s on interface %s" % (
-                            gw_address, interface_name))
+                        self.logger.info("         Setting gateway %s on " +
+                                         "interface %s" % (gw_address,
+                                         interface_name))
                         fixed = True
 
         return fixed
@@ -421,11 +423,11 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                               stdout=subprocess.PIPE,
                                               stderr=subprocess.PIPE)
                     except subprocess.CalledProcessError, e:
-                        self.logger.error("         Failed to set DNS %s on interface %s." % (
-                            dns_address, interface_name))
+                        self.logger.error("         Failed to set DNS %s on interface %s."
+                                          % (dns_address, interface_name))
                     else:
-                        self.logger.info("         Setting DNS %s on interface %s" % (
-                            dns_address, interface_name))
+                        self.logger.info("         Setting DNS %s on interface %s"
+                                         % (dns_address, interface_name))
                         fixed = True
 
         return fixed
@@ -652,13 +654,15 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                       stderr=subprocess.PIPE)
             except subprocess.CalledProcessError, e:
                 self.logger.error(
-                    'Failed to enable the service %s. (sc config)', service_name)
+                    'Failed to enable the service %s. (sc config)',
+                    service_name)
             else:
-                self.logger.info(
-                    'Successfully enabled the service %s. (sc config)', service_name)
+                self.logger.debug(
+                    'Successfully enabled the service %s. (sc config)',
+                    service_name)
 
         else:
-            self.logger.info('Successfully enabled the service %s.',
+            self.logger.debug('Successfully enabled the service %s.',
                              service_name)
 
         service_status = self.query_service_status_ex(service_handle)
@@ -678,7 +682,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                         service_status = self.query_service_status_ex(
                             service_handle)
                         if service_status.dwCurrentState == SERVICE_RUNNING:
-                            self.logger.info(
+                            self.logger.debug(
                                 'Successfully started the service %s.', service_name)
                             break
                     else:
@@ -688,7 +692,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                     self.logger.error(
                         'Failed to start the service %s.', service_name)
             else:
-                self.logger.error(
+                self.logger.debug(
                     'Service %s is already running.', service_name)
 
         # As a backup call net stop
@@ -702,7 +706,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                 self.logger.error(
                     'Failed to start the service %s. (net stop)', service_name)
             else:
-                self.logger.info('Successfully started the service %s.',
+                self.logger.debug('Successfully started the service %s.',
                                  service_name)
 
         self.close_service_handle(service_handle)
@@ -741,11 +745,11 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                 self.logger.error(
                     'Failed to disable the service %s. (sc config)', service_name)
             else:
-                self.logger.info(
+                self.logger.debug(
                     'Successfully disabled the service %s. (sc config)', service_name)
 
         else:
-            self.logger.info(
+            self.logger.debug(
                 'Successfully disabled the service %s.', service_name)
 
         service_status = self.query_service_status_ex(service_handle)
@@ -765,7 +769,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                         service_status = self.query_service_status_ex(
                             service_handle)
                         if service_status.dwCurrentState == SERVICE_STOPPED:
-                            self.logger.info(
+                            self.logger.debug(
                                 'Successfully stopped the service %s.', service_name)
                             break
 
@@ -776,7 +780,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                     self.logger.error(
                         'Failed to stop the service %s.', service_name)
             else:
-                self.logger.error(
+                self.logger.debug(
                     'Service %s is already stopped.', service_name)
 
         # As a backup call net stop
@@ -790,7 +794,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                 self.logger.error(
                     'Failed to stop the service %s. (net stop)', service_name)
             else:
-                self.logger.info(
+                self.logger.debug(
                     'Successfully stopped the service %s.', service_name)
 
         self.close_service_handle(service_handle)
@@ -1202,7 +1206,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             self.logger.error("Failed to flush DNS cache. Local machine may "
                               "use cached DNS results.")
         else:
-            self.logger.info('Flushed DNS cache.')
+            self.logger.debug('Flushed DNS cache.')
 
     def get_reg_value(self, key, sub_key, value, sam=KEY_READ):
 
@@ -1258,7 +1262,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
             # Set new dns server value
             if self.set_reg_value(key, sub_key % adapter.AdapterName, value, dns_server):
-                self.logger.info('Set DNS server %s on the adapter: %s',
+                self.logger.debug('Set DNS server %s on the adapter: %s',
                                  dns_server, adapter.FriendlyName)
                 self.notify_ip_change(adapter.AdapterName)
             else:
@@ -1278,7 +1282,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
             # Restore dns server value
             if self.set_reg_value(key, sub_key % adapter_name, value, dns_server):
-                self.logger.info('Restored DNS server %s on the adapter: %s',
+                self.logger.debug('Restored DNS server %s on the adapter: %s',
                                  dns_server, adapter_friendlyname)
             else:
                 self.logger.error(

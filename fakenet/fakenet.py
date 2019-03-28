@@ -70,7 +70,8 @@ class Fakenet(object):
 
             if not os.path.exists(config_filename):
 
-                self.logger.error('Could not open configuration file %s', config_filename)
+                self.logger.critical('Could not open configuration file %s',
+                                     config_filename)
                 sys.exit(1)
 
         config = ConfigParser()
@@ -131,8 +132,10 @@ class Fakenet(object):
 
             if (('networkmode' not in self.diverter_config) or
                     (self.diverter_config['networkmode'].lower() not in
-                    ['singlehost', 'multihost', 'auto'])):
-                self.logger.error('Error: You must configure a NetworkMode for Diverter, either SingleHost, MultiHost, or Auto')
+                     ['singlehost', 'multihost', 'auto'])):
+                self.logger.critical('Error: You must configure a ' +
+                                     'NetworkMode for Diverter, either ' +
+                                     'SingleHost, MultiHost, or Auto')
                 sys.exit(1)
 
             # Select platform specific diverter
@@ -149,8 +152,11 @@ class Fakenet(object):
 
                 # Check Windows version
                 if platform.release() in ['2000', 'XP', '2003Server', 'post2003']:
-                    self.logger.error('Error: FakeNet-NG only supports Windows Vista+.')
-                    self.logger.error('       Please use the original Fakenet for older versions of Windows.')
+                    self.logger.critical('Error: FakeNet-NG only supports ' +
+                                         'Windows Vista+.')
+                    self.logger.critical('       Please use the original ' +
+                                         'Fakenet for older versions of ' +
+                                         'Windows.')
                     sys.exit(1)
 
                 if self.diverter_config['networkmode'].lower() == 'auto':
@@ -186,7 +192,7 @@ class Fakenet(object):
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
 
             else:
-                self.logger.error(
+                self.logger.critical(
                     'Error: Your system %s is currently not supported.' %
                     (platform_name))
                 sys.exit(1)
@@ -198,7 +204,9 @@ class Fakenet(object):
             listener_config['ipaddr'] = fn_addr
             # Anonymous listener
             if not 'listener' in listener_config:
-                self.logger.info('Anonymous %s listener on %s port %s...', listener_name, listener_config['protocol'], listener_config['port'])
+                self.logger.debug('Anonymous %s listener on %s port %s...',
+                                 listener_name, listener_config['protocol'],
+                                 listener_config['port'])
                 continue
 
             # Get a specific provider for the listener name
@@ -317,7 +325,7 @@ def main():
  | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
  |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                        Version 1.4.6
+                        Version 1.4.7
   _____________________________________________________________
                    Developed by FLARE Team
   _____________________________________________________________
