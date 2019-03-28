@@ -1175,7 +1175,7 @@ class DiverterBase(fnconfig.Config):
             if self.pdebug_level & DGENPKTV:
                 logline = self.formatPkt(pkt, pid, comm)
                 self.pdebug(DGENPKTV, logline)
-            
+
             elif pid and (pid != self.pid) and crit.first_packet_new_session:
                 pc = PidCommDest(pid, comm, pkt.proto, pkt.dst_ip0, pkt.dport0)
                 if pc.isDistinct(self.last_conn, self.ip_addrs[pkt.ipver]):
