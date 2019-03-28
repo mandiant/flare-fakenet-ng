@@ -12,6 +12,7 @@ from . import *
 
 INDENT = '  '
 
+
 class DNSListener(object):
 
     def taste(self, data, dport):
