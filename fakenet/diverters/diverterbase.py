@@ -478,7 +478,7 @@ class PidCommDest():
                 (self.comm != prev.comm) or (self.port != prev.port) or
                 ((self.ip != prev.ip) and (self.ip not in bound_ips)))
 
-    def __repr__(self):
+    def __str__(self):
         return '%s (%s) requested %s %s:%s' % (self.comm, self.pid, self.proto,
                                                self.ip, self.port)
 
@@ -1180,7 +1180,7 @@ class DiverterBase(fnconfig.Config):
                 pc = PidCommDest(pid, comm, pkt.proto, pkt.dst_ip0, pkt.dport0)
                 if pc.isDistinct(self.last_conn, self.ip_addrs[pkt.ipver]):
                     self.last_conn = pc
-                    self.logger.info('%r' % (pc))
+                    self.logger.info('%s' % (str(pc)))
 
             # 2: Call layer 3 (network) callbacks
             for cb in callbacks3:
