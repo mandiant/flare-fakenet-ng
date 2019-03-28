@@ -1,3 +1,7 @@
+Version 1.4.6
+-------------
+* Fix test matchspec filter, closes #115
+
 Version 1.4.5
 -------------
 * LinuxRestrictInterface feature for MultiHost mode
