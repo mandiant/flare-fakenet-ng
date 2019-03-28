@@ -53,12 +53,12 @@ class POPListener(object):
 
         self.config = config
         self.name = name
-        self.local_ip = '0.0.0.0'
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.name = 'POP'
         self.port = self.config.get('port', 110)
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -66,7 +66,7 @@ class POPListener(object):
 
     def start(self):
         self.logger.debug('Starting...')
-
+        
         self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
 
         if self.config.get('usessl') == 'Yes':
@@ -94,7 +94,7 @@ class POPListener(object):
         self.server_thread.start()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        self.logger.debug('Stopping...')
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -132,7 +132,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         except socket.timeout:
             self.server.logger.warning('Connection timeout')
-            
+
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)
 

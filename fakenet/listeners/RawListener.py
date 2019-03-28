@@ -11,6 +11,9 @@ import socket
 
 from . import *
 
+INDENT = '  '
+
+
 class RawListener(object):
 
     def taste(self, data, dport):
@@ -27,12 +30,12 @@ class RawListener(object):
             
         self.config = config
         self.name = name
-        self.local_ip = '0.0.0.0'
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.name = 'Raw'
         self.port = self.config.get('port', 1337)
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -42,7 +45,7 @@ class RawListener(object):
 
         # Start listener
         if self.config.get('protocol') != None:
-
+        
             if self.config['protocol'].lower() == 'tcp':
                 self.logger.debug('Starting TCP ...')
                 self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
@@ -104,11 +107,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 if not data:
                     break
 
-                self.server.logger.info('Received %d bytes.', len(data))
-                self.server.logger.info('%s', '-'*80)
                 for line in hexdump_table(data):
-                    self.server.logger.info(line)
-                self.server.logger.info('%s', '-'*80,)
+                    self.server.logger.info(INDENT + line)
 
                 self.request.sendall(data)
 
@@ -131,11 +131,8 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             if not data:
                 return
 
-            self.server.logger.info('Received %d bytes.', len(data))
-            self.server.logger.debug('%s', '-'*80,)
             for line in hexdump_table(data):
-                self.server.logger.debug(line)
-            self.server.logger.debug('%s', '-'*80,)
+                self.server.logger.info(INDENT + line)
 
             socket.sendto(data, self.client_address)
 

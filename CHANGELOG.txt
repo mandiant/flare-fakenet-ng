@@ -1,3 +1,23 @@
+Version 1.4.7
+-------------
+* Output reduced for readability
+
+Version 1.4.6
+-------------
+* Fix test matchspec filter, closes #115
+
+Version 1.4.5
+-------------
+* LinuxRestrictInterface feature for MultiHost mode
+
+Version 1.4.4
+-------------
+* Moved ICMP redirection to singlehost only.
+
+Version 1.4.3
+-------------
+* Fixed unbound `proto` variable error in Windows PyDivert error case
+
 Version 1.4.2
 -------------
 * Updated contact information
