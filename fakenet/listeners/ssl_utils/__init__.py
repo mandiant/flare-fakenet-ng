@@ -132,7 +132,7 @@ class SSLWrapper(object):
                 key_file_output.write(crypto.dump_privatekey(
                     crypto.FILETYPE_PEM, key)
                 )
-        except:
+        except IOError:
             traceback.print_exc()
             return None, None
         return cert_file, key_file
@@ -149,14 +149,13 @@ class SSLWrapper(object):
         return
 
     def _load_cert(self, certpath):
+        ca_cert = None
         try:
             with open(certpath, 'rb') as cert_file_input:
                 data = cert_file_input.read()
             ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, data)
         except:
-            self.logger.warn(traceback.format_exc())
-            self.logger.warn("Failed to load certficate")
-            ca_cert = None
+            self.logger.error("Failed to load certficate")
         return ca_cert
     
     def _load_private_key(self, keypath):
@@ -190,8 +189,11 @@ class SSLWrapper(object):
     
     
     def __del__(self):
-        cert = self._load_cert(self.ca_cert)
-        if ( cert is not None and
+        cert = None
+        if self.ca_cert:
+            cert = self._load_cert(self.ca_cert)
+
+        if (cert is not None and
              not self.config.get('networkmode', None) == 'multihost' and 
              not self.config.get('static_ca') == 'Yes'): 
             self._remove_root_ca(cert.get_subject().CN)
