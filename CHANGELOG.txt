@@ -1,6 +1,7 @@
 Version 1.4.8
 -------------
 * FakeNet terminates upon listener exceptions, closing #117
+* Python 3-compliant exception handling in fakenet.py courtesy of @antman1p
 
 Version 1.4.7
 -------------
