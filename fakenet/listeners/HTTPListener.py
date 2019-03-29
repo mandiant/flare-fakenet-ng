@@ -33,12 +33,47 @@ MIME_FILE_RESPONSE = {
 INDENT = '  '
 
 
-class CustomResponse(object):
-    def __init__(self, section, config):
-        print('%s: %r' % (section, config))
-        if ('matchuri' in config) and ('matchhost' in config):
-            raise ValueError('Section %s combines URI and host' % (section))
+def qualify_file_path(filename, fallbackdir):
+    path = filename
+    if path:
+        if not os.path.exists(path):
+            path = os.path.join(fallbackdir, filename)
+        if not os.path.exists(path):
+            raise RuntimeError('Cannot find %s' % (filename))
 
+    return path
+
+
+class CustomResponse(object):
+    def __init__(self, section, conf, webroot):
+        self.name = section
+        if (not 'matchuris' in conf) and (not 'matchhosts' in conf):
+            raise ValueError('Custom HTTP configuration section %s lacks '
+                             'MatchURIs/MatchHosts' % (section))
+        if (not 'returnrawfile' in conf) and (not 'returndynamic' in conf):
+            raise ValueError('Custom HTTP configuration section %s lacks '
+                             'ReturnRawFile/ReturnDynamic' % (section))
+
+        self.uris = conf.get('matchuris', {})
+        if self.uris:
+            self.uris = {u.strip() for u in self.uris.split(',')}
+
+        self.hosts = conf.get('matchhosts', {})
+        if self.hosts:
+            self.hosts = {h.strip().lower() for h in self.hosts.split(',')}
+
+        self.raw_file = qualify_file_path(conf.get('returnrawfile'), webroot)
+        self.pyfile = qualify_file_path(conf.get('returndynamic'), webroot)
+
+    def match(self, host, uri):
+        if host.strip().lower() in self.hosts:
+            return True
+
+        for match_uri in self.uris:
+            if uri.endswith(match_uri):
+                return True
+
+        return False
 
 class HTTPListener(object):
 
@@ -105,32 +140,27 @@ class HTTPListener(object):
             keyfile_path = 'listeners/ssl_utils/privkey.pem'
             keyfile_path = ListenerBase.abs_config_path(keyfile_path)
             if keyfile_path is None:
-                self.logger.error('Could not locate %s', keyfile_path)
-                sys.exit(1)
+                raise RuntimeError('Could not locate %s' % (keyfile_path))
 
             certfile_path = 'listeners/ssl_utils/server.pem'
             certfile_path = ListenerBase.abs_config_path(certfile_path)
             if certfile_path is None:
-                self.logger.error('Could not locate %s', certfile_path)
-                sys.exit(1)
+                raise RuntimeError('Could not locate %s' % (certfile_path))
 
             self.server.socket = ssl.wrap_socket(self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers='RSA')
 
+        self.server.custom_responses = []
         custom = self.config.get('custom')
+
         if custom:
+            custom = qualify_file_path(custom, self.config.get('configdir'))
             customconf = ConfigParser()
-            if not os.path.exists(custom):
-                custom = os.path.join(self.config.get('configdir'), custom)
-
-            if not os.path.exists(custom):
-                self.logger.error('Could not locate %s' % (self.config.get('custom')))
-                sys.exit(1)
-
             customconf.read(custom)
 
             for section in customconf.sections():
-                cr = CustomResponse(section, dict(customconf.items(section)))
-                
+                entries = dict(customconf.items(section))
+                cr = CustomResponse(section, entries, self.webroot_path)
+                self.server.custom_responses.append(cr)
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
@@ -155,7 +185,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, *args)
 
     def version_string(self):
-	return self.server.config.get('version', "FakeNet/1.3")
+        return self.server.config.get('version', "FakeNet/1.3")
 
     def setup(self):
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
@@ -172,7 +202,16 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.send_header("Content-type", "text/html")
         self.end_headers()
 
+    def getCustomResponse(self):
+        uri = self.path
+        host = self.headers.get('host', '')
+        for cr in self.server.custom_responses:
+            if cr.match(host, uri):
+                return cr
+
     def do_GET(self):
+        self.hook()
+
         # Process request
         self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
