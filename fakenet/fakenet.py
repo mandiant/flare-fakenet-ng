@@ -228,9 +228,12 @@ class Fakenet(object):
 
                 try:
                     listener_provider_instance.start()
-                except Exception, e:
-                    self.logger.error('Error starting %s listener on port %s:', listener_config['listener'], listener_config['port'])
+                except Exception as e:
+                    self.logger.error('Error starting %s listener on port %s:',
+                                      listener_config['listener'],
+                                      listener_config['port'])
                     self.logger.error(" %s" % e)
+                    sys.exit(1)
 
         # Start the diverter
         if self.diverter:
@@ -325,7 +328,7 @@ def main():
  | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
  |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                        Version 1.4.7
+                        Version 1.4.8
   _____________________________________________________________
                    Developed by FLARE Team
   _____________________________________________________________
