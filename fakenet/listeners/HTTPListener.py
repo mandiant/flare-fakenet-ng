@@ -1,4 +1,5 @@
 import logging
+from ConfigParser import ConfigParser
 
 import os
 import sys
@@ -30,6 +31,13 @@ MIME_FILE_RESPONSE = {
 }
 
 INDENT = '  '
+
+
+class CustomResponse(object):
+    def __init__(self, section, config):
+        print('%s: %r' % (section, config))
+        if ('matchuri' in config) and ('matchhost' in config):
+            raise ValueError('Section %s combines URI and host' % (section))
 
 
 class HTTPListener(object):
@@ -107,6 +115,22 @@ class HTTPListener(object):
                 sys.exit(1)
 
             self.server.socket = ssl.wrap_socket(self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers='RSA')
+
+        custom = self.config.get('custom')
+        if custom:
+            customconf = ConfigParser()
+            if not os.path.exists(custom):
+                custom = os.path.join(self.config.get('configdir'), custom)
+
+            if not os.path.exists(custom):
+                self.logger.error('Could not locate %s' % (self.config.get('custom')))
+                sys.exit(1)
+
+            customconf.read(custom)
+
+            for section in customconf.sections():
+                cr = CustomResponse(section, dict(customconf.items(section)))
+                
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
