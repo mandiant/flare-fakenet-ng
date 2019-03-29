@@ -48,9 +48,11 @@ def qualify_file_path(filename, fallbackdir):
 class CustomResponse(object):
     def __init__(self, section, conf, webroot):
         self.name = section
+
         if (not 'matchuris' in conf) and (not 'matchhosts' in conf):
             raise ValueError('Custom HTTP configuration section %s lacks '
                              'MatchURIs/MatchHosts' % (section))
+
         if (not 'returnrawfile' in conf) and (not 'returndynamic' in conf):
             raise ValueError('Custom HTTP configuration section %s lacks '
                              'ReturnRawFile/ReturnDynamic' % (section))
@@ -72,14 +74,19 @@ class CustomResponse(object):
             self.pymod = imp.load_source('cr_' + self.name, self.pymod)
 
     def checkMatch(self, host, uri):
-        if host.strip().lower() in self.hosts:
-            return True
+        hostmatch = (host.strip().lower() in self.hosts)
 
+        urimatch = False
         for match_uri in self.uris:
             if uri.endswith(match_uri):
-                return True
+                urimatch = True
+                break
 
-        return False
+        # Conjunctive (logical and) evaluation if both are specified
+        if self.uris and self.hosts:
+            return hostmatch and urimatch
+        else:
+            return hostmatch or urimatch
 
     def respond(self, http_req_handler, meth, postdata=None):
         if self.raw_file:
@@ -198,6 +205,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     def __init__(self, *args):
         BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, *args)
+        self.logger = self.server.logger
 
     def version_string(self):
         return self.server.config.get('version', "FakeNet/1.3")
@@ -218,12 +226,13 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def doCustomResponse(self, meth, post_data=None):
         uri = self.path
         host = self.headers.get('host', '')
+
         for cr in self.server.custom_responses:
             if cr.checkMatch(host, uri):
-                self.server.logger.debug('Invoking custom response %s' %
-                                        (cr.name))
+                self.server.logger.debug('Invoking custom response %s' % (cr.name))
                 cr.respond(self, meth, post_data)
                 return True
+
         return False
 
     def do_HEAD(self):

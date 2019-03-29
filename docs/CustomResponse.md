@@ -18,6 +18,9 @@ Valid matching specifications are:
 * `MatchURIs`: a comma-separated list of URIs that will match against request
   URIs.
 
+If both matching specifications are present in a single section, they will be
+evaluated conjunctively (logical and).
+
 Valid response specifications are:
 * `ReturnRawFile`: Returns the raw contents of the specified file located under
   the web root, with the exception of replacing any occurrences of `<RAW-DATE>`
