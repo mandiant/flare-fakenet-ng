@@ -228,7 +228,7 @@ class Fakenet(object):
 
                 try:
                     listener_provider_instance.start()
-                except Exception, e:
+                except Exception as e:
                     self.logger.error('Error starting %s listener on port %s:', listener_config['listener'], listener_config['port'])
                     self.logger.error(" %s" % e)
 
