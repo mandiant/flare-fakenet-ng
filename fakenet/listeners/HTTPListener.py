@@ -46,16 +46,24 @@ def qualify_file_path(filename, fallbackdir):
 
 
 class CustomResponse(object):
-    def __init__(self, section, conf, webroot):
-        self.name = section
+    def __init__(self, name, conf, webroot):
+        self.name = name
 
-        if (not 'matchuris' in conf) and (not 'matchhosts' in conf):
-            raise ValueError('Custom HTTP configuration section %s lacks '
-                             'MatchURIs/MatchHosts' % (section))
+        match_specs = {'matchuris', 'matchhosts'}
+        response_specs = {'rawfile', 'staticstring', 'dynamic'}
 
-        if (not 'returnrawfile' in conf) and (not 'returndynamic' in conf):
-            raise ValueError('Custom HTTP configuration section %s lacks '
-                             'ReturnRawFile/ReturnDynamic' % (section))
+        if not match_specs.intersection(conf):
+            raise ValueError('Custom HTTP config section %s lacks '
+                             '%s' % (name, '/'.join(match_specs)))
+
+        nr_responses = len(response_specs.intersection(conf))
+        if nr_responses != 1:
+            raise ValueError('Custom HTTP config section %s has %d of %s' %
+                             (name, nr_responses, '/'.join(response_specs)))
+
+        if ('contenttype' in conf) and ('staticstring' not in conf):
+            raise ValueError('Custom HTTP config section %s has ContentType '
+                             'which is only usable with StaticString' % (name))
 
         self.uris = conf.get('matchuris', {})
         if self.uris:
@@ -65,13 +73,18 @@ class CustomResponse(object):
         if self.hosts:
             self.hosts = {h.strip().lower() for h in self.hosts.split(',')}
 
-        self.raw_file = qualify_file_path(conf.get('returnrawfile'), webroot)
+        self.raw_file = qualify_file_path(conf.get('rawfile'), webroot)
         if self.raw_file:
             self.raw_file = open(self.raw_file, 'rb').read()
 
-        self.pymod = qualify_file_path(conf.get('returndynamic'), webroot)
+        self.pymod = qualify_file_path(conf.get('dynamic'), webroot)
         if self.pymod:
             self.pymod = imp.load_source('cr_' + self.name, self.pymod)
+
+        self.static_string = conf.get('staticstring')
+        if self.static_string is not None:
+            self.static_string = self.static_string.replace('\\r\\n', '\r\n')
+        self.content_type = conf.get('ContentType')
 
     def checkMatch(self, host, uri):
         hostmatch = (host.strip().lower() in self.hosts)
@@ -89,12 +102,20 @@ class CustomResponse(object):
             return hostmatch or urimatch
 
     def respond(self, http_req_handler, meth, postdata=None):
+        current_time = time.strftime("%a, %-d %b %Y %H:%M:%S %Z")
         if self.raw_file:
-            current_time = time.strftime("%a, %-d %b %Y %H:%M:%S %Z")
             up_to_date = self.raw_file.replace('<RAW-DATE>', current_time)
             http_req_handler.wfile.write(up_to_date)
         elif self.pymod:
             self.pymod.HandleRequest(http_req_handler, meth, postdata)
+        elif self.static_string is not None:
+            up_to_date = self.static_string.replace('<RAW-DATE>', current_time)
+            http_req_handler.send_response(200)
+            http_req_handler.send_header('Content-Length', len(up_to_date))
+            if self.content_type:
+                http_req_handler.send_header('Content-Type', self.content_type)
+            http_req_handler.end_headers()
+            http_req_handler.wfile.write(up_to_date)
 
 
 class HTTPListener(object):
@@ -244,7 +265,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         # Prepare response
         if not self.doCustomResponse('HEAD'):
             self.send_response(200)
-            self.send_header("Content-type", "text/html")
+            self.send_header("Content-Type", "text/html")
             self.end_headers()
 
     def do_GET(self):

@@ -22,12 +22,20 @@ If both matching specifications are present in a single section, they will be
 evaluated conjunctively (logical and).
 
 Valid response specifications are:
-* `ReturnRawFile`: Returns the raw contents of the specified file located under
-  the web root, with the exception of replacing any occurrences of `<RAW-DATE>`
+* `RawFile`: Returns the raw contents of the specified file located under
+  the web root, with the exception of date replacement.
   with a formatted representation of the date.
-* `ReturnDynamic`: Loads the specified Python file located under the web root
+* `StaticString`: Wraps the specified string with server headers and a 200 OK
+  response code, replacing `\r\n` tokens with actual CRLFs and performing date
+  replacement as necessary.
+    * `ContentType`: Optionally, you accompany the `StaticString` setting with
+      an  HTTP `Content-Type` header value to send. It is an error to specify
+      this setting with any other kind of response specification.
+* `Dynamic`: Loads the specified Python file located under the web root
   and invokes its `HandleRequest` function as described below.
 
+Date replacement applies to both `RawFile` and `StaticString`, and replaces any
+occurrences of `<RAW-DATE>` with a server-formatted date.
 
 ## Implementing a Dynamic Response Handler
 
