@@ -65,25 +65,24 @@ class IRCListener(object):
 
         return confidence
 
-    def __init__(self, 
-            config, 
-            name='IRCListener', 
-            logging_level=logging.INFO, 
+    def __init__(self,
+            config,
+            name='IRCListener',
+            logging_level=logging.INFO,
             ):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
-
         self.config = config
         self.name = name
-        self.local_ip = '0.0.0.0'
+        self.local_ip = config.get('ipaddr')
         self.server = None
         self.name = 'IRC'
         
         self.port = self.config.get('port', 6667)
         self.logger.debug('PORT: %s', self.port)
 
-        self.logger.info('Starting...')
+        self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -91,7 +90,6 @@ class IRCListener(object):
 
     def start(self):
         self.logger.debug('Starting...')
-
         self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
 
         self.banner = self.genBanner()
@@ -105,7 +103,7 @@ class IRCListener(object):
         self.server_thread.start()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        self.logger.debug('Stopping...')
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -148,7 +146,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         except socket.timeout:
             self.server.logger.warning('Connection timeout')
-            
+
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)
 

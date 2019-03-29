@@ -1,3 +1,33 @@
+Version 1.4.8
+-------------
+* FakeNet terminates upon listener exceptions, closing #117
+* Python 3-compliant exception handling in fakenet.py courtesy of @antman1p
+
+Version 1.4.7
+-------------
+* Output reduced for readability
+
+Version 1.4.6
+-------------
+* Fix test matchspec filter, closes #115
+
+Version 1.4.5
+-------------
+* LinuxRestrictInterface feature for MultiHost mode
+
+Version 1.4.4
+-------------
+* Moved ICMP redirection to singlehost only.
+
+Version 1.4.3
+-------------
+* Fixed unbound `proto` variable error in Windows PyDivert error case
+
+Version 1.4.2
+-------------
+* Updated contact information
+* Whitespace wrangling
+
 Version 1.4.1
 -------------
 * Syslog support
@@ -22,7 +52,7 @@ Version 1.3
 * Protocol autodetection (thanks Matthew Haigh)
 * Security: fix for path traversal vulnerability (thanks Cody Pierce and Antony Saba)
 * Randomized banner generation (thanks Michael Bailey!)
-* Listener: BITS protocol support
+* Listener: BITS protocol support (thanks Peter Kacherginsky)
 * Various bug fixes
 
 
@@ -46,4 +76,4 @@ Version 1.1
 Version 1.0
 -----------
 
-* Initial release
+* Initial Windows release by Peter Kacherginsky

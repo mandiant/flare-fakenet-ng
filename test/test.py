@@ -372,7 +372,7 @@ class FakeNetTester(object):
                     continue
 
                 # Otherwise, only admit if it matches a positive spec
-                include = True
+                include = False
                 for spec in positives:
                     if bool(re.search(spec, testname)):
                         include = True
