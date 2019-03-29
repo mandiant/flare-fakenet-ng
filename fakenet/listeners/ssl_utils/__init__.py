@@ -1,5 +1,3 @@
-
-
 import time
 import os
 import traceback
@@ -11,6 +9,8 @@ import ssl
 import random
 from listeners import ListenerBase
 from OpenSSL import crypto
+
+g_ssl_fellback = False  # Notify only once of SSL static certificate fallback
 
 
 class SSLWrapper(object):
@@ -38,16 +38,19 @@ class SSLWrapper(object):
             self.ca_cert, self.ca_key = self.create_cert(self.CN)
         if ( not self.config.get('networkmode', None) == 'multihost' and 
              not self.config.get('static_ca') == 'Yes'): 
-            self.logger.info("adding root cert: %s", self.ca_cert)
+            self.logger.debug('adding root cert: %s', self.ca_cert)
             self._add_root_ca(self.ca_cert)
 
     def wrap_socket(self, s):
-        self.logger.info('making socket')
+        global g_ssl_fellback
         try:
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
-        except:
-            self.logger.error(traceback.format_exc())
-            self.logger.error("Exception when calling ssl.SSLContext")
+        except AttributeError as e:
+            if not g_ssl_fellback:
+                g_ssl_fellback = True
+                self.logger.error('Exception calling ssl.SSLContext: %s' %
+                                  (e.message))
+                self.logger.error('Falling back on static certificate')
             return self.wrap_socket_fallback(s)
         else:
             ctx.set_servername_callback(self.sni_callback)
