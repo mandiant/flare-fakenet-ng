@@ -83,7 +83,9 @@ class CustomResponse(object):
 
     def respond(self, http_req_handler, meth, postdata=None):
         if self.raw_file:
-            http_req_handler.wfile.write(self.raw_file)
+            current_time = time.strftime("%a, %-d %b %Y %H:%M:%S %Z")
+            up_to_date = self.raw_file.replace('<RAW-DATE>', current_time)
+            http_req_handler.wfile.write(up_to_date)
         elif self.pymod:
             self.pymod.HandleRequest(http_req_handler, meth, postdata)
 
