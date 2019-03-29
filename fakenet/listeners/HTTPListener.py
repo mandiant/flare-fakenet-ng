@@ -3,6 +3,7 @@ from ConfigParser import ConfigParser
 
 import os
 import sys
+import imp
 
 import threading
 import SocketServer
@@ -63,9 +64,14 @@ class CustomResponse(object):
             self.hosts = {h.strip().lower() for h in self.hosts.split(',')}
 
         self.raw_file = qualify_file_path(conf.get('returnrawfile'), webroot)
-        self.pyfile = qualify_file_path(conf.get('returndynamic'), webroot)
+        if self.raw_file:
+            self.raw_file = open(self.raw_file, 'rb').read()
 
-    def match(self, host, uri):
+        self.pymod = qualify_file_path(conf.get('returndynamic'), webroot)
+        if self.pymod:
+            self.pymod = imp.load_source('cr_' + self.name, self.pymod)
+
+    def checkMatch(self, host, uri):
         if host.strip().lower() in self.hosts:
             return True
 
@@ -74,6 +80,13 @@ class CustomResponse(object):
                 return True
 
         return False
+
+    def respond(self, http_req_handler, meth, postdata=None):
+        if self.raw_file:
+            http_req_handler.wfile.write(self.raw_file)
+        elif self.pymod:
+            self.pymod.HandleRequest(http_req_handler, meth, postdata)
+
 
 class HTTPListener(object):
 
@@ -191,42 +204,56 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
         BaseHTTPServer.BaseHTTPRequestHandler.setup(self)
 
-    def do_HEAD(self):
-        # Process request
-        self.server.logger.info(INDENT + self.requestline)
-        for line in str(self.headers).split("\n"):
-            self.server.logger.info(INDENT + line)
-
-        # Prepare response
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-
     def getCustomResponse(self):
         uri = self.path
         host = self.headers.get('host', '')
         for cr in self.server.custom_responses:
-            if cr.match(host, uri):
+            if cr.checkMatch(host, uri):
                 return cr
 
-    def do_GET(self):
-        self.hook()
+        return None
 
-        # Process request
+    def doCustomResponse(self, meth, post_data=None):
+        uri = self.path
+        host = self.headers.get('host', '')
+        for cr in self.server.custom_responses:
+            if cr.checkMatch(host, uri):
+                self.server.logger.debug('Invoking custom response %s' %
+                                        (cr.name))
+                cr.respond(self, meth, post_data)
+                return True
+        return False
+
+    def do_HEAD(self):
+        # Log request
         self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
             self.server.logger.info(INDENT + line)
 
-        # Get response type based on the requested path
-        response, response_type = self.get_response(self.path)
+        # Prepare response
+        if not self.doCustomResponse('HEAD'):
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+
+    def do_GET(self):
+        # Log request
+        self.server.logger.info(INDENT + self.requestline)
+        for line in str(self.headers).split("\n"):
+            self.server.logger.info(INDENT + line)
 
         # Prepare response
-        self.send_response(200)
-        self.send_header("Content-Type", response_type)
-        self.send_header("Content-Length", len(response))
-        self.end_headers()
+        if not self.doCustomResponse('GET'):
+            # Get response type based on the requested path
+            response, response_type = self.get_response(self.path)
 
-        self.wfile.write(response)
+            # Prepare response
+            self.send_response(200)
+            self.send_header("Content-Type", response_type)
+            self.send_header("Content-Length", len(response))
+            self.end_headers()
+
+            self.wfile.write(response)
 
     def do_POST(self):
         post_body = ''
@@ -234,7 +261,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         content_len = int(self.headers.get('content-length', 0))
         post_body = self.rfile.read(content_len)
 
-        # Process request
+        # Log request
         self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
             self.server.logger.info(INDENT + line)
@@ -257,16 +284,18 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 else:
                     self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)        
 
-        # Get response type based on the requested path
-        response, response_type = self.get_response(self.path)
-
         # Prepare response
-        self.send_response(200)
-        self.send_header("Content-Type", response_type)
-        self.send_header("Content-Length", len(response))
-        self.end_headers()
+        if not self.doCustomResponse('GET', post_body):
+            # Get response type based on the requested path
+            response, response_type = self.get_response(self.path)
 
-        self.wfile.write(response)
+            # Prepare response
+            self.send_response(200)
+            self.send_header("Content-Type", response_type)
+            self.send_header("Content-Length", len(response))
+            self.end_headers()
+
+            self.wfile.write(response)
 
     def get_response(self, path):
         response = "<html><head><title>FakeNet</title><body><h1>FakeNet</h1></body></html>"
