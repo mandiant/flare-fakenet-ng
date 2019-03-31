@@ -138,6 +138,8 @@ class SSLWrapper(object):
         return cert_file, key_file
 
     def sni_callback(self, sslsock, servername, sslctx):
+        if servername is None:
+            servername = self.CN
         newctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
         cert_file, key_file = self.create_cert(servername, self.ca_cert, self.ca_key)
         if cert_file is None or key_file is None:
