@@ -8,6 +8,7 @@ import socket
 import pyping
 import ftplib
 import poplib
+import shutil
 import hashlib
 import smtplib
 import logging
@@ -308,6 +309,8 @@ class FakeNetTester(object):
     def delConfig(self):
         if os.path.exists(self.settings.configpath):
             os.remove(self.settings.configpath)
+        if os.path.exists(self.settings.configpath_http):
+            os.remove(self.settings.configpath_http)
 
     def doTests(self, match_spec):
         self.testGeneral(match_spec)
@@ -406,6 +409,7 @@ class FakeNetTester(object):
             logger.info('Waiting for you to transition the remote FakeNet-NG')
             logger.info('system to run the %s test suite' % (label))
             logger.info('(Copy this config: %s)' % (self.settings.configpath))
+            logger.info('(And this: %s)' % (self.settings.configpath_http))
             logger.info('')
             while True:
                 logger.info('Type \'ok\' to continue, or \'exit\' to stop')
@@ -549,14 +553,19 @@ class FakeNetTester(object):
         irc_tester = IrcTester(hostname, port)
         return irc_tester.test_irc()
 
-    def _test_http(self, hostname, port=None):
+    def _test_http(self, hostname, port=None, scheme=None, uri=None,
+                   teststring=None):
         """Test HTTP Listener"""
         retval = False
 
+        scheme = scheme if scheme else 'http'
+        uri = uri.lstrip('/') if uri else 'asdf.html'
+        teststring = teststring if teststring else 'H T T P   L I S T E N E R'
+
         if port:
-            url = 'http://%s:%d/asdf.html' % (hostname, port)
+            url = '%s://%s:%d/%s' % (scheme, hostname, port, uri)
         else:
-            url = 'http://%s/asdf.html' % (hostname)
+            url = '%s://%s/%s' % (scheme, hostname, uri)
 
         try:
             r = requests.get(url, timeout=3)
@@ -564,7 +573,6 @@ class FakeNetTester(object):
             if r.status_code != 200:
                 raise FakeNetTestException('Status code %d' % (r.status_code))
 
-            teststring = 'H T T P   L I S T E N E R'
             if teststring not in r.text:
                 raise FakeNetTestException('Test string not in response')
 
@@ -712,6 +720,10 @@ class FakeNetTester(object):
 
         t['DNS listener test'] = (self._test_ns, (domain_dne, dns_expected), True)
         t['HTTP listener test'] = (self._test_http, (arbitrary,), True)
+        t['HTTP custom test by URI'] = (self._test_http, (arbitrary, None, None, '/test.txt', 'Wraps this'), True)
+        t['HTTP custom test by hostname'] = (self._test_http, ('other.c2.com', None, None, None, 'success'), True)
+        t['HTTP custom test by both URI and hostname'] = (self._test_http, ('both_host.com', None, None, '/and_uri.txt', 'Ahoy'), True)
+        t['HTTP custom test by both URI and hostname negative'] = (self._test_http, ('both_host.com', None, None, '/not_uri.txt', 'Ahoy'), False)
         t['FTP listener test'] = (self._test_ftp, (arbitrary,), True)
         t['POP3 listener test'] = (self._test_pop, (arbitrary, 110), True)
         t['SMTP listener test'] = (self._test_smtp, (sender, recipient, smtpmsg, arbitrary), True)
@@ -723,7 +735,7 @@ class FakeNetTester(object):
         t['IRC listener test'] = (self._test_irc, (arbitrary,), True)
 
         t['Proxy listener HTTP test'] = (self._test_http, (arbitrary, no_service), True)
-        t['Proxy listener hidden test'] = (self._test_http, (arbitrary, hidden_tcp), True)
+        t['Proxy listener HTTP hidden test'] = (self._test_http, (arbitrary, hidden_tcp), True)
 
         t['TCP blacklisted host @ unbound'] = (self._test_sk, (tcp, blacklistedhost, 9999), False)
         t['TCP arbitrary @ blacklisted unbound'] = (self._test_sk, (tcp, arbitrary, blacklistedtcp), False)
@@ -744,6 +756,10 @@ class FakeNetTester(object):
     def writeConfig(self, config):
         logger.info('Writing config to %s' % (self.settings.configpath))
         config.write(self.settings.configpath)
+        for filename in self.settings.ancillary_files:
+            path = os.path.join(self.settings.startingpath, filename)
+            dest = os.path.join(self.settings.ancillary_files_dest, filename)
+            shutil.copyfile(path, dest)
 
 class FakeNetConfig:
     """Convenience class to read/modify/rewrite a configuration template."""
@@ -787,17 +803,26 @@ class FakeNetTestSettings:
     """Test constants/literals, some of which may vary per OS, etc."""
 
     def __init__(self, startingpath, singlehost=True):
-        self.singlehost = singlehost
-        self.startingpath = startingpath
-        self.configtemplate = os.path.join(startingpath, 'template.ini')
-
         # Where am I? Who are you?
         self.platform_name = platform.system()
         self.windows = (self.platform_name == 'Windows')
         self.linux = (self.platform_name.lower().startswith('linux'))
 
+        # Test parameters
+        self.singlehost = singlehost
+        self.startingpath = startingpath
+        self.configtemplate = os.path.join(startingpath, 'template.ini')
+
+        self.ancillary_files_dest = self.genPath('%TEMP%', '/tmp/')
+        self.ancillary_files = [
+            'fakenet_http.ini',
+            'HTTPCustomProviderExample.py',
+            'sample_raw_response.txt',
+        ]
+
         # Paths
         self.configpath = self.genPath('%TEMP%\\fakenet.ini', '/tmp/fakenet.ini')
+        self.configpath_http = self.genPath('%TEMP%\\fakenet_http.ini', '/tmp/fakenet_http.ini')
         self.stopflag = self.genPath('%TEMP%\\stop_fakenet', '/tmp/stop_fakenet')
         self.logpath = self.genPath('%TEMP%\\fakenet.log', '/tmp/fakenet.log')
         self.fakenet = self.genPath('fakenet', 'python fakenet.py')

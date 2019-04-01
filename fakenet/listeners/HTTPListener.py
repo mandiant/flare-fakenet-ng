@@ -1,7 +1,9 @@
 import logging
+from ConfigParser import ConfigParser
 
 import os
 import sys
+import imp
 
 import threading
 import SocketServer
@@ -30,6 +32,90 @@ MIME_FILE_RESPONSE = {
 }
 
 INDENT = '  '
+
+
+def qualify_file_path(filename, fallbackdir):
+    path = filename
+    if path:
+        if not os.path.exists(path):
+            path = os.path.join(fallbackdir, filename)
+        if not os.path.exists(path):
+            raise RuntimeError('Cannot find %s' % (filename))
+
+    return path
+
+
+class CustomResponse(object):
+    def __init__(self, name, conf, webroot):
+        self.name = name
+
+        match_specs = {'matchuris', 'matchhosts'}
+        response_specs = {'rawfile', 'staticstring', 'dynamic'}
+
+        if not match_specs.intersection(conf):
+            raise ValueError('Custom HTTP config section %s lacks '
+                             '%s' % (name, '/'.join(match_specs)))
+
+        nr_responses = len(response_specs.intersection(conf))
+        if nr_responses != 1:
+            raise ValueError('Custom HTTP config section %s has %d of %s' %
+                             (name, nr_responses, '/'.join(response_specs)))
+
+        if ('contenttype' in conf) and ('staticstring' not in conf):
+            raise ValueError('Custom HTTP config section %s has ContentType '
+                             'which is only usable with StaticString' % (name))
+
+        self.uris = conf.get('matchuris', {})
+        if self.uris:
+            self.uris = {u.strip() for u in self.uris.split(',')}
+
+        self.hosts = conf.get('matchhosts', {})
+        if self.hosts:
+            self.hosts = {h.strip().lower() for h in self.hosts.split(',')}
+
+        self.raw_file = qualify_file_path(conf.get('rawfile'), webroot)
+        if self.raw_file:
+            self.raw_file = open(self.raw_file, 'rb').read()
+
+        self.pymod = qualify_file_path(conf.get('dynamic'), webroot)
+        if self.pymod:
+            self.pymod = imp.load_source('cr_' + self.name, self.pymod)
+
+        self.static_string = conf.get('staticstring')
+        if self.static_string is not None:
+            self.static_string = self.static_string.replace('\\r\\n', '\r\n')
+        self.content_type = conf.get('ContentType')
+
+    def checkMatch(self, host, uri):
+        hostmatch = (host.strip().lower() in self.hosts)
+
+        urimatch = False
+        for match_uri in self.uris:
+            if uri.endswith(match_uri):
+                urimatch = True
+                break
+
+        # Conjunctive (logical and) evaluation if both are specified
+        if self.uris and self.hosts:
+            return hostmatch and urimatch
+        else:
+            return hostmatch or urimatch
+
+    def respond(self, req, meth, postdata=None):
+        current_time = req.date_time_string()
+        if self.raw_file:
+            up_to_date = self.raw_file.replace('<RAW-DATE>', current_time)
+            req.wfile.write(up_to_date)
+        elif self.pymod:
+            self.pymod.HandleRequest(req, meth, postdata)
+        elif self.static_string is not None:
+            up_to_date = self.static_string.replace('<RAW-DATE>', current_time)
+            req.send_response(200)
+            req.send_header('Content-Length', len(up_to_date))
+            if self.content_type:
+                req.send_header('Content-Type', self.content_type)
+            req.end_headers()
+            req.wfile.write(up_to_date)
 
 
 class HTTPListener(object):
@@ -97,16 +183,27 @@ class HTTPListener(object):
             keyfile_path = 'listeners/ssl_utils/privkey.pem'
             keyfile_path = ListenerBase.abs_config_path(keyfile_path)
             if keyfile_path is None:
-                self.logger.error('Could not locate %s', keyfile_path)
-                sys.exit(1)
+                raise RuntimeError('Could not locate %s' % (keyfile_path))
 
             certfile_path = 'listeners/ssl_utils/server.pem'
             certfile_path = ListenerBase.abs_config_path(certfile_path)
             if certfile_path is None:
-                self.logger.error('Could not locate %s', certfile_path)
-                sys.exit(1)
+                raise RuntimeError('Could not locate %s' % (certfile_path))
 
             self.server.socket = ssl.wrap_socket(self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers='RSA')
+
+        self.server.custom_responses = []
+        custom = self.config.get('custom')
+
+        if custom:
+            custom = qualify_file_path(custom, self.config.get('configdir'))
+            customconf = ConfigParser()
+            customconf.read(custom)
+
+            for section in customconf.sections():
+                entries = dict(customconf.items(section))
+                cr = CustomResponse(section, entries, self.webroot_path)
+                self.server.custom_responses.append(cr)
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
@@ -129,41 +226,57 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     def __init__(self, *args):
         BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, *args)
+        self.logger = self.server.logger
 
     def version_string(self):
-	return self.server.config.get('version', "FakeNet/1.3")
+        return self.server.config.get('version', "FakeNet/1.3")
 
     def setup(self):
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
         BaseHTTPServer.BaseHTTPRequestHandler.setup(self)
 
+    def doCustomResponse(self, meth, post_data=None):
+        uri = self.path
+        host = self.headers.get('host', '')
+
+        for cr in self.server.custom_responses:
+            if cr.checkMatch(host, uri):
+                self.server.logger.debug('Invoking custom response %s' % (cr.name))
+                cr.respond(self, meth, post_data)
+                return True
+
+        return False
+
     def do_HEAD(self):
-        # Process request
+        # Log request
         self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
             self.server.logger.info(INDENT + line)
 
         # Prepare response
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
+        if not self.doCustomResponse('HEAD'):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
 
     def do_GET(self):
-        # Process request
+        # Log request
         self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
             self.server.logger.info(INDENT + line)
 
-        # Get response type based on the requested path
-        response, response_type = self.get_response(self.path)
-
         # Prepare response
-        self.send_response(200)
-        self.send_header("Content-Type", response_type)
-        self.send_header("Content-Length", len(response))
-        self.end_headers()
+        if not self.doCustomResponse('GET'):
+            # Get response type based on the requested path
+            response, response_type = self.get_response(self.path)
 
-        self.wfile.write(response)
+            # Prepare response
+            self.send_response(200)
+            self.send_header("Content-Type", response_type)
+            self.send_header("Content-Length", len(response))
+            self.end_headers()
+
+            self.wfile.write(response)
 
     def do_POST(self):
         post_body = ''
@@ -171,7 +284,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         content_len = int(self.headers.get('content-length', 0))
         post_body = self.rfile.read(content_len)
 
-        # Process request
+        # Log request
         self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
             self.server.logger.info(INDENT + line)
@@ -194,16 +307,18 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 else:
                     self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)        
 
-        # Get response type based on the requested path
-        response, response_type = self.get_response(self.path)
-
         # Prepare response
-        self.send_response(200)
-        self.send_header("Content-Type", response_type)
-        self.send_header("Content-Length", len(response))
-        self.end_headers()
+        if not self.doCustomResponse('GET', post_body):
+            # Get response type based on the requested path
+            response, response_type = self.get_response(self.path)
 
-        self.wfile.write(response)
+            # Prepare response
+            self.send_response(200)
+            self.send_header("Content-Type", response_type)
+            self.send_header("Content-Length", len(response))
+            self.end_headers()
+
+            self.wfile.write(response)
 
     def get_response(self, path):
         response = "<html><head><title>FakeNet</title><body><h1>FakeNet</h1></body></html>"

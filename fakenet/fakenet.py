@@ -47,6 +47,7 @@ class Fakenet(object):
         self.diverter = None
 
         # FakeNet options and parameters
+        self.fakenet_config_dir = ''
         self.fakenet_config = dict()
 
         # Diverter options and parameters
@@ -74,6 +75,7 @@ class Fakenet(object):
                                      config_filename)
                 sys.exit(1)
 
+        self.fakenet_config_dir = os.path.dirname(config_filename)
         config = ConfigParser()
         config.read(config_filename)
 
@@ -202,6 +204,7 @@ class Fakenet(object):
 
             listener_config = self.listeners_config[listener_name]
             listener_config['ipaddr'] = fn_addr
+            listener_config['configdir'] = self.fakenet_config_dir
             # Anonymous listener
             if not 'listener' in listener_config:
                 self.logger.debug('Anonymous %s listener on %s port %s...',
@@ -328,7 +331,7 @@ def main():
  | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
  |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                        Version 1.4.8
+                        Version 1.4.9
   _____________________________________________________________
                    Developed by FLARE Team
   _____________________________________________________________
