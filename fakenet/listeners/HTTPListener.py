@@ -101,21 +101,21 @@ class CustomResponse(object):
         else:
             return hostmatch or urimatch
 
-    def respond(self, http_req_handler, meth, postdata=None):
-        current_time = time.strftime("%a, %-d %b %Y %H:%M:%S %Z")
+    def respond(self, req, meth, postdata=None):
+        current_time = req.date_time_string()
         if self.raw_file:
             up_to_date = self.raw_file.replace('<RAW-DATE>', current_time)
-            http_req_handler.wfile.write(up_to_date)
+            req.wfile.write(up_to_date)
         elif self.pymod:
-            self.pymod.HandleRequest(http_req_handler, meth, postdata)
+            self.pymod.HandleRequest(req, meth, postdata)
         elif self.static_string is not None:
             up_to_date = self.static_string.replace('<RAW-DATE>', current_time)
-            http_req_handler.send_response(200)
-            http_req_handler.send_header('Content-Length', len(up_to_date))
+            req.send_response(200)
+            req.send_header('Content-Length', len(up_to_date))
             if self.content_type:
-                http_req_handler.send_header('Content-Type', self.content_type)
-            http_req_handler.end_headers()
-            http_req_handler.wfile.write(up_to_date)
+                req.send_header('Content-Type', self.content_type)
+            req.end_headers()
+            req.wfile.write(up_to_date)
 
 
 class HTTPListener(object):
