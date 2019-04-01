@@ -24,7 +24,6 @@ evaluated conjunctively (logical and).
 Valid response specifications are:
 * `RawFile`: Returns the raw contents of the specified file located under
   the web root, with the exception of date replacement.
-  with a formatted representation of the date.
 * `StaticString`: Wraps the specified string with server headers and a 200 OK
   response code, replacing `\r\n` tokens with actual CRLFs and performing date
   replacement as necessary.
