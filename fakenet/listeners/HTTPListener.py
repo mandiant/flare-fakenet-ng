@@ -235,15 +235,6 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
         BaseHTTPServer.BaseHTTPRequestHandler.setup(self)
 
-    def getCustomResponse(self):
-        uri = self.path
-        host = self.headers.get('host', '')
-        for cr in self.server.custom_responses:
-            if cr.checkMatch(host, uri):
-                return cr
-
-        return None
-
     def doCustomResponse(self, meth, post_data=None):
         uri = self.path
         host = self.headers.get('host', '')
