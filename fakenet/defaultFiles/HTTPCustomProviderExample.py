@@ -1,3 +1,4 @@
+# To read about customizing HTTP responses, see docs/CustomResponse.md
 def HandleRequest(req, method, post_data=None):
     """Sample dynamic HTTP response handler.
 
