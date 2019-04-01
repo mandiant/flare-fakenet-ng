@@ -7,6 +7,10 @@ FireEye only:
 
 All contributors:
 * Pull request comment should bear bulleted list for inclusion in change log.
+* New features must be accompanied by updated configuration files under `test/`
+  to ensure that `test/test.py` always works.
+* New features or fixes should feature a test in `test/test.py` unless it is
+  intractable to do so.
 * After review, but before merging, at reviewer discretion, either developer or
   reviewer must update the FakeNet-NG version as described below.
 
