@@ -18,7 +18,6 @@ import shutil
 
 BUF_SZ = 1024
 
-CERT_DIR = "temp_certs"
 
 class ProxyListener(object):
 
@@ -41,14 +40,21 @@ class ProxyListener(object):
         self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
-        if self.config.get('cert_dir', None) is None:
-            self.config['cert_dir'] = CERT_DIR
 
         for key, value in config.iteritems():
             self.logger.debug('  %10s: %s', key, value)
     
 
     def start(self):
+
+        config = {
+            'cert_dir': self.config.get('cert_dir', 'temp_certs'),
+            'networkmode': self.config.get('networkmode', None),
+            'static_ca': self.config.get('static_ca', False),
+            'ca_cert': self.config.get('ca_cert'),
+            'ca_key': self.config.get('ca_key')
+        }
+        self.sslwrapper = SSLWrapper(config)
 
         proto = self.config.get('protocol').upper()
         if proto != None:
@@ -59,6 +65,7 @@ class ProxyListener(object):
 
                 self.server = ThreadedTCPServer((self.local_ip,
                     int(self.config.get('port'))), ThreadedTCPRequestHandler)
+                self.server.sslwrapper = self.sslwrapper
 
             elif proto == 'UDP':
 
@@ -96,11 +103,6 @@ class ProxyListener(object):
         if self.server:
             self.server.shutdown()
             self.server.server_close()
-        self.logger.warn("Trying to cleanup certificate directory")
-        try:
-            shutil.rmtree(self.config.get('cert_dir', CERT_DIR))
-        except:
-            pass
 
     def acceptListeners(self, listeners):
         self.server.listeners = listeners
@@ -194,16 +196,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         if data:
             if ssl_detector.looks_like_ssl(data):
-                config = {
-                    'cert_dir': self.server.config.get('cert_dir'),
-                    'networkmode': self.server.config.get('networkmode', None),
-                    'static_ca': self.server.config.get('static_ca', False),
-                    'ca_cert': self.server.config.get('ca_cert'),
-                    'ca_key': self.server.config.get('ca_key')
-                }
-                self.sslwrapper = SSLWrapper(config)
-                self.server.logger.debug('SSL detected')
-                ssl_remote_sock = self.sslwrapper.wrap_socket(remote_sock)
+                ssl_remote_sock = self.server.sslwrapper.wrap_socket(remote_sock)
                 data = ssl_remote_sock.recv(BUF_SZ)
 
             else:

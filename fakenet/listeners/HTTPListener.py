@@ -94,20 +94,27 @@ class HTTPListener(object):
     def start(self):
         self.logger.debug('Starting...')
 
-        self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), ThreadedHTTPRequestHandler)
+        
+
+        config = {
+            'cert_dir': self.config.get('cert_dir', 'temp_certs'),
+            'networkmode': self.config.get('networkmode', None),
+            'static_ca': self.config.get('static_ca', False),
+            'ca_cert': self.config.get('ca_cert'),
+            'ca_key': self.config.get('ca_key')
+        }
+        self.sslwrapper = SSLWrapper(config)
+        self.server = ThreadedHTTPServer((self.local_ip,
+            int(self.config.get('port'))), ThreadedHTTPRequestHandler)
+        self.server.sslwrapper = self.sslwrapper
         self.server.logger = self.logger
         self.server.config = self.config
         self.server.webroot_path = self.webroot_path
         self.server.extensions_map = self.extensions_map
 
         if self.config.get('usessl') == 'Yes':
-            config = {
-                'static_ca': self.config.get('static_ca'),
-                'ca_cert': self.config.get('ca_cert'),
-                'ca_key': self.config.get('ca_key'),
-            }
-            self.sslwrapper = SSLWrapper(config)
-            self.server.socket = self.sslwrapper.wrap_socket(self.server.socket)
+            self.server.socket = self.server.sslwrapper.wrap_socket(
+                self.server.socket)
 
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
@@ -119,15 +126,6 @@ class HTTPListener(object):
         if self.server:
             self.server.shutdown()
             self.server.server_close()
-
-        if self.config.get('usessl' == 'Yes'):
-            cert = self.sslwrap._load_cert(self.ca_cert)
-            if cert is not None:
-                self.sslwrap._remove_root_ca(cert.get_subject().CN)
-            try:
-                shutil.rmtree(self.CERT_DIR)
-            except:
-                pass
 
 
 class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
