@@ -199,10 +199,7 @@ class SSLWrapper(object):
              not self.config.get('networkmode', None) == 'multihost' and 
              not self.config.get('static_ca') == 'Yes'): 
             self._remove_root_ca(cert.get_subject().CN)
-        try:
-            shutil.rmtree(self.config.get('cert_dir', self.CERT_DIR))
-        except:
-            pass
+        shutil.rmtree(self.config.get('cert_dir'), ignore_errors=True)
         return
     
 
