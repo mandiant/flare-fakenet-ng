@@ -6,6 +6,7 @@ import ctypes
 import signal
 import socket
 import pyping
+import ssl
 import ftplib
 import poplib
 import hashlib
@@ -19,9 +20,11 @@ import subprocess
 import irc.client
 import ConfigParser
 from collections import OrderedDict
+from requests.adapters import HTTPAdapter
 
 logger = logging.getLogger('FakeNetTests')
 logging.basicConfig(format='%(message)s', level=logging.INFO)
+
 
 def is_admin():
     result = False
@@ -549,17 +552,37 @@ class FakeNetTester(object):
         irc_tester = IrcTester(hostname, port)
         return irc_tester.test_irc()
 
-    def _test_http(self, hostname, port=None):
+    def _test_http(self, hostname, port=None, use_ssl=False, verify=False):
         """Test HTTP Listener"""
-        retval = False
+
+        # https://stackoverflow.com/a/50215614
+        # HACK to force requests to use Windows Certificate store
+        class SSLContextAdapter(HTTPAdapter):
+            def init_poolmanager(self, *args, **kwargs):
+                ctx = ssl.create_default_context()
+                ctx.load_default_certs()
+                kwargs['ssl_context'] = ctx
+                return super(SSLContextAdapter, self).init_poolmanager(*args, **kwargs)
+
+        retval = False        
+        sess = requests.Session()
+
+        if use_ssl:
+            proto = 'https'
+        else:
+            proto = 'http'
 
         if port:
-            url = 'http://%s:%d/asdf.html' % (hostname, port)
+            url = '%s://%s:%d/asdf.html' % (proto, hostname, port)
         else:
-            url = 'http://%s/asdf.html' % (hostname)
+            url = '%s://%s/asdf.html' % (proto, hostname)
+
+        if use_ssl and verify and sys.platform.startswith('win32'):
+            adapter = SSLContextAdapter()
+            sess.mount(url, adapter)
 
         try:
-            r = requests.get(url, timeout=3)
+            r = sess.get(url, timeout=3, verify=verify)
 
             if r.status_code != 200:
                 raise FakeNetTestException('Status code %d' % (r.status_code))
@@ -571,8 +594,11 @@ class FakeNetTester(object):
             retval = True
 
         except requests.exceptions.Timeout as e:
+            pass        
+        except requests.exceptions.SSLError as e:
             pass
-
+        except ValueError as e:
+            pass
         except FakeNetTestException as e:
             pass
 
@@ -685,7 +711,6 @@ class FakeNetTester(object):
         udp = socket.SOCK_DGRAM
 
         t = OrderedDict() # The tests
-
         t['TCP external IP @ bound'] = (self._test_sk, (tcp, ext_ip, 1337), True)
         t['TCP external IP @ unbound'] = (self._test_sk, (tcp, ext_ip, 9999), True)
         t['TCP arbitrary @ bound'] = (self._test_sk, (tcp, arbitrary, 1337), True)
@@ -712,6 +737,9 @@ class FakeNetTester(object):
 
         t['DNS listener test'] = (self._test_ns, (domain_dne, dns_expected), True)
         t['HTTP listener test'] = (self._test_http, (arbitrary,), True)
+        t['HTTPS listener IP test, no verify'] = (self._test_http, (arbitrary,None,True,False), True)
+        t['HTTPS listener IP test'] = (self._test_http, (arbitrary,None,True,True), False)
+        t['HTTPS listener hostname test'] = (self._test_http, ('evil.com',None,True,True), True)
         t['FTP listener test'] = (self._test_ftp, (arbitrary,), True)
         t['POP3 listener test'] = (self._test_pop, (arbitrary, 110), True)
         t['SMTP listener test'] = (self._test_smtp, (sender, recipient, smtpmsg, arbitrary), True)
@@ -734,7 +762,6 @@ class FakeNetTester(object):
             t['Listener process whitelist'] = (self._test_http, (arbitrary, self.settings.listener_proc_white), True)
             t['Listener host blacklist'] = (self._test_http, (arbitrary, self.settings.listener_host_black), True)
             t['Listener host whitelist'] = (self._test_http, (arbitrary, self.settings.listener_host_black), True)
-
         return self._testGeneric('General', config, t, matchspec)
 
     def makeConfig(self, singlehostmode=True, proxied=True, redirectall=True):
