@@ -14,7 +14,6 @@ from ssl_utils import ssl_detector, SSLWrapper
 from . import *
 import os
 import traceback
-import shutil
 
 BUF_SZ = 1024
 
@@ -47,22 +46,20 @@ class ProxyListener(object):
 
     def start(self):
 
-        config = {
-            'cert_dir': self.config.get('cert_dir', 'temp_certs'),
-            'networkmode': self.config.get('networkmode', None),
-            'static_ca': self.config.get('static_ca', False),
-            'ca_cert': self.config.get('ca_cert'),
-            'ca_key': self.config.get('ca_key')
-        }
-        self.sslwrapper = SSLWrapper(config)
-
         proto = self.config.get('protocol').upper()
         if proto != None:
 
             if proto == 'TCP':
 
-                self.logger.debug('Starting TCP ...')
-
+                self.logger.debug('Starting TCP ...')                
+                config = {
+                    'cert_dir': self.config.get('cert_dir', 'temp_certs'),
+                    'networkmode': self.config.get('networkmode', None),
+                    'static_ca': self.config.get('static_ca', False),
+                    'ca_cert': self.config.get('ca_cert'),
+                    'ca_key': self.config.get('ca_key')
+                }
+                self.sslwrapper = SSLWrapper(config)
                 self.server = ThreadedTCPServer((self.local_ip,
                     int(self.config.get('port'))), ThreadedTCPRequestHandler)
                 self.server.sslwrapper = self.sslwrapper

@@ -79,6 +79,7 @@ class HTTPListener(object):
         self.server = None
         self.name = 'HTTP'
         self.port = self.config.get('port', 80)
+        self.sslwrapper = None
 
         self.logger.debug('Initialized with config:')
         for key, value in config.iteritems():
@@ -94,25 +95,24 @@ class HTTPListener(object):
     def start(self):
         self.logger.debug('Starting...')
 
-        
-
-        config = {
-            'cert_dir': self.config.get('cert_dir', 'temp_certs'),
-            'networkmode': self.config.get('networkmode', None),
-            'static_ca': self.config.get('static_ca', False),
-            'ca_cert': self.config.get('ca_cert'),
-            'ca_key': self.config.get('ca_key')
-        }
-        self.sslwrapper = SSLWrapper(config)
         self.server = ThreadedHTTPServer((self.local_ip,
             int(self.config.get('port'))), ThreadedHTTPRequestHandler)
-        self.server.sslwrapper = self.sslwrapper
         self.server.logger = self.logger
         self.server.config = self.config
         self.server.webroot_path = self.webroot_path
         self.server.extensions_map = self.extensions_map
 
         if self.config.get('usessl') == 'Yes':
+            self.logger.debug("HTTP Listener starting with SSL")
+            config = {
+                'cert_dir': self.config.get('cert_dir', 'temp_certs'),
+                'networkmode': self.config.get('networkmode', None),
+                'static_ca': self.config.get('static_ca', False),
+                'ca_cert': self.config.get('ca_cert'),
+                'ca_key': self.config.get('ca_key')
+            }
+            self.sslwrapper = SSLWrapper(config)
+            self.server.sslwrapper = sslwrapper
             self.server.socket = self.server.sslwrapper.wrap_socket(
                 self.server.socket)
 
