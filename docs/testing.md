@@ -1,5 +1,5 @@
 # FakeNet-NG Test Plan
-If you just want to know how to test FakeNet-NG, see:
+If you just want to know how to test FakeNet-NG, see the following sections:
 * Dev and Test Setup
 * Using `test.py`
 * Detailed Test Plan.
@@ -49,16 +49,23 @@ On Windows:
 * Right-click on the network adapter and click `Properties`
 * Select `Internet Protocol Version 4 (TCP/IPv4)`
 * Click the `Advanced...` button
-* In the IP Settings tab under Default gateways, click `Add...` (or `Edit...` if a gateway is already defined)
-    * In the `TCP/IP Gateway Address` dialog, enter the IP address of the FakeNet machine
+* In the IP Settings tab under Default gateways, click `Add...` (or `Edit...`
+  if a gateway is already defined)
+    * In the `TCP/IP Gateway Address` dialog, enter the IP address of the
+      FakeNet machine
     * Leave `Automatic metric` alone
     * Click the `Add` button
 * In the DNS tab, click `Add...`
-    * In the `TCP/IP DNS Server` dialog, enter the IP address of the FakeNet machine again
+    * In the `TCP/IP DNS Server` dialog, enter the IP address of the FakeNet
+      machine again
     * Click Add
 * Save all the settings by clicking `OK`
 * Ping the FakeNet IP to ensure connectivity
 * Commence testing
+
+Note that you will need to copy automatically generated configuration files to
+the FakeNet machine during testing. For details, see the section titled "Using
+`test.py`".
 
 ## Using test.py
 
