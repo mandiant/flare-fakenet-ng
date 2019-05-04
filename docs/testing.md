@@ -1,13 +1,12 @@
 # FakeNet-NG Test Plan
-
 If you just want to know how to test FakeNet-NG, see:
-* `Using test.py`
-* `Detailed Test Plan`.
+* Dev and Test Setup
+* Using `test.py`
+* Detailed Test Plan.
 
 For brief highlights of why things are the way they are, read straight through.
 
 ## Testing Needs
-
 FakeNet-NG has numerous features and specifications that are sometimes mutually
 exclusive. Adding and testing new FakeNet features while a configuration
 setting is in one disposition can lead to unanticipated failure when that
@@ -21,6 +20,45 @@ where it behaves as designed).
 Consequently, the bulk of testing is currently automated by interactively
 executing the test script `test/test.py`. Several features are too complicated
 to incorporate into a script and must be tested manually.
+
+## Dev and Test Setup
+It is recommended to use at least a Linux VM and a Windows VM for development
+and testing.
+
+The Linux guest should have at least two network interfaces. This is necessary
+for testing that the `LinuxRestrictInterface` feature has not been broken by
+recent changes. It also may be convenient to leave one interface connected to
+NAT to reduce time spent switching networks between pushing changes versus
+testing.
+
+Meanwhile, the Windows guest should have git installed even if that is not
+where development takes place, for convenience in pulling down updated branches
+for testing. Note that on Windows, FakeNet has to be installed via `setup.py`
+for the test script (`test.py`) to use the latest changes.
+
+It is easiest to avoid false test results and troubleshooting issues if both
+guests are tested on a host-only network as opposed to having access to the
+public Internet.
+
+### Using the Windows Guest to Test Linux MultiHost Operation
+To use the Windows test machine to test Linux `MultiHost` mode, the Windows
+machine must use the FakeNet-NG host as its gateway and a DNS server.
+
+On Windows:
+* Run the Network Connections control panel (`ncpa.cpl`)
+* Right-click on the network adapter and click `Properties`
+* Select `Internet Protocol Version 4 (TCP/IPv4)`
+* Click the `Advanced...` button
+* In the IP Settings tab under Default gateways, click `Add...` (or `Edit...` if a gateway is already defined)
+    * In the `TCP/IP Gateway Address` dialog, enter the IP address of the FakeNet machine
+    * Leave `Automatic metric` alone
+    * Click the `Add` button
+* In the DNS tab, click `Add...`
+    * In the `TCP/IP DNS Server` dialog, enter the IP address of the FakeNet machine again
+    * Click Add
+* Save all the settings by clicking `OK`
+* Ping the FakeNet IP to ensure connectivity
+* Commence testing
 
 ## Using test.py
 
@@ -68,7 +106,6 @@ Some of this may duplicate `pytest` functionality. If someone can refactor this
 into `pytest`, that is fine, but the current script serves.
 
 ### Test Script Idiosynchrasies
-
 The salient peculiarity of `test.py` is that on Windows it requires you to
 install FakeNet and it then runs the global `fakenet.exe` script entry point
 available via the Windows path environment variable; and on Linux, it executes
@@ -77,7 +114,6 @@ forgettable reasons. It shouldn't be too difficult to make these consistent if
 that becomes important to someone.
 
 ## Detailed Test Plan
-
 Testing in only one configuration leads to quality issues. If you wish to merge
 code to master, your code must pass tests in all the combinations described
 here.
@@ -125,7 +161,6 @@ Tests such as the above may be subdivided to indicate which sets of
 dispositions are handled together or apart.
 
 ### Test Dimensions
-
 FakeNet-NG supports two (2) platforms:
 * Windows
 * Linux
@@ -159,7 +194,6 @@ As of this writing, the Manual Test Suite must also be executed if the FakeNet
 feature set is to be fully exercised for quality assurance of a given release.
 
 ### Automated Test Suite
-
 Run `test/test.py` against the FakeNet instance.
 
 It contains the following automated test sub-suites.
@@ -203,7 +237,6 @@ The "General" subsuite tests:
 * Hidden versus unproxied (exposed) listeners via listener setting `Hidden`
 
 ### Manual Test Suite
-
 The following significant features either need tests added to the automated
 suite, or must be tested manually.
 
@@ -227,7 +260,6 @@ Startup administrative features:
 * `StopDNSService` (Windows only)
 
 ### Known and Suspected Deficiencies in FakeNet and its Tests
-
 The following tests are known to fail for some or all platform combinations:
 * `SMTP SSL listener test` (any platform combination)
 * `IRC listener test` (works on Linux, not on Windows)
