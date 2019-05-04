@@ -57,14 +57,14 @@ adapters.
 
 The `DiverterPerOsDelegate` abstract base class
 (`fakenet/diverters/diverterbase.py`) formalizes this dichotomy as a set of
-additional methods that must be implemented by the Diverter for that
-platform. In practice, both Linux and Windows Diverters implement an
-OS-specific mix-in that fulfilles the contract defined by this interface. The
-creation of the `DiverterPerOsDelegate` was an exercise in documentation more
-than programming or architecture. It moves toward formalizing the interface
-that previously existed as an implicit dependency on these methods codified
-merely by calling them methods in the `DiverterBase` constructor and
-expecting them to be implemented in each child class.
+additional methods that must be implemented by the Diverter for each platform.
+In practice, both Linux and Windows Diverters implement an OS-specific mix-in
+that fulfills the contract defined by this interface. The creation of the
+`DiverterPerOsDelegate` was an exercise in documentation more than programming
+or architecture. It moves toward formalizing the interface that previously
+existed as an implicit dependency on these methods codified merely by calling
+them from the `DiverterBase` constructor and expecting them to be implemented
+in each child class.
 
 ## Windows Diverter
 
