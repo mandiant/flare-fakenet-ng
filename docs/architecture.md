@@ -99,3 +99,8 @@ not needed) to pass to a callback in each listener to determine which listener
 is the most appropriate for the traffic. Its configuration consequently entails
 access to the implementations of the other listeners for purposes of calling
 the `taste` callback in each listener to determine where to send the traffic.
+
+# More Information
+For a discussion of how FakeNet-NG's `DiverterBase` arrives at IP NAT
+decisions, Dynamic Port Forwarding (DPF) decisions, and more, see
+[FakeNet-NG Internals](internals.md).
