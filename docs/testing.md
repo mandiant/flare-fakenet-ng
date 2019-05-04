@@ -1,4 +1,9 @@
 # FakeNet-NG Test Plan
+This test plan informs developers how to quality assure FakeNet-NG by using two
+test suites:
+* Automated Test Suite
+* Manual Test Suite
+
 If you just want to know how to test FakeNet-NG, see the following sections:
 * Dev and Test Setup
 * Using `test.py`
@@ -42,7 +47,7 @@ public Internet.
 
 ### Using the Windows Guest to Test Linux MultiHost Operation
 To use the Windows test machine to test Linux `MultiHost` mode, the Windows
-machine must use the FakeNet-NG host as its gateway and a DNS server.
+machine must use the FakeNet-NG host as its gateway and DNS server.
 
 On Windows:
 * Run the Network Connections control panel (`ncpa.cpl`)
@@ -137,10 +142,10 @@ disambiguated in dot format, e.g. `Diverter.ProcessBlacklist` to specify the
 global process blacklist rather than the listener-specific setting
 `<Listener>.ProcessBlacklist`.
 
-Completely testing a setting indicates testing against every dispositions the
+Completely testing a setting indicates testing against every disposition the
 setting may take (e.g. enabled, disabled).
 
-Where settings may be omitted entirely or empty, their disposition can be
+Where settings may be omitted entirely or left empty, their disposition can be
 called "unconfigured". The opposing disposition is referred to as "configured".
 
 Where features are to be tested "against" or "versus" some other factor, it
@@ -156,7 +161,8 @@ Means testing the following feature and factor dispositions:
 * Destination IP factor (what IP is the test hitting?):
     * External IP - IP of the host running FakeNet
     * Arbitrary host - arbitrary IP
-    * Named host - IP returned by FakeNet DNS Listener via A request
+    * Named host - IP returned by FakeNet DNS Listener in response to a DNS A
+      request
     * Localhost (if in SingleHost mode) - In practice, 127.0.0.1
 * Port disposition factor (is there a listener here?):
     * Bound - A FakeNet listener is bound to the destination port under test
@@ -174,8 +180,8 @@ FakeNet-NG supports two (2) platforms:
 
 FakeNet-NG supports two operating modes via the `NetworkMode` configuration
 setting:
-* SingleHost (both platforms)
-* MultiHost (Linux only as of this writing)
+* `SingleHost` (both platforms)
+* `MultiHost` (Linux only as of this writing)
 
 Notably, `Auto` is not a distinct `NetworkMode`; it selects `SingleHost` on
 Windows and `MultiHost` on Windows.
@@ -189,13 +195,14 @@ modes, and clients:
 
 | FakeNet platform | `NetworkMode` | Test Client | Client platform | Note     |
 |------------------|---------------|-------------|-----------------|----------|
-| Windows          | `SingleHost`  | Local       | Windows         |          |
-| Linux            | `SingleHost`  | Local       | Linux           |          |
+| Windows          | `SingleHost`  | (Local)     | (Windows)       |          |
+| Linux            | `SingleHost`  | (Local)     | (Linux)         |          |
 | Linux            | `MultiHost`   | Remote      | Windows         |          |
 | Linux            | `MultiHost`   | Remote      | Linux           | Optional |
 
-In each combination, FakeNet must be tested against the full range of tests in
-the Automated Test Suite provided by the test script `test/test.py`.
+In each combination, FakeNet must be tested against the full range of
+applicable tests in the Automated Test Suite provided by the test script
+`test/test.py`.
 
 As of this writing, the Manual Test Suite must also be executed if the FakeNet
 feature set is to be fully exercised for quality assurance of a given release.
@@ -203,7 +210,9 @@ feature set is to be fully exercised for quality assurance of a given release.
 ### Automated Test Suite
 Run `test/test.py` against the FakeNet instance.
 
-It contains the following automated test sub-suites.
+#### Automated Test Subsuites
+The Automated Test Suite contains the following automated test subsuites and
+tests.
 
 The "No Redirect" subsuite tests:
 * `RedirectAllTraffic = No` vs. destination IP vs. port disposition
@@ -247,17 +256,18 @@ The "General" subsuite tests:
 The following significant features either need tests added to the automated
 suite, or must be tested manually.
 
-The following likely must be tested manually:
+The "Manual Forever" Subsuite includes features that likely will always have to
+be tested manually:
 * `LinuxRestrictInterface` - limiting FakeNet operation to a single interface
   in `MultiHost` mode
 
-The following should have tests added to the automated suite:
+The "Manual But Shouldn't Be" Subsuite includes features that should definitely
+have tests added to the automated suite when possible:
 * `ExecuteCmd` configured
 * Microsoft NCSI support
 
-The following lower-priority items should also have tests added to the automated
-suite:
-Startup administrative features:
+The "Manual Low-Priority" Subsuite includes lower-priority items should
+probably also have tests added to the automated test suite when time permits:
 * Syslog logging
 * `LinuxFlushIptables`
 * `LinuxFlushDNSCommand`
