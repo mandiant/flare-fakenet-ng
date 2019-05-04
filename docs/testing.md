@@ -131,12 +131,14 @@ Testing in only one configuration leads to quality issues. If you wish to merge
 code to master, your code must pass tests in all the combinations described
 here.
 
+
 ### Jargon
 A test suite specifies a series of tests that must be completed.
 
 By and large, specific features subject to testing are called out by the name
 of the corresponding configuration setting name in FakeNet's configuration file
-schema.
+schema. Otherwise, they may be specified by the corresponding entry in the
+[FakeNet-NG Software Requirements Specification (SRS)](srs.md).
 
 If a setting name is ambiguous among multiple INI-style `[sections]`, it can be
 disambiguated in dot format, e.g. `Diverter.ProcessBlacklist` to specify the
@@ -243,24 +245,24 @@ The "General" subsuite tests:
 * Proxy listener and port unbound
 * Proxy listener and port bound and listener `Hidden`
 * `HostBlackList`
-* `BlackListPortsTCP`
-* `BlackListPortsUDP`
+* `BlackListPortsTCP` - Redirection Blacklisting
+* `BlackListPortsUDP` - Redirection Blacklisting
 * Only in `SingleHost` mode:
-    * `<Listener>.ProcessBlacklist` configured
-    * `<Listener>.ProcessWhitelist` configured
-    * `<Listener>.HostBlacklist` configured
+    * `<Listener>.ProcessBlacklist` configured - Redirection Blacklisting
+    * `<Listener>.ProcessWhitelist` configured - Redirection Blacklisting
+    * `<Listener>.HostBlacklist` configured - Redirection Blacklisting
     * Incorrect test as of this writing: `<Listener>.HostWhitelist` configured
-
 * Hidden versus unproxied (exposed) listeners via listener setting `Hidden`
 
 ### Manual Test Suite
 The following significant features either need tests added to the automated
 suite, or must be tested manually.
 
+#### Manual Test Subsuites
 The "Manual Forever" Subsuite includes features that likely will always have to
 be tested manually:
-* `LinuxRestrictInterface` - limiting FakeNet operation to a single interface
-  in `MultiHost` mode
+* `LinuxRestrictInterface` - FakeNet-NG Interface Restriction in `MultiHost`
+  mode
 
 The "Manual But Shouldn't Be" Subsuite includes features that should definitely
 have tests added to the automated suite when possible:
@@ -269,13 +271,29 @@ have tests added to the automated suite when possible:
 
 The "Manual Low-Priority" Subsuite includes lower-priority items should
 probably also have tests added to the automated test suite when time permits:
+* Running and testing each listener in standalone mode as its own Python script
+* Control-C Terminates Gracefully
+* IPC Halt Control
+* Linux Flush IP Tables Control
+* Diverter Enable/Disable
 * Syslog logging
+* Packet Capture Enable/Disable
+* Packet Capture Filename Specification
+* ICMP Traffic Logging
 * `LinuxFlushIptables`
-* `LinuxFlushDNSCommand`
+* `LinuxFlushDNSCommand` - DNS Resolver Cache Flush Control
 * `FixGateway`
 * `FixDNS`
-* `ModifyLocalDNS`
-* `StopDNSService` (Windows only)
+* `ModifyLocalDNS` - Local DNS Modification
+* `StopDNSService` (Windows only) - DNS Resolver Cache Termination
+* HTTP CustomResponse `<RAW-DATE>` replacement
+* Black and White List Mutual Exclusivity
+
+### Features Inherently Tested
+Several important FakeNet-NG features are exercised inherently by adhering to
+the test plan. These include, but are not limited to:
+* Diverter `NetworkMode` Configuration
+* Foreign-Bound Traffic Redirection
 
 ### Known and Suspected Deficiencies in FakeNet and its Tests
 The following tests are known to fail for some or all platform combinations:
