@@ -206,6 +206,11 @@ OSSpecificSetting: WindowsyDefaultValue
 OSSpecificSetting: LinuxyDefaultValue
 ```
 
+### The System must Implement Microsoft's NCSI
+
+The system must implement Microsoft's NCSI. This is currently codified in the
+DNS and HTTP listeners.
+
 ### Reverting Local Network Configuration Upon Graceful Termination
 When FakeNet-NG or a component of FakeNet-NG terminates gracefully, it must
 revert any network configuration changes that it made to their original values,
