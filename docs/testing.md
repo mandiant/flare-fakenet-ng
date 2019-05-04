@@ -7,7 +7,8 @@ test suites:
 If you just want to know how to test FakeNet-NG, see the following sections:
 * Dev and Test Setup
 * Using `test.py`
-* Detailed Test Plan.
+* Automated Test Suite
+* Manual Test Suite
 
 For brief highlights of why things are the way they are, read straight through.
 
