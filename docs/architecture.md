@@ -1,5 +1,4 @@
 # FakeNet-NG Architecture
-
 FakeNet-NG simulates the Internet by intercepting incoming and/or outgoing
 packets on Windows and Linux through its Diverter component and sending them to
 services called Listeners that are local to the FakeNet-NG host. In its default
@@ -22,7 +21,6 @@ FakeNet-NG architecture is diagrammed subsequently.
 # Diverters
 
 ## Diverter Base Class
-
 The Diverters for both Windows and Linux derive from the `DiverterBase` class
 (`fakenet/diverters/diverterbase.py`). It implements abstract processing for
 reasoning over packets and determining whether to pass them, mangle (modify)
@@ -67,10 +65,9 @@ them from the `DiverterBase` constructor and expecting them to be implemented
 in each child class.
 
 ## Windows Diverter
-
 The Windows Diverter views and manipulates packets through PyDivert, which is a
-Python binding for WinDivert, which is a userspace component and an NDIS
-networking driver.
+Python binding for WinDivert. WinDivert comprises a userspace component and an
+NDIS networking driver.
 
 The Windows Diverter is implemented in the `Diverter` class in
 `fakenet/diverters/windows.py`, which derives from `DiverterBase`
@@ -80,11 +77,10 @@ is the derived `DiverterPerOsDelegate` for Windows and implements selected
 callbacks defined there to customize activities involving gateways, DNS, etc.
 
 ## Linux Diverter
-
 The Linux Diverter views and manipulates packets through
-`python-netfilterqueue`, which is a Cython wrapper for `libnetfilterqueue`, which
-is the user-space native C library for interfacing with the Linux NetFilter
-kernel framework.
+`python-netfilterqueue`, which is a Cython wrapper for `libnetfilterqueue`.
+`libnetfilterqueue` is the user-space native C library for interfacing with the
+Linux NetFilter kernel framework.
 
 The Linux Diverter is implemented in the `Diverter` class in
 `fakenet/diverters/linux.py`, which derives from `DiverterBase` and
@@ -94,14 +90,12 @@ Linux and implements selected callbacks defined there to customize activities
 involving gateways, DNS, etc.
 
 # ProxyListener
-
 The ProxyListener is a full-duplex proxy implemented for both TCP and UDP. The
-ProxyListener implements automatic SSL detection and content-sensitive
+ProxyListener implements automatic SSL/TLS detection and content-sensitive
 application-layer routing. It does this by sampling application-layer data to
-determine if it must be wrapped with SSL. It then optionally samples the
-application-layer data again after wrapping with SSL (or uses the
-already-sampled data) to pass to a callback in each listener to determine which
-listener is the most appropriate for the traffic. Its configuration
-consequently entails access to the implementations of the other listeners for
-purposes of calling the `taste` callback in each listener to determine where to
-send the traffic.
+determine if it must be wrapped with SSL. It then samples the application-layer
+data again after wrapping with SSL (or uses the already-sampled data if SSL is
+not needed) to pass to a callback in each listener to determine which listener
+is the most appropriate for the traffic. Its configuration consequently entails
+access to the implementations of the other listeners for purposes of calling
+the `taste` callback in each listener to determine where to send the traffic.
