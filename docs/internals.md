@@ -35,12 +35,17 @@ The simplest case for the Linux implementation of the FakeNet-NG Diverter is
 `MultiHost` mode, because IP network address translation (NAT) is not required
 to support any conditional evaluation such as process blacklists. Hence,
 we use `iptables` to implement a `REDIRECT` rule in the `PREROUTING` chain.
-In this use case, FakeNet-NG implements only dynamic port forwarding (DPF)
+This opportunistic preference for allowing the Linux kernel to perform NAT is
+driven also by the expectation that the comprehensive heuristics in the
+NetFilter `conntrack` module can do a better job of tracking and correctly
+NATting traffic than the simple code in FakeNet. In this use case, FakeNet-NG
+implements only dynamic port forwarding (DPF)
 using python-netfilterqueue.
 
 The more complicated case is `SingleHost` mode, in which both DPF and NAT must
 be controlled by FakeNet-NG to permit process blacklisting and other
 configuration settings. In this case, FakeNet-NG evaluates four conditions:
+
 1. When a packet is produced, is it destined for a foreign IP address? (if so,
   fix up its destination address to be a local address)
 2. When a packet is about to be consumed, is it destined for an unbound port?
