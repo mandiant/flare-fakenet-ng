@@ -42,7 +42,18 @@ analysis machine.
 Installing module
 -----------------
 
-Alternatively you can install FakeNet-NG as a python module using pip:
+Installation on Windows requires the following dependency:
+ * [Microsoft Visual C++ Compiler for Python 2.7](https://aka.ms/vcpython27)
+
+Installation on Linux requires the following dependencies:
+ * Python pip package manager (e.g. python-pip for Ubuntu).
+ * Python development files (e.g. python-dev for Ubuntu).
+ * OpenSSL development files (e.g. libssl-dev for Ubuntu).
+ * libffi development files (e.g. libffi-dev for Ubuntu).
+ * libnetfilterqueue development files (e.g. libnetfilter-queue-dev for
+   Ubuntu).
+
+Install FakeNet-NG as a Python module using pip:
 
     pip install https://github.com/fireeye/flare-fakenet-ng/zipball/master
 
@@ -53,17 +64,6 @@ Or by obtaining the latest source code and installing it manually:
 Change directory to the downloaded flare-fakenet-ng and run:
 
     python setup.py install
-
-Installation on Windows requires the following pre-requisite:
- * [Microsoft Visual C++ Compiler for Python 2.7](https://aka.ms/vcpython27)
-
-Installation on Linux requires the following pre-requisites:
- * Python pip package manager (e.g. python-pip for Ubuntu).
- * Python development files (e.g. python-dev for Ubuntu).
- * OpenSSL development files (e.g. libssl-dev for Ubuntu).
- * libffi development files (e.g. libffi-dev for Ubuntu).
- * libnetfilterqueue development files (e.g. libnetfilter-queue-dev for
-   Ubuntu).
 
 Execute FakeNet-NG by running 'fakenet' in any directory.
 
