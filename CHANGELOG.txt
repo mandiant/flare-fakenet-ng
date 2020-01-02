@@ -1,3 +1,7 @@
+Version 1.4.10
+--------------
+* Fix format string errors due to line length limit
+
 Version 1.4.9
 -------------
 * Fully customizable HTTP responses without building a full listener
