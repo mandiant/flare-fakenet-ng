@@ -158,8 +158,8 @@ class DNSHandler():
                         fake_record = socket.gethostbyname(socket.gethostname())
 
                     if self.server.nxdomains > 0:
-                        self.server.logger.info('Ignoring query. NXDomains:' +
-                                                 ' %d', self.server.nxdomains)
+                        self.server.logger.info('Ignoring query. NXDomains: %d',
+                                self.server.nxdomains)
                         self.server.nxdomains -= 1
                     else:
                         self.server.logger.debug('Responding with \'%s\'',
