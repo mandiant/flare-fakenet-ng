@@ -866,6 +866,8 @@ Use `netstat`, `tcpview`, or other tools to discover what application is bound
 to the port, and refer to the corresponding operating system or application
 documentation to disable the service.
 
+It may make sense to capture a VM snapshot before undertaking reconfiguration.
+
 For example, Ubuntu commonly enables the `dnsmasq` service in
 `/etc/NetworkManager/NetworkManager.conf` with the line `dns=dnsmasq`.
 Disabling this (such as by commenting it out) and restarting the
@@ -873,10 +875,27 @@ Disabling this (such as by commenting it out) and restarting the
 sufficient to free the port before re-launching FakeNet-NG.
 
 In newer versions of Ubuntu or in other distributions, using `lsof -i` may
-reveal that `systemd-resolved` is used instead. In these cases, try:
+reveal that `systemd-resolved` is used instead. In these cases, you may try
+these steps adapted from
+<https://askubuntu.com/questions/907246/how-to-disable-systemd-resolved-in-ubuntu>:
+
 ```
 sudo systemctl stop systemd-resolved
 sudo systemctl disable systemd-resolved
+```
+
+Then in `/etc/NetworkManager/NetworkManager.conf` under the `[main]` section, add a line specifying:
+
+```
+dns=default
+```
+
+Delete the symlink `/etc/resolv.conf`, i.e. `rm /etc/resolv.conf`.
+
+Finally, restart `NetworkManager`:
+
+```
+sudo systemctl restart NetworkManager
 ```
 
 Error: Could not locate WinDivert DLL or one of its components
