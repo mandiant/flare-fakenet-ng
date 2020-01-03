@@ -380,13 +380,11 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                               stdout=subprocess.PIPE,
                                               stderr=subprocess.PIPE)
                     except subprocess.CalledProcessError, e:
-                        self.logger.error("         Failed to set gateway %s" +
-                                          "on interface %s." % (gw_address,
-                                          interface_name))
+                        self.logger.error("         Failed to set gateway %s on interface %s."
+                                          % (gw_address, interface_name))
                     else:
-                        self.logger.info("         Setting gateway %s on " +
-                                         "interface %s" % (gw_address,
-                                         interface_name))
+                        self.logger.info("         Setting gateway %s on interface %s"
+                                % (gw_address, interface_name))
                         fixed = True
 
         return fixed
