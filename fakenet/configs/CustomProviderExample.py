@@ -1,3 +1,5 @@
+import socket
+
 # To read about customizing HTTP responses, see docs/CustomResponse.md
 def HandleRequest(req, method, post_data=None):
     """Sample dynamic HTTP response handler.
@@ -39,9 +41,17 @@ def HandleTcp(sock):
     sock : socket
         The connected socket with which to recv and send data
     """
-    data = sock.recv(1024)
-    if data:
-        resp = ''.join([chr(ord(c)+1) for c in data])
+    while True:
+        try:
+            data = None
+            data = sock.recv(1024)
+        except socket.timeout:
+            pass
+
+        if not data:
+            break
+
+        resp = raw_input('\nEnter a response for the TCP client: ')
         sock.sendall(resp)
 
 
@@ -58,5 +68,5 @@ def HandleUdp(sock, data, addr):
         The host and port of the remote peer
     """
     if data:
-        resp = ''.join([chr(ord(c)+1) for c in data])
+        resp = raw_input('\nEnter a response for the UDP client: ')
         sock.sendto(resp, addr)
