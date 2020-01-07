@@ -31,14 +31,32 @@ def HandleRequest(req, method, post_data=None):
         req.end_headers()
 
 
-def HandleTcp(req):
-    data = req.recv(1024)
+def HandleTcp(sock):
+	"""Handle a TCP buffer.
+
+	Parameters
+	----------
+	sock : socket
+		The connected socket with which to recv and send data
+	"""
+    data = sock.recv(1024)
     if data:
         resp = ''.join([chr(ord(c)+1) for c in data])
-        req.sendall(resp)
+        sock.sendall(resp)
 
 
 def HandleUdp(sock, data, addr):
+    """Handle a UDP buffer.
+
+    Parameters
+    ----------
+    sock : socket
+		The connected socket with which to recv and send data
+    data : str
+        The data received
+    addr : tuple
+        The host and port of the remote peer
+    """
     if data:
         resp = ''.join([chr(ord(c)+1) for c in data])
         sock.sendto(resp, addr)
