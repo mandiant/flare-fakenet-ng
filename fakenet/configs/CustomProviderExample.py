@@ -2,15 +2,15 @@
 def HandleRequest(req, method, post_data=None):
     """Sample dynamic HTTP response handler.
 
-	Parameters
-	----------
-	req : BaseHTTPServer.BaseHTTPRequestHandler
-		The BaseHTTPRequestHandler that recevied the request
-	method: str
-		The HTTP method, either 'HEAD', 'GET', 'POST' as of this writing
-	post_data: str
-		The HTTP post data received by calling `rfile.read()` against the
-		BaseHTTPRequestHandler that received the request.
+    Parameters
+    ----------
+    req : BaseHTTPServer.BaseHTTPRequestHandler
+        The BaseHTTPRequestHandler that recevied the request
+    method: str
+        The HTTP method, either 'HEAD', 'GET', 'POST' as of this writing
+    post_data: str
+        The HTTP post data received by calling `rfile.read()` against the
+        BaseHTTPRequestHandler that received the request.
     """
     response = 'Ahoy\r\n'
 
@@ -32,13 +32,13 @@ def HandleRequest(req, method, post_data=None):
 
 
 def HandleTcp(sock):
-	"""Handle a TCP buffer.
+    """Handle a TCP buffer.
 
-	Parameters
-	----------
-	sock : socket
-		The connected socket with which to recv and send data
-	"""
+    Parameters
+    ----------
+    sock : socket
+        The connected socket with which to recv and send data
+    """
     data = sock.recv(1024)
     if data:
         resp = ''.join([chr(ord(c)+1) for c in data])
@@ -51,7 +51,7 @@ def HandleUdp(sock, data, addr):
     Parameters
     ----------
     sock : socket
-		The connected socket with which to recv and send data
+        The connected socket with which to recv and send data
     data : str
         The data received
     addr : tuple
