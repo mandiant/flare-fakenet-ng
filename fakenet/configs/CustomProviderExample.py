@@ -29,3 +29,16 @@ def HandleRequest(req, method, post_data=None):
     elif method == 'HEAD':
         req.send_response(200)
         req.end_headers()
+
+
+def HandleTcp(req):
+    data = req.recv(1024)
+    if data:
+        resp = ''.join([chr(ord(c)+1) for c in data])
+        req.sendall(resp)
+
+
+def HandleUdp(sock, data, addr):
+    if data:
+        resp = ''.join([chr(ord(c)+1) for c in data])
+        sock.sendto(resp, addr)

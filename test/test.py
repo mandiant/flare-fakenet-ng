@@ -2,6 +2,8 @@ import os
 import re
 import sys
 import time
+import errno
+import fcntl
 import ctypes
 import signal
 import socket
@@ -462,7 +464,8 @@ class FakeNetTester(object):
 
         self.delConfig()
 
-    def _test_sk(self, proto, host, port, timeout=5):
+    def _test_sk(self, proto, host, port, teststring=None, expected=None,
+                 timeout=5):
         """Test socket-oriented"""
         retval = False
         s = socket.socket(socket.AF_INET, proto)
@@ -471,26 +474,26 @@ class FakeNetTester(object):
         try:
             s.connect((host, port))
 
-            teststring = 'Testing FakeNet-NG'
+            if teststring is None:
+                teststring = 'Testing FakeNet-NG'
+
+            if expected is None:
+                # RawListener is an echo server unless otherwise configured
+                expected = teststring
+
             remaining = len(teststring)
 
             while remaining:
-                sent = s.send(teststring)
+                sent = s.send(teststring[-remaining:])
                 if sent == 0:
-                    raise IOError('Failed to send all bytes')
+                    raise IOError('Failed to send any bytes')
                 remaining -= sent
                 
             recvd = ''
-            remaining = len(teststring)
 
-            while remaining:
-                chunk = s.recv(remaining)
-                if chunk == '':
-                    raise IOError('Failed to receive all bytes')
-                remaining -= len(chunk)
-                recvd += chunk
+            recvd = s.recv(4096)
 
-            retval = (recvd == teststring)
+            retval = (recvd == expected)
 
         except socket.error as e:
             logger.error('Socket error: %s (%s %s:%d)' %
@@ -704,6 +707,12 @@ class FakeNetTester(object):
             t['TCP localhost @ bound'] = (self._test_sk, (tcp, localhost, 1337), True)
             t['TCP localhost @ unbound'] = (self._test_sk, (tcp, localhost, 9999), False)
 
+        t['TCP custom test static Base64'] = (self._test_sk, (tcp, localhost, 1000, 'whatever', '\x0fL\x0aR\x0e'), True)
+        t['TCP custom test static string'] = (self._test_sk, (tcp, localhost, 1001, 'whatever', 'static string TCP response'), True)
+        t['TCP custom test static file'] = (self._test_sk, (tcp, localhost, 1002, 'whatever', 'sample TCP raw file response'), True)
+        whatever = 'whatever'  # Ensures matching test/expected for TCP dynamic
+        t['TCP custom test dynamic'] = (self._test_sk, (tcp, localhost, 1003, whatever, ''.join([chr(ord(c)+1) for c in whatever])), True)
+
         t['UDP external IP @ bound'] = (self._test_sk, (udp, ext_ip, 1337), True)
         t['UDP external IP @ unbound'] = (self._test_sk, (udp, ext_ip, 9999), True)
         t['UDP arbitrary @ bound'] = (self._test_sk, (udp, arbitrary, 1337), True)
@@ -714,16 +723,31 @@ class FakeNetTester(object):
             t['UDP localhost @ bound'] = (self._test_sk, (udp, localhost, 1337), True)
             t['UDP localhost @ unbound'] = (self._test_sk, (udp, localhost, 9999), False)
 
+        t['UDP custom test static Base64'] = (self._test_sk, (udp, localhost, 1000, 'whatever', '\x0fL\x0aR\x0e'), True)
+        whatever = 'whatever2'  # Ensures matching test/expected for UDP dynamic
+        t['UDP custom test dynamic'] = (self._test_sk, (udp, localhost, 1003, whatever, ''.join([chr(ord(c)+1) for c in whatever])), True)
+
         t['ICMP external IP'] = (self._test_icmp, (ext_ip,), True)
         t['ICMP arbitrary host'] = (self._test_icmp, (arbitrary,), True)
         t['ICMP domainname'] = (self._test_icmp, (domain_dne,), True)
 
         t['DNS listener test'] = (self._test_ns, (domain_dne, dns_expected), True)
         t['HTTP listener test'] = (self._test_http, (arbitrary,), True)
+        # Enable HTTPS when we have either added Server Name Indication and Dynamic CA or have modified `_test_http` to
+        # Ignore certificate issues. Here is the error that arises otherwise.
+        #   Starting new HTTPS connection (1): 8.8.8.8
+        #   Test HTTP listener test with SSL: Uncaught exception of type <class 'requests.exceptions.SSLError'>: [Errno 1] _ssl.c:510: error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed
+        #   Starting new HTTPS connection (1): 8.8.8.8
+        #   Test HTTP listener test with SSL: Uncaught exception of type <class 'requests.exceptions.SSLError'>: [Errno 1] _ssl.c:510: error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed
+        #   [!!!] FAILED: HTTP listener test with SSL
+        # t['HTTP listener test with SSL'] = (self._test_http, (arbitrary, None, 'https'), True)
         t['HTTP custom test by URI'] = (self._test_http, (arbitrary, None, None, '/test.txt', 'Wraps this'), True)
-        t['HTTP custom test by hostname'] = (self._test_http, ('other.c2.com', None, None, None, 'success'), True)
+        t['HTTP custom test by hostname'] = (self._test_http, ('some.random.c2.com', None, None, None, 'success'), True)
         t['HTTP custom test by both URI and hostname'] = (self._test_http, ('both_host.com', None, None, '/and_uri.txt', 'Ahoy'), True)
-        t['HTTP custom test by both URI and hostname negative'] = (self._test_http, ('both_host.com', None, None, '/not_uri.txt', 'Ahoy'), False)
+        t['HTTP custom test by both URI and hostname wrong URI'] = (self._test_http, ('both_host.com', None, None, '/not_uri.txt', 'Ahoy'), False)
+        t['HTTP custom test by both URI and hostname wrong hostname'] = (self._test_http, ('non_host.com', None, None, '/and_uri.txt', 'Ahoy'), False)
+        t['HTTP custom test by ListenerType'] = (self._test_http, ('other.c2.com', 81, None, '/whatever.html', 'success'), True)
+        t['HTTP custom test by ListenerType host port negative match'] = (self._test_http, ('other.c2.com', 80, None, '/whatever.html', 'success'), False)
         t['FTP listener test'] = (self._test_ftp, (arbitrary,), True)
         t['POP3 listener test'] = (self._test_pop, (arbitrary, 110), True)
         t['SMTP listener test'] = (self._test_smtp, (sender, recipient, smtpmsg, arbitrary), True)
@@ -815,9 +839,10 @@ class FakeNetTestSettings:
 
         self.ancillary_files_dest = self.genPath('%TEMP%', '/tmp/')
         self.ancillary_files = [
-            'fakenet_http.ini',
-            'HTTPCustomProviderExample.py',
+            'custom_responses.ini',
+            'CustomProviderExample.py',
             'sample_raw_response.txt',
+            'sample_raw_tcp_response.txt',
         ]
 
         # Paths

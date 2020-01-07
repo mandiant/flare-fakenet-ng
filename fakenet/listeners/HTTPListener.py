@@ -46,11 +46,11 @@ def qualify_file_path(filename, fallbackdir):
 
 
 class CustomResponse(object):
-    def __init__(self, name, conf, webroot):
+    def __init__(self, name, conf, configroot):
         self.name = name
 
-        match_specs = {'matchuris', 'matchhosts'}
-        response_specs = {'rawfile', 'staticstring', 'dynamic'}
+        match_specs = {'httpuris', 'httphosts'}
+        response_specs = {'httprawfile', 'httpstaticstring', 'httpdynamic'}
 
         if not match_specs.intersection(conf):
             raise ValueError('Custom HTTP config section %s lacks '
@@ -61,33 +61,49 @@ class CustomResponse(object):
             raise ValueError('Custom HTTP config section %s has %d of %s' %
                              (name, nr_responses, '/'.join(response_specs)))
 
-        if ('contenttype' in conf) and ('staticstring' not in conf):
+        if ('contenttype' in conf) and ('httpstaticstring' not in conf):
             raise ValueError('Custom HTTP config section %s has ContentType '
-                             'which is only usable with StaticString' % (name))
+                             'which is only usable with '
+                             'HttpStaticString' % (name))
 
-        self.uris = conf.get('matchuris', {})
+        self.uris = conf.get('httpuris', {})
         if self.uris:
             self.uris = {u.strip() for u in self.uris.split(',')}
 
-        self.hosts = conf.get('matchhosts', {})
+        self.hosts = conf.get('httphosts', {})
         if self.hosts:
             self.hosts = {h.strip().lower() for h in self.hosts.split(',')}
 
-        self.raw_file = qualify_file_path(conf.get('rawfile'), webroot)
+        self.raw_file = qualify_file_path(conf.get('httprawfile'), configroot)
         if self.raw_file:
             self.raw_file = open(self.raw_file, 'rb').read()
 
-        self.pymod = qualify_file_path(conf.get('dynamic'), webroot)
-        if self.pymod:
-            self.pymod = imp.load_source('cr_' + self.name, self.pymod)
+        self.handler = None
+        pymod_path = qualify_file_path(conf.get('httpdynamic'), configroot)
+        if pymod_path:
+            pymod = imp.load_source('cr_' + self.name, pymod_path)
+            funcname = 'HandleHttp'
+            funcname_legacy = 'HandleRequest'
+            if hasattr(pymod, funcname):
+                self.handler = getattr(pymod, funcname)
+            elif hasattr(pymod, funcname_legacy):
+                self.handler = getattr(pymod, funcname_legacy)
+            else:
+                raise ValueError('Loaded %s module %s has no function %s' %
+                                 ('httpdynamic', conf.get('httpdynamic'),
+                                  funcname))
 
-        self.static_string = conf.get('staticstring')
+        self.static_string = conf.get('httpstaticstring')
         if self.static_string is not None:
             self.static_string = self.static_string.replace('\\r\\n', '\r\n')
         self.content_type = conf.get('ContentType')
 
     def checkMatch(self, host, uri):
         hostmatch = (host.strip().lower() in self.hosts)
+        if (not hostmatch) and (':' in host):
+            host = host[:host.find(':')]
+            hostmatch = (host.strip().lower() in self.hosts)
+
 
         urimatch = False
         for match_uri in self.uris:
@@ -106,8 +122,8 @@ class CustomResponse(object):
         if self.raw_file:
             up_to_date = self.raw_file.replace('<RAW-DATE>', current_time)
             req.wfile.write(up_to_date)
-        elif self.pymod:
-            self.pymod.HandleRequest(req, meth, postdata)
+        elif self.handler:
+            self.handler(req, meth, postdata)
         elif self.static_string is not None:
             up_to_date = self.static_string.replace('<RAW-DATE>', current_time)
             req.send_response(200)
@@ -121,7 +137,7 @@ class CustomResponse(object):
 class HTTPListener(object):
 
     def taste(self, data, dport):
-        
+
         request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
             'OPTIONS', 'CONNECT', 'PATCH']
 
@@ -154,7 +170,6 @@ class HTTPListener(object):
         self.name = name
         self.local_ip = config.get('ipaddr')
         self.server = None
-        self.name = 'HTTP'
         self.port = self.config.get('port', 80)
 
         self.logger.debug('Initialized with config:')
@@ -195,15 +210,29 @@ class HTTPListener(object):
         self.server.custom_responses = []
         custom = self.config.get('custom')
 
+        def checkSetting(d, name, value):
+            if name not in d:
+                return False
+            return d[name].lower() == value.lower()
+
         if custom:
-            custom = qualify_file_path(custom, self.config.get('configdir'))
+            configdir = self.config.get('configdir')
+            custom = qualify_file_path(custom, configdir)
             customconf = ConfigParser()
             customconf.read(custom)
 
             for section in customconf.sections():
                 entries = dict(customconf.items(section))
-                cr = CustomResponse(section, entries, self.webroot_path)
-                self.server.custom_responses.append(cr)
+
+                if (('instancename' not in entries) and
+                        ('listenertype' not in entries)):
+                    msg = 'Custom Response lacks ListenerType or InstanceName'
+                    raise RuntimeError(msg)
+
+                if (checkSetting(entries, 'instancename', self.name) or
+                        checkSetting(entries, 'listenertype', 'HTTP')):
+                    cr = CustomResponse(section, entries, configdir)
+                    self.server.custom_responses.append(cr)
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
@@ -305,7 +334,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
                     http_f.close()
                 else:
-                    self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)        
+                    self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)
 
         # Prepare response
         if not self.doCustomResponse('GET', post_body):
@@ -356,7 +385,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         except Exception, e:
             self.server.logger.error('Failed to open response file: %s', response_filename)
             response_type = 'text/html'
-        else:            
+        else:
             response = f.read()
             f.close()
 
@@ -397,7 +426,7 @@ def main():
 
     """
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
-    
+
     config = {'port': '8443', 'usessl': 'Yes', 'webroot': 'fakenet/defaultFiles' }
 
     listener = HTTPListener(config)

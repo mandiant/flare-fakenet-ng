@@ -1,7 +1,10 @@
 import logging
+from ConfigParser import ConfigParser
 
 import os
 import sys
+import imp
+import base64
 
 import threading
 import SocketServer
@@ -12,6 +15,79 @@ import socket
 from . import *
 
 INDENT = '  '
+
+
+def qualify_file_path(filename, fallbackdir):
+    path = filename
+    if path:
+        if not os.path.exists(path):
+            path = os.path.join(fallbackdir, filename)
+        if not os.path.exists(path):
+            raise RuntimeError('Cannot find %s' % (filename))
+
+    return path
+
+
+class RawCustomResponse(object):
+    def __init__(self, proto, name, conf, configroot):
+        self.name = name
+        self.static = None
+        self.handler = None
+
+        spec_file = '%srawfile' % (proto.lower())
+        spec_str = '%sstaticstring' % (proto.lower())
+        spec_b64 = '%sstaticbase64' % (proto.lower())
+        spec_dyn = '%sdynamic' % (proto.lower())
+
+        response_specs = {
+            spec_file,
+            spec_str,
+            spec_b64,
+            spec_dyn,
+        }
+
+        nr_responses = len(response_specs.intersection(conf))
+        if nr_responses != 1:
+            raise ValueError('Custom %s config section %s has %d of %s' %
+                             (proto.upper(), name, nr_responses,
+                              '/'.join(response_specs)))
+
+        self.static = conf.get(spec_str)
+
+        if self.static is not None:
+            self.static = self.static.rstrip('\r\n')
+
+        if not self.static is not None:
+            b64_text = conf.get(spec_b64)
+            if b64_text:
+                self.static = base64.b64decode(b64_text)
+
+        if not self.static is not None:
+            file_path = conf.get(spec_file)
+            if file_path:
+                raw_file = qualify_file_path(file_path, configroot)
+                self.static = open(raw_file, 'rb').read()
+
+        pymodpath = qualify_file_path(conf.get(spec_dyn), configroot)
+        if pymodpath:
+            pymod = imp.load_source('cr_raw_' + self.name, pymodpath)
+            funcname = 'Handle%s' % (proto.capitalize())
+            if not hasattr(pymod, funcname):
+                raise ValueError('Loaded %s module %s has no function %s' %
+                                 (spec_dyn, conf.get(spec_dyn), funcname))
+            self.handler = getattr(pymod, funcname)
+
+    def respondTcp(self, req):
+        if self.static:
+            req.sendall(self.static)
+        elif self.handler:
+            self.handler(req)
+
+    def respondUdp(self, sock, data, addr):
+        if self.static:
+            sock.sendto(self.static, addr)
+        elif self.handler:
+            self.handler(sock, data, addr)
 
 
 class RawListener(object):
@@ -32,7 +108,6 @@ class RawListener(object):
         self.name = name
         self.local_ip = config.get('ipaddr')
         self.server = None
-        self.name = 'Raw'
         self.port = self.config.get('port', 1337)
 
         self.logger.debug('Starting...')
@@ -44,13 +119,13 @@ class RawListener(object):
     def start(self):
 
         # Start listener
-        if self.config.get('protocol') != None:
-        
-            if self.config['protocol'].lower() == 'tcp':
+        proto = self.config.get('protocol')
+        if proto is not None:
+            if proto.lower() == 'tcp':
                 self.logger.debug('Starting TCP ...')
                 self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
 
-            elif self.config['protocol'].lower() == 'udp':
+            elif proto.lower() == 'udp':
                 self.logger.debug('Starting UDP ...')
                 self.server = ThreadedUDPServer((self.local_ip, int(self.config['port'])), ThreadedUDPRequestHandler)
 
@@ -80,7 +155,40 @@ class RawListener(object):
                 sys.exit(1)
 
             self.server.socket = ssl.wrap_socket(self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers='RSA')
-        
+
+        self.server.custom_response = None
+        custom = self.config.get('custom')
+
+        def checkSetting(d, name, value):
+            if name not in d:
+                return False
+            return d[name].lower() == value.lower()
+
+        if custom:
+            configdir = self.config.get('configdir')
+            custom = qualify_file_path(custom, configdir)
+            customconf = ConfigParser()
+            customconf.read(custom)
+
+            for section in customconf.sections():
+                entries = dict(customconf.items(section))
+
+                if (('instancename' not in entries) and
+                        ('listenertype' not in entries)):
+                    msg = 'Custom Response lacks ListenerType or InstanceName'
+                    raise RuntimeError(msg)
+
+                if (checkSetting(entries, 'instancename', self.name) or
+                        checkSetting(entries, 'listenertype', proto)):
+
+                    if self.server.custom_response:
+                        msg = ('Only one %s Custom Response can be configured '
+                               'at a time' % (proto))
+                        raise(msg)
+
+                    self.server.custom_response = (
+                        RawCustomResponse(proto, section, entries, configdir))
+
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
         self.server_thread.start()
@@ -94,53 +202,69 @@ class RawListener(object):
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
     def handle(self):                
+        # Hook to ensure that all `recv` calls transparently emit a hex dump
+        # in the log output, even if they occur within a user-implemented
+        # custom handler
+        def do_hexdump(data):
+            for line in hexdump_table(data):
+                self.server.logger.info(INDENT + line)
+
+        orig_recv = self.request.recv
+
+        def hook_recv(self, bufsize, flags=0):
+            data = orig_recv(bufsize, flags)
+            if data:
+                do_hexdump(data)
+            return data
+
+        bound_meth = hook_recv.__get__(self.request, self.request.__class__)
+        setattr(self.request, 'recv', bound_meth)
 
         # Timeout connection to prevent hanging
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
 
-        try:
-                
-            while True:
+        cr = self.server.custom_response
+        if cr:
+            cr.respondTcp(self.request)
+        else:
+            try:
+                    
+                while True:
+                    data = self.request.recv(1024)
+                    if not data:
+                        break
+                    self.request.sendall(data)
 
-                data = self.request.recv(1024)
+            except socket.timeout:
+                self.server.logger.warning('Connection timeout')
 
-                if not data:
-                    break
+            except socket.error as msg:
+                self.server.logger.error('Error: %s', msg.strerror or msg)
 
-                for line in hexdump_table(data):
-                    self.server.logger.info(INDENT + line)
-
-                self.request.sendall(data)
-
-        except socket.timeout:
-            self.server.logger.warning('Connection timeout')
-
-        except socket.error as msg:
-            self.server.logger.error('Error: %s', msg.strerror or msg)
-
-        except Exception, e:
-            self.server.logger.error('Error: %s', e)
+            except Exception, e:
+                self.server.logger.error('Error: %s', e)
 
 class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
     def handle(self):
+        (data,sock) = self.request
 
-        try:
-            (data,socket) = self.request
-            
-            if not data:
-                return
-
+        if data:
             for line in hexdump_table(data):
                 self.server.logger.info(INDENT + line)
 
-            socket.sendto(data, self.client_address)
+        cr = self.server.custom_response
+        if cr:
+            cr.respondUdp(sock, data, self.client_address)
+        elif data:
+            try:
+                sock.sendto(data, self.client_address)
 
-        except socket.error as msg:
-            self.server.logger.error('Error: %s', msg.strerror or msg)
+            except socket.error as msg:
+                self.server.logger.error('Error: %s', msg.strerror or msg)
 
-        except Exception, e:
-            self.server.logger.error('Error: %s', e)
+            except Exception, e:
+                self.server.logger.error('Error: %s', e)
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     # Avoid [Errno 98] Address already in use due to TIME_WAIT status on TCP
