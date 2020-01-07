@@ -3,7 +3,6 @@ import re
 import sys
 import time
 import errno
-import fcntl
 import ctypes
 import signal
 import socket
