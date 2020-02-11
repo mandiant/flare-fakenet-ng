@@ -134,7 +134,7 @@ analogs documented above:
 * `UdpStaticBase64`
 * `UdpDynamic`: invokes `HandleUdp`
 
-#### Implementing the TcpDynamic Response Handler
+#### Implementing the UdpDynamic Response Handler
 
 The `HandleUdp` function's prototype differs significantly from its TCP analog
 due to the differences in protocols. With UDP, the data has already been

@@ -409,8 +409,11 @@ class FakeNetTester(object):
         else:
             logger.info('Waiting for you to transition the remote FakeNet-NG')
             logger.info('system to run the %s test suite' % (label))
-            logger.info('(Copy this config: %s)' % (self.settings.configpath))
-            logger.info('(And this: %s)' % (self.settings.configpath_http))
+            logger.info('***Copy this config: %s' % (self.settings.configpath))
+            logger.info('***And these files related to custom responses:')
+            logger.info('\t%s' % (self.settings.configpath_http))
+            for af in self.settings.ancillary_files:
+                logger.info('\t%s/%s' % (self.settings.configpath_ancillary, af))
             logger.info('')
             while True:
                 logger.info('Type \'ok\' to continue, or \'exit\' to stop')
@@ -847,6 +850,7 @@ class FakeNetTestSettings:
         # Paths
         self.configpath = self.genPath('%TEMP%\\fakenet.ini', '/tmp/fakenet.ini')
         self.configpath_http = self.genPath('%TEMP%\\fakenet_http.ini', '/tmp/fakenet_http.ini')
+        self.configpath_ancillary = self.genPath('%TEMP%', '/tmp')
         self.stopflag = self.genPath('%TEMP%\\stop_fakenet', '/tmp/stop_fakenet')
         self.logpath = self.genPath('%TEMP%\\fakenet.log', '/tmp/fakenet.log')
         self.fakenet = self.genPath('fakenet', 'python fakenet.py')
