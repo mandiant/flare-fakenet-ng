@@ -9,8 +9,8 @@ Programming
 ===========
 
 For background on FakeNet-NG internals and architecture, see:
-* [FakeNet-NG Internals](docs/internals.md)
-* [FakeNet-NG Architecture](docs/architecture.md)
+* [FakeNet-NG Internals](internals.md)
+* [FakeNet-NG Architecture](architecture.md)
 
 Developing Listeners
 --------------------
@@ -109,7 +109,7 @@ functionality is implemented in
 [fakenet\diverters\linutil.py](fakenet/diverters/linutil.py).
 
 For detailed information on Diverter internals specific to Linux, see
-[docs/internals.md](docs/internals.md).
+[internals.md](internals.md).
 
 Source Code and Release Management
 ==================================
