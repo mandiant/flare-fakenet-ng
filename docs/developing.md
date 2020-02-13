@@ -1,6 +1,17 @@
 Developing for FakeNet-NG
 =========================
 
+This guide is divided into two parts:
+* Programming
+* Source Code and Release Management
+
+Programming
+===========
+
+For background on FakeNet-NG internals and architecture, see:
+* [FakeNet-NG Internals](docs/internals.md)
+* [FakeNet-NG Architecture](docs/architecture.md)
+
 Developing Listeners
 --------------------
 
@@ -226,4 +237,15 @@ FireEye only:
   `<ver>` is the dot-decimal version number. For example: `fakenet1.4.11.zip`
 * The 
 * Test the distribution before adding it to the appropriate release tag.
+
+Tagging a Release (FireEye only)
+--------------------------------
+
+1. Visit <https://github.com/fireeye/flare-fakenet-ng/releases>
+2. Click `Draft a new release`
+3. Tag version: `v<ver>`, e.g. `v1.4.3`
+4. Release title: `FakeNet-NG <ver>`, e.g. `FakeNet-NG `v1.4.3`
+5. Description: copy the changes from `CHANGELOG.txt` through to the previous
+   version
+6. Binaries: Attach the release distribution zip file described above
 
