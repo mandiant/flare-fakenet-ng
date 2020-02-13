@@ -15,8 +15,8 @@ For background on FakeNet-NG internals and architecture, see:
 Developing Listeners
 --------------------
 
-All listeners must implement just two methods: start() and stop(). Below is a
-sample listener template:
+All listeners must implement just two methods: `start()` and `stop()`. Below is
+a sample listener template:
 
 
     import logging
@@ -114,6 +114,11 @@ For detailed information on Diverter internals specific to Linux, see
 Source Code and Release Management
 ==================================
 
+The token `<ver>` indicates the dot-decimal representation of the FakeNet-NG
+version number, with no spaces or other punctuation. For example purposes,
+version 1.4.3 is used in many cases to exemplify where and how FakeNet-NG
+version numbers are to be incorporated in artifacts such as directory names.
+
 Branching, Pull Requests, and Merging
 -------------------------------------
 
@@ -192,11 +197,12 @@ Building a Release Distribution for Windows
 -------------------------------------------
 
 The stand-alone executable depends on several files to be able to execute. To
-provide a full release distribution, create a release directory and copy the
-following directory and file structure:
+provide a full release distribution, create a release directory named
+`fakenet<ver>` (e.g. `fakenet1.4.3`) and copy the following directory and file
+structure:
 
 ```
-release\
+fakenet1.4.3\
 	+-- LICENSE.txt
 	+-- CHANGELOG.txt
 	+-- fakenet.exe
@@ -234,8 +240,9 @@ release\
 
 FireEye only:
 * Create a zip file of the release distribution named `fakenet<ver>.zip`, where
-  `<ver>` is the dot-decimal version number. For example: `fakenet1.4.11.zip`
-* The 
+  `<ver>` is the dot-decimal version number. For example: `fakenet1.4.3.zip`.
+* The top-level directory in the zip file should be `fakenet<ver>` e.g.
+  `fakenet1.4.3`.
 * Test the distribution before adding it to the appropriate release tag.
 
 Tagging a Release (FireEye only)
