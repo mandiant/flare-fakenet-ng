@@ -165,10 +165,15 @@ Building a Stand-Alone Executable (Release Binary) for Windows
 --------------------------------------------------------------
 
 The release binary for Windows should be a 32-bit binary, allowing it to be
-loaded on both 32-bit systems and 64-bit systems (as a WOW64 process).
+loaded on both 32-bit systems and 64-bit systems (as a WOW64 process). Ensure
+that you install and are using a 32-bit version of Python and its associated
+utilities (i.e. `pip`). Use an administrative command prompt where applicable
+for installing Python modules for all users.
 
-Ensure that you install and are using a 32-bit version of Python and its
-associated utilities (i.e. `pip`).
+Pre-requisites:
+* Python 2.7 x86 with `pip`
+* Visual C++ for Python 2.7 development, available at:
+  <https://aka.ms/vcpython27>
 
 Before installing `pyinstaller`, you may wish to take the following steps to
 prevent the error `ImportError: No module named PyInstaller`:
@@ -176,6 +181,19 @@ prevent the error `ImportError: No module named PyInstaller`:
 ```
 python -m pip install --upgrade pip
 pip install certifi
+```
+
+Install FakeNet-NG to acquire most modules:
+
+```
+python setup.py install
+```
+
+Obtain PyDivert 2.0.9, the only version known to work with FakeNet-NG releases
+prepared with PyInstaller:
+
+```
+pip install pydivert==2.0.9
 ```
 
 Install `pyinstaller`:
