@@ -251,7 +251,7 @@ Tagging a Release (FireEye only)
 1. Visit <https://github.com/fireeye/flare-fakenet-ng/releases>
 2. Click `Draft a new release`
 3. Tag version: `v<ver>`, e.g. `v1.4.3`
-4. Release title: `FakeNet-NG <ver>`, e.g. `FakeNet-NG `v1.4.3`
+4. Release title: `FakeNet-NG <ver>`, e.g. `FakeNet-NG 1.4.3`
 5. Description: copy the changes from `CHANGELOG.txt` through to the previous
    version
 6. Binaries: Attach the release distribution zip file described above
