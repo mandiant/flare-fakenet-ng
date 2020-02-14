@@ -77,12 +77,6 @@ class RawCustomResponse(object):
                                  (spec_dyn, conf.get(spec_dyn), funcname))
             self.handler = getattr(pymod, funcname)
 
-    def respondTcp(self, req):
-        if self.static:
-            req.sendall(self.static)
-        elif self.handler:
-            self.handler(req)
-
     def respondUdp(self, sock, data, addr):
         if self.static:
             sock.sendto(self.static, addr)
@@ -228,7 +222,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         # Allow user-scripted responses to handle all control flow (e.g.
         # looping, exception handling, etc.)
         if cr and cr.handler:
-            cr.respondTcp(self.request)
+            cr.handler(self.request)
         else:
             try:
                     
@@ -237,11 +231,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     if not data:
                         break
 
-                    # If static responses are configured, apply the same
-                    # control flow and exception handling as in the default
-                    # (echo) case.
                     if cr and cr.static:
-                        cr.respondTcp(self.request)
+                        self.request.sendall(cr.static)
                     else:
                         self.request.sendall(data)
 
