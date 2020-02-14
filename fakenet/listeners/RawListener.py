@@ -224,7 +224,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
 
         cr = self.server.custom_response
-        if cr:
+
+        # Allow user-scripted responses to handle all control flow (e.g.
+        # looping, exception handling, etc.)
+        if cr and cr.handler:
             cr.respondTcp(self.request)
         else:
             try:
@@ -233,7 +236,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     data = self.request.recv(1024)
                     if not data:
                         break
-                    self.request.sendall(data)
+
+                    # If static responses are configured, apply the same
+                    # control flow and exception handling as in the default
+                    # (echo) case.
+                    if cr and cr.static:
+                        cr.respondTcp(self.request)
+                    else:
+                        self.request.sendall(data)
 
             except socket.timeout:
                 self.server.logger.warning('Connection timeout')
