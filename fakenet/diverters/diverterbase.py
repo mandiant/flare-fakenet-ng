@@ -1022,7 +1022,7 @@ class DiverterBase(fnconfig.Config):
                 'dumppacketsfileprefix', 'packets'),
                 time.strftime('%Y%m%d_%H%M%S'))
             self.logger.info('Capturing traffic to %s', self.pcap_filename)
-            self.pcap = dpkt.pcap.Writer(open(self.pcap_filename, 'wb'),
+            self.pcap = dpkt.pcapng.Writer(open(self.pcap_filename, 'wb'),
                                          linktype=dpkt.pcap.DLT_RAW)
             self.pcap_lock = threading.Lock()
 
@@ -1104,7 +1104,7 @@ class DiverterBase(fnconfig.Config):
                 self.logger.debug('Blacklisted UDP ports: %s', ', '.join(
                     [str(p) for p in self.getconfigval('BlackListPortsUDP')]))
 
-    def write_pcap(self, pkt):
+    def write_pcap(self, pkt, pid=None):
         """Writes a packet to the pcap.
 
         Args:
@@ -1121,7 +1121,24 @@ class DiverterBase(fnconfig.Config):
                 mangled = 'mangled' if pkt.mangled else 'initial'
                 self.pdebug(DPCAP, 'Writing %s packet %s' %
                             (mangled, pkt.hdrToStr2()))
-                self.pcap.writepkt(pkt.octets)
+                comment = ''
+                opts = []
+                if pid is not None:
+                    comment = 'PID: %d' % pid
+                    opts = [
+                        dpkt.pcapng.PcapngOptionLE(code = dpkt.pcapng.PCAPNG_OPT_COMMENT, text=comment ),
+                        dpkt.pcapng.PcapngOptionLE(code = dpkt.pcapng.PCAPNG_OPT_ENDOFOPT, len=0 ),
+                    ]
+
+                ebp = dpkt.pcapng.EnhancedPacketBlockLE(
+                    ts_high=0,
+                    ts_low=0,
+                    caplen = len(pkt.octets),
+                    pktlen= len(pkt.octets),
+                    pkt_data=pkt.octets,
+                    opts=opts
+                )
+                self.pcap.writepkt(ebp)
 
     def handle_pkt(self, pkt, callbacks3, callbacks4):
         """Generic packet hook.
@@ -1159,7 +1176,8 @@ class DiverterBase(fnconfig.Config):
         """
 
         # 1: Unconditionally write unmangled packet to pcap
-        self.write_pcap(pkt)
+        pid, comm = self.get_pid_comm(pkt)
+        self.write_pcap(pkt, pid)
 
         no_further_processing = False
 
@@ -1171,7 +1189,6 @@ class DiverterBase(fnconfig.Config):
             crit = DivertParms(self, pkt)
 
             # fnpacket has parsed all that can be parsed, so
-            pid, comm = self.get_pid_comm(pkt)
             if self.pdebug_level & DGENPKTV:
                 logline = self.formatPkt(pkt, pid, comm)
                 self.pdebug(DGENPKTV, logline)
