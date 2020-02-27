@@ -121,8 +121,8 @@ class CustomResponse(object):
 class HTTPListener(object):
 
     def taste(self, data, dport):
-        
-        request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
+
+        request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE',
             'OPTIONS', 'CONNECT', 'PATCH']
 
         confidence = 1 if dport in [80, 443] else 0
@@ -305,10 +305,10 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
                     http_f.close()
                 else:
-                    self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)        
+                    self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)
 
         # Prepare response
-        if not self.doCustomResponse('GET', post_body):
+        if not self.doCustomResponse('POST', post_body):
             # Get response type based on the requested path
             response, response_type = self.get_response(self.path)
 
@@ -356,7 +356,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         except Exception, e:
             self.server.logger.error('Failed to open response file: %s', response_filename)
             response_type = 'text/html'
-        else:            
+        else:
             response = f.read()
             f.close()
 
@@ -397,7 +397,7 @@ def main():
 
     """
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
-    
+
     config = {'port': '8443', 'usessl': 'Yes', 'webroot': 'fakenet/defaultFiles' }
 
     listener = HTTPListener(config)
