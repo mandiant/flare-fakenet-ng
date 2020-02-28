@@ -1104,7 +1104,7 @@ class DiverterBase(fnconfig.Config):
                 self.logger.debug('Blacklisted UDP ports: %s', ', '.join(
                     [str(p) for p in self.getconfigval('BlackListPortsUDP')]))
 
-    def write_pcap(self, pkt, pid=None):
+    def write_pcap(self, pkt, pid=None, comm=None):
         """Writes a packet to the pcap.
 
         Args:
@@ -1123,12 +1123,17 @@ class DiverterBase(fnconfig.Config):
                             (mangled, pkt.hdrToStr2()))
                 comment = ''
                 opts = []
-                if pid is not None:
+                if pid is not None and comm is not None:
+                    comment = 'Process: %s, PID: %d' % (comm, pid)
+                elif pid is not None:
                     comment = 'PID: %d' % pid
-                    opts = [
-                        dpkt.pcapng.PcapngOptionLE(code = dpkt.pcapng.PCAPNG_OPT_COMMENT, text=comment ),
-                        dpkt.pcapng.PcapngOptionLE(code = dpkt.pcapng.PCAPNG_OPT_ENDOFOPT, len=0 ),
-                    ]
+                elif comm is not None:
+                    comment = 'Process: %s' % comm
+
+                opts = [
+                    dpkt.pcapng.PcapngOptionLE(code = dpkt.pcapng.PCAPNG_OPT_COMMENT, text=comment ),
+                    dpkt.pcapng.PcapngOptionLE(code = dpkt.pcapng.PCAPNG_OPT_ENDOFOPT, len=0 ),
+                ]
 
                 ebp = dpkt.pcapng.EnhancedPacketBlockLE(
                     ts_high=0,
@@ -1177,7 +1182,7 @@ class DiverterBase(fnconfig.Config):
 
         # 1: Unconditionally write unmangled packet to pcap
         pid, comm = self.get_pid_comm(pkt)
-        self.write_pcap(pkt, pid)
+        self.write_pcap(pkt, pid, comm)
 
         no_further_processing = False
 
