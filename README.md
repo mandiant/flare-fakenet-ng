@@ -642,7 +642,7 @@ UDP port blacklist as follows:
 Proxy Listener
 --------------
 
-The latest release of FakeNet-NG implements a new proxy listener which is capable of
+FakeNet-NG implements a new proxy listener which is capable of
 dynamically detecting communicating protocol (including SSL traffic) and redirecting
 the connecting to an appropriate listener.
 
