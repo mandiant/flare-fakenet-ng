@@ -233,7 +233,10 @@ fakenet1.4.3\
 	+-- configs\
 	|   +-- CustomProviderExample.py
 	|   +-- default.ini
-	|   +-- sample_http_custom.ini
+	|   +-- CustomProviderExample.py
+	|   +-- sample_custom_response.ini
+	|   +-- sample_raw_response.txt
+	|   +-- sample_raw_tcp_response.txt
 	|
 	+-- defaultFiles\
 	|   +-- FakeNet.gif
@@ -244,9 +247,7 @@ fakenet1.4.3\
 	|   +-- FakeNet.pdf
 	|   +-- FakeNet.png
 	|   +-- FakeNet.txt
-	|   +-- HTTPCustomProviderExample.py
 	|   +-- ncsi.txt
-	|   +-- sample_raw_response.txt
 	|
 	+-- listeners\
 	    +-- ssl_utils
