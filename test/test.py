@@ -13,6 +13,7 @@ import shutil
 import hashlib
 import smtplib
 import logging
+import zipfile
 import binascii
 import platform
 import requests
@@ -310,8 +311,6 @@ class FakeNetTester(object):
     def delConfig(self):
         if os.path.exists(self.settings.configpath):
             os.remove(self.settings.configpath)
-        if os.path.exists(self.settings.configpath_http):
-            os.remove(self.settings.configpath_http)
 
     def doTests(self, match_spec):
         self.testGeneral(match_spec)
@@ -386,12 +385,21 @@ class FakeNetTester(object):
 
         return
 
+    def _mkzip(self, zip_path, files):
+        zip_basename = os.path.splitext(os.path.split(zip_path)[-1])[0]
+        with zipfile.ZipFile(zip_path, mode='w') as z:
+            for filepath in files:
+                filename = os.path.split(filepath)[-1]
+                arcname = os.path.join(zip_basename, filename)
+                print(arcname)
+                z.write(filepath, arcname)
+
     def _testGeneric(self, label, config, tests, matchspec=[]):
         self._filterMatchingTests(tests, matchspec)
         if not len(tests):
             logger.info('No matching tests')
             return False
-        
+
         # If doing a multi-host test, then toggle the network mode
         if not self.settings.singlehost:
             config.multiHostMode()
@@ -407,14 +415,19 @@ class FakeNetTester(object):
             logger.info('Sleeping %d seconds before commencing' % (sec))
             time.sleep(sec)
         else:
+            zip_path = os.path.join(self.settings.ancillary_files_dest,
+                                    'fakenet-test.zip')
+            afpaths = [os.path.join(self.settings.ancillary_files_dest, af)
+                       for af in self.settings.ancillary_files]
+            files = [self.settings.configpath] + afpaths
+            self._mkzip(zip_path, files)
+
             logger.info('Waiting for you to transition the remote FakeNet-NG')
             logger.info('system to run the %s test suite' % (label))
-            logger.info('***Copy this config: %s' % (self.settings.configpath))
-            logger.info('***And these files related to custom responses:')
-            logger.info('\t%s' % (self.settings.configpath_http))
-            for af in self.settings.ancillary_files:
-                logger.info('\t%s/%s' % (self.settings.configpath_ancillary, af))
+            logger.info(('***Copy and uncompress this archive on the test '
+                        'system: %s') % (zip_path))
             logger.info('')
+
             while True:
                 logger.info('Type \'ok\' to continue, or \'exit\' to stop')
                 try:
@@ -849,8 +862,6 @@ class FakeNetTestSettings:
 
         # Paths
         self.configpath = self.genPath('%TEMP%\\fakenet.ini', '/tmp/fakenet.ini')
-        self.configpath_http = self.genPath('%TEMP%\\fakenet_http.ini', '/tmp/fakenet_http.ini')
-        self.configpath_ancillary = self.genPath('%TEMP%', '/tmp')
         self.stopflag = self.genPath('%TEMP%\\stop_fakenet', '/tmp/stop_fakenet')
         self.logpath = self.genPath('%TEMP%\\fakenet.log', '/tmp/fakenet.log')
         self.fakenet = self.genPath('fakenet', 'python fakenet.py')
