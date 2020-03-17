@@ -458,9 +458,9 @@ string, the HTTP Custom Response feature must replace occurrences of
 `<RAW-DATE>` in the 
 
 ### TCP and UDP Listener Custom Response Configuration
-The TCP and UDP listeners should accommodate Custom Response configuration
-constrained to an operator-defined regular expression of octets and permit
-responses to be returned according to three configuration specifications:
+The TCP and UDP listeners must accommodate Custom Response configuration
+and permit responses to be returned according to three configuration
+specifications:
 * The raw contents of a configured binary file
 * The contents of a statically configured string
 * The delegation of control to a Python script file
