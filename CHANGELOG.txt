@@ -1,6 +1,6 @@
 Version 1.4.11
 --------------
-* TCP Custom Response Feature
+* TCP Custom Response and UDP Custom Response features
 * Removed stray `fcntl` import from `test.py` that prevented Windows testing in
   some cases
 
