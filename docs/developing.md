@@ -221,40 +221,39 @@ structure:
 
 ```
 fakenet1.4.3\
-	+-- LICENSE.txt
-	+-- CHANGELOG.txt
-	+-- fakenet.exe
-	+-- README.md
-	|
-	+-- docs\
-	|   +-- contributors.md
-	|   +-- CustomResponse.md
-	|
-	+-- configs\
-	|   +-- CustomProviderExample.py
-	|   +-- default.ini
-	|   +-- CustomProviderExample.py
-	|   +-- sample_custom_response.ini
-	|   +-- sample_raw_response.txt
-	|   +-- sample_raw_tcp_response.txt
-	|
-	+-- defaultFiles\
-	|   +-- FakeNet.gif
-	|   +-- FakeNet.html
-	|   +-- FakeNet.ico
-	|   +-- FakeNet.jpg
-	|   +-- FakeNetMini.exe
-	|   +-- FakeNet.pdf
-	|   +-- FakeNet.png
-	|   +-- FakeNet.txt
-	|   +-- ncsi.txt
-	|
-	+-- listeners\
-	    +-- ssl_utils
-			+-- __init__.pyc
-			+-- privkey.pem
-			+-- server.pem
-			+-- ssl_detector.py
+    +-- LICENSE.txt
+    +-- CHANGELOG.txt
+    +-- fakenet.exe
+    +-- README.md
+    |
+    +-- docs\
+    |   +-- contributors.md
+    |   +-- CustomResponse.md
+    |
+    +-- configs\
+    |   +-- default.ini
+    |   +-- CustomProviderExample.py
+    |   +-- sample_custom_response.ini
+    |   +-- sample_raw_response.txt
+    |   +-- sample_raw_tcp_response.txt
+    |
+    +-- defaultFiles\
+    |   +-- FakeNet.gif
+    |   +-- FakeNet.html
+    |   +-- FakeNet.ico
+    |   +-- FakeNet.jpg
+    |   +-- FakeNetMini.exe
+    |   +-- FakeNet.pdf
+    |   +-- FakeNet.png
+    |   +-- FakeNet.txt
+    |   +-- ncsi.txt
+    |
+    +-- listeners\
+        +-- ssl_utils
+    		+-- __init__.pyc
+    		+-- privkey.pem
+    		+-- server.pem
+    		+-- ssl_detector.py
 ```
 
 FireEye only:

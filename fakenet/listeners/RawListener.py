@@ -178,7 +178,7 @@ class RawListener(object):
                     if self.server.custom_response:
                         msg = ('Only one %s Custom Response can be configured '
                                'at a time' % (proto))
-                        raise(msg)
+                        raise RuntimeError(msg)
 
                     self.server.custom_response = (
                         RawCustomResponse(proto, section, entries, configdir))
