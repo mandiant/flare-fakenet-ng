@@ -1,3 +1,8 @@
+Version 1.4.12
+--------------
+* Increase default timeout for HTTPListener to 10 seconds
+* Increase configured timeout for HTTPListener443 to 10 seconds
+
 Version 1.4.11
 --------------
 * TCP Custom Response and UDP Custom Response features

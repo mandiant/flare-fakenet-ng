@@ -261,7 +261,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         return self.server.config.get('version', "FakeNet/1.3")
 
     def setup(self):
-        self.request.settimeout(int(self.server.config.get('timeout', 5)))
+        self.request.settimeout(int(self.server.config.get('timeout', 10)))
         BaseHTTPServer.BaseHTTPRequestHandler.setup(self)
 
     def doCustomResponse(self, meth, post_data=None):
