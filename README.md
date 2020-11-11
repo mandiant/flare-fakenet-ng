@@ -1,3 +1,16 @@
+Development Suspended
+=====================
+
+The FLARE Team must suspend development and maintenance of FakeNet-NG for the
+time being.
+
+FLARE has opted to indicate the project status here instead of archiving the
+project. This will allow users and maintainers to continue to log issues
+documenting valuable information about problems, troubleshooting, and
+work-arounds.
+
+Original Documentation Follows
+==============================
      ______      _  ________ _   _ ______ _______     _   _  _____
     |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
     | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
