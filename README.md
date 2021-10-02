@@ -44,7 +44,7 @@ Stand-alone executable
 It is easiest to simply download the compiled version which can be obtained from
 the releases page:
 
-    https://github.com/fireeye/flare-fakenet-ng/releases
+    https://github.com/mandiant/flare-fakenet-ng/releases
 
 Execute FakeNet-NG by running 'fakenet.exe'.
 
@@ -68,11 +68,11 @@ Installation on Linux requires the following dependencies:
 
 Install FakeNet-NG as a Python module using pip:
 
-    pip install https://github.com/fireeye/flare-fakenet-ng/zipball/master
+    pip install https://github.com/mandiant/flare-fakenet-ng/zipball/master
 
 Or by obtaining the latest source code and installing it manually:
 
-    git clone https://github.com/fireeye/flare-fakenet-ng/
+    git clone https://github.com/mandiant/flare-fakenet-ng/
 
 Change directory to the downloaded flare-fakenet-ng and run:
 
@@ -104,7 +104,7 @@ install dependencies as follows:
 
 3) Download the FakeNet-NG source code:
 
-    git clone https://github.com/fireeye/flare-fakenet-ng
+    git clone https://github.com/mandiant/flare-fakenet-ng
 
 Execute FakeNet-NG by running it with a Python interpreter in a privileged
 shell:
@@ -847,5 +847,5 @@ Contact
 =======
 
 For bugs, crashes, or other comments please contact
-FakeNet@fireeye.com.
+FakeNet@mandiant.com.
 
