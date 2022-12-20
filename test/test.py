@@ -6,7 +6,6 @@ import errno
 import ctypes
 import signal
 import socket
-import pyping
 import ftplib
 import poplib
 import shutil
@@ -20,8 +19,9 @@ import requests
 import netifaces
 import subprocess
 import irc.client
-import ConfigParser
+import configparser
 from collections import OrderedDict
+from icmplib import ping
 
 logger = logging.getLogger('FakeNetTests')
 logging.basicConfig(format='%(message)s', level=logging.INFO)
@@ -53,7 +53,7 @@ def execute_detached(execute_cmd, winders=False):
                                shell=shl,
                                close_fds = cfds,
                                preexec_fn = preexec).pid
-    except Exception, e:
+    except Exception as e:
         logger.info('Error: Failed to execute command: %s', execute_cmd)
         logger.info('       %s', e)
         return None
@@ -357,7 +357,7 @@ class FakeNetTester(object):
             # Iterating over tests first, match specifications second to
             # preserve the order of the selected tests. Less efficient to
             # compile every regex several times, but less confusing.
-            for testname, test in tests.items():
+            for testname, test in list(tests.items()):
 
                 # First determine if it is to be excluded, in which case,
                 # remove it and do not evaluate further match specifications.
@@ -431,7 +431,7 @@ class FakeNetTester(object):
             while True:
                 logger.info('Type \'ok\' to continue, or \'exit\' to stop')
                 try:
-                    ok = raw_input()
+                    ok = input()
                 except EOFError:
                     ok = 'exit'
 
@@ -444,8 +444,11 @@ class FakeNetTester(object):
         logger.info('Testing')
         logger.info('-' * 79)
 
+        passedTests = 0
+        failedTests = 0
+
         # Do each test
-        for desc, (callback, args, expected) in tests.iteritems():
+        for desc, (callback, args, expected) in tests.items():
             logger.debug('Testing: %s' % (desc))
             passed = self._tryTest(desc, callback, args, expected)
 
@@ -454,12 +457,18 @@ class FakeNetTester(object):
                 logger.debug('Retrying: %s' % (desc))
                 passed = self._tryTest(desc, callback, args, expected)
 
+            if passed:
+                passedTests += 1
+            else:
+                failedTests += 1
+
             self._printStatus(desc, passed)
 
             time.sleep(0.5)
 
         logger.info('-' * 79)
         logger.info('Tests complete')
+        logger.info('%s/%s tests passed,  %s/%s tests failed' % (passedTests, len(tests), failedTests, len(tests)))
         logger.info('-' * 79)
 
         if self.settings.singlehost:
@@ -490,7 +499,7 @@ class FakeNetTester(object):
             s.connect((host, port))
 
             if teststring is None:
-                teststring = 'Testing FakeNet-NG'
+                teststring = b'Testing FakeNet-NG'
 
             if expected is None:
                 # RawListener is an echo server unless otherwise configured
@@ -519,8 +528,8 @@ class FakeNetTester(object):
         return retval
 
     def _test_icmp(self, host):
-        r = pyping.ping(host, count=1)
-        return (r.ret_code == 0)
+        r = ping(host, count=1)
+        return r.is_alive
 
     def _test_ns(self, hostname, expected):
        return (expected == socket.gethostbyname(hostname))
@@ -547,12 +556,12 @@ class FakeNetTester(object):
         lines = msg[1]
         octets = msg[2]
 
-        if not response.startswith('+OK'):
+        if not response.startswith(b'+OK'):
             msg = 'POP3 response does not start with "+OK"'
             logger.error(msg)
             return False
 
-        if not 'Alice' in ''.join(lines):
+        if not b'Alice' in b''.join(lines):
             msg = 'POP3 message did not contain expected string'
             raise FakeNetTestException(msg)
             return False
@@ -604,7 +613,7 @@ class FakeNetTester(object):
 
         return retval
 
-    def _test_ftp(self, hostname, port=None):
+    def _test_ftp(self, hostname, port=0):
         """Note that the FakeNet-NG Proxy listener won't know what to do with
         this client if you point it at some random port, because the client
         listens silently for the server 220 welcome message which doesn't give
@@ -722,11 +731,11 @@ class FakeNetTester(object):
             t['TCP localhost @ bound'] = (self._test_sk, (tcp, localhost, 1337), True)
             t['TCP localhost @ unbound'] = (self._test_sk, (tcp, localhost, 9999), False)
 
-        t['TCP custom test static Base64'] = (self._test_sk, (tcp, ext_ip, 1000, 'whatever', '\x0fL\x0aR\x0e'), True)
-        t['TCP custom test static string'] = (self._test_sk, (tcp, ext_ip, 1001, 'whatever', 'static string TCP response'), True)
-        t['TCP custom test static file'] = (self._test_sk, (tcp, ext_ip, 1002, 'whatever', 'sample TCP raw file response'), True)
-        whatever = 'whatever'  # Ensures matching test/expected for TCP dynamic
-        t['TCP custom test dynamic'] = (self._test_sk, (tcp, ext_ip, 1003, whatever, ''.join([chr(ord(c)+1) for c in whatever])), True)
+        t['TCP custom test static Base64'] = (self._test_sk, (tcp, ext_ip, 1000, b'whatever', b'\x0fL\x0aR\x0e'), True)
+        t['TCP custom test static string'] = (self._test_sk, (tcp, ext_ip, 1001, b'whatever', b'static string TCP response'), True)
+        t['TCP custom test static file'] = (self._test_sk, (tcp, ext_ip, 1002, b'whatever', b'sample TCP raw file response'), True)
+        whatever = b'whatever'  # Ensures matching test/expected for TCP dynamic
+        t['TCP custom test dynamic'] = (self._test_sk, (tcp, ext_ip, 1003, whatever, b''.join([chr(c+1).encode() for c in whatever])), True)
 
         t['UDP external IP @ bound'] = (self._test_sk, (udp, ext_ip, 1337), True)
         t['UDP external IP @ unbound'] = (self._test_sk, (udp, ext_ip, 9999), True)
@@ -738,9 +747,9 @@ class FakeNetTester(object):
             t['UDP localhost @ bound'] = (self._test_sk, (udp, localhost, 1337), True)
             t['UDP localhost @ unbound'] = (self._test_sk, (udp, localhost, 9999), False)
 
-        t['UDP custom test static Base64'] = (self._test_sk, (udp, ext_ip, 1000, 'whatever', '\x0fL\x0aR\x0e'), True)
-        whatever = 'whatever2'  # Ensures matching test/expected for UDP dynamic
-        t['UDP custom test dynamic'] = (self._test_sk, (udp, ext_ip, 1003, whatever, ''.join([chr(ord(c)+1) for c in whatever])), True)
+        t['UDP custom test static Base64'] = (self._test_sk, (udp, ext_ip, 1000, b'whatever', b'\x0fL\x0aR\x0e'), True)
+        whatever = b'whatever2'  # Ensures matching test/expected for UDP dynamic
+        t['UDP custom test dynamic'] = (self._test_sk, (udp, ext_ip, 1003, whatever, b''.join([chr(c+1).encode() for c in whatever])), True)
 
         t['ICMP external IP'] = (self._test_icmp, (ext_ip,), True)
         t['ICMP arbitrary host'] = (self._test_icmp, (arbitrary,), True)
@@ -804,7 +813,7 @@ class FakeNetConfig:
     """Convenience class to read/modify/rewrite a configuration template."""
 
     def __init__(self, path, singlehostmode=True, proxied=True, redirectall=True):
-        self.rawconfig = ConfigParser.RawConfigParser()
+        self.rawconfig = configparser.RawConfigParser()
         self.rawconfig.read(path)
 
         if singlehostmode:
