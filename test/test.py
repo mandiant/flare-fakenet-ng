@@ -1,3 +1,5 @@
+# Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
+
 import os
 import re
 import sys

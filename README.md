@@ -36,7 +36,7 @@ application's specific functionality and prototyping PoCs.
 Installation
 ============
 
-You can install FakeNet-NG in a few different ways.
+You can install FakeNet-NG in a few different ways. Note that the following installation processes will retrieve third-party open-source libraries used by FakeNet-NG to your system. These libraries will be dynamically loaded at runtime, and some of these libraries may be GPL or LGPL licensed.
 
 Stand-alone executable
 ----------------------
@@ -133,6 +133,7 @@ parameter to get simple help:
                              Version  1.0
       _____________________________________________________________
                        Developed by FLARE Team
+        Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
       _____________________________________________________________
     Usage: fakenet.py [options]:
 
@@ -187,6 +188,7 @@ and an HTTP connection:
                              Version  1.0
       _____________________________________________________________
                        Developed by FLARE Team
+        Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
       _____________________________________________________________
 
     07/06/16 10:20:52 PM [           FakeNet] Loaded configuration file: configs/default.ini
