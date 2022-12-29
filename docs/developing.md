@@ -125,6 +125,16 @@ Branching, Pull Requests, and Merging
 Mandiant only:
 * Create branches directly under the `mandiant/` GitHub repository, not under a
   private fork.
+* Create a new local branch:
+```
+git clone https://github.com/mandiant/flare-fakenet-ng.git
+git checkout -b <your_branch_name>
+```
+* Make necessary changes, commit and push your local branch to remote:
+```
+git push origin <your_branch_name>
+```
+* Create a pull request
 
 All contributors:
 * Pull request comment should bear bulleted list for inclusion in change log.

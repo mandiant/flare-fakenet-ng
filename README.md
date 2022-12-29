@@ -36,7 +36,7 @@ application's specific functionality and prototyping PoCs.
 Installation
 ============
 
-You can install FakeNet-NG in a few different ways. Note that the following installation processes will retrieve third-party open-source libraries used by FakeNet-NG to your system. These libraries will be dynamically loaded at runtime, and some of these libraries may be GPL or LGPL licensed.
+You can install FakeNet-NG in a few different ways. Note that the following installation processes will retrieve third-party open-source libraries used by FakeNet-NG to your system. These libraries will be dynamically loaded at runtime, and some of these libraries may be LGPL licensed.
 
 Stand-alone executable
 ----------------------
