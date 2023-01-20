@@ -26,9 +26,9 @@ setup(
     version='1.4.13',
     description="",
     long_description="",
-    author="FireEye FLARE Team with credit to Peter Kacherginsky as the original developer",
-    author_email='FakeNet@fireeye.com',
-    url='https://www.github.com/fireeye/flare-fakenet-ng',
+    author="Mandiant FLARE Team with credit to Peter Kacherginsky as the original developer",
+    author_email='FakeNet@mandiant.com',
+    url='https://www.github.com/mandiant/flare-fakenet-ng',
     packages=[
         'fakenet',
     ],
