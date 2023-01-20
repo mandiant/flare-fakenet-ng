@@ -737,7 +737,7 @@ class FakeNetTester(object):
         t['TCP custom test static string'] = (self._test_sk, (tcp, ext_ip, 1001, b'whatever', b'static string TCP response'), True)
         t['TCP custom test static file'] = (self._test_sk, (tcp, ext_ip, 1002, b'whatever', b'sample TCP raw file response'), True)
         whatever = b'whatever'  # Ensures matching test/expected for TCP dynamic
-        t['TCP custom test dynamic'] = (self._test_sk, (tcp, ext_ip, 1003, whatever, b''.join([chr(c+1).encode() for c in whatever])), True)
+        t['TCP custom test dynamic'] = (self._test_sk, (tcp, ext_ip, 1003, whatever, b''.join([chr(c+1).encode("utf-8") for c in whatever])), True)
 
         t['UDP external IP @ bound'] = (self._test_sk, (udp, ext_ip, 1337), True)
         t['UDP external IP @ unbound'] = (self._test_sk, (udp, ext_ip, 9999), True)
@@ -751,7 +751,7 @@ class FakeNetTester(object):
 
         t['UDP custom test static Base64'] = (self._test_sk, (udp, ext_ip, 1000, b'whatever', b'\x0fL\x0aR\x0e'), True)
         whatever = b'whatever2'  # Ensures matching test/expected for UDP dynamic
-        t['UDP custom test dynamic'] = (self._test_sk, (udp, ext_ip, 1003, whatever, b''.join([chr(c+1).encode() for c in whatever])), True)
+        t['UDP custom test dynamic'] = (self._test_sk, (udp, ext_ip, 1003, whatever, b''.join([chr(c+1).encode("utf-8") for c in whatever])), True)
 
         t['ICMP external IP'] = (self._test_icmp, (ext_ip,), True)
         t['ICMP arbitrary host'] = (self._test_icmp, (arbitrary,), True)

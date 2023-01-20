@@ -82,7 +82,7 @@ of this writing, they include:
 * `requests`
 * `icmplib`
 
-Install these dependencies using the `requirements.txt` in `test` folder:
+Install these dependencies using `requirements.txt` in the `test` folder:
 ```
 pip install -r requirements.txt
 ```

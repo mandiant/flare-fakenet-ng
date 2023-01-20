@@ -1,3 +1,4 @@
+netifaces
 icmplib
 irc
 requests
