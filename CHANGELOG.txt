@@ -1,3 +1,10 @@
+Version 1.4.13
+--------------
+* Port test scripts to Python 3
+* Replace pyping package with icmplib as the former is not compatible with Python 3
+* Add additional logging to test.py to output the number of tests passed/failed
+* Add copyright notice to README.md, splash screen, and test.py
+
 Version 1.4.12
 --------------
 * Increase default timeout for HTTPListener to 10 seconds
