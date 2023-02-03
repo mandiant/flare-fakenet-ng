@@ -78,9 +78,14 @@ the FakeNet machine during testing. For details, see the section titled "Using
 ### Test Script Dependencies
 The test script requires dependencies over and above what FakeNet calls for. As
 of this writing, they include:
-* `pyping`
 * `irc`
 * `requests`
+* `icmplib`
+
+Install these dependencies using `requirements.txt` in the `test` folder:
+```
+pip install -r requirements.txt
+```
 
 ### Test Script Usage
 FakeNet supports Internet simulation for the local machine (i.e. in

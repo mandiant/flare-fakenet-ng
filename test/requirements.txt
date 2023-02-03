@@ -1,0 +1,4 @@
+netifaces
+icmplib
+irc
+requests

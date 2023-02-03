@@ -122,9 +122,19 @@ version numbers are to be incorporated in artifacts such as directory names.
 Branching, Pull Requests, and Merging
 -------------------------------------
 
-FireEye only:
-* Create branches directly under the `fireeye/` GitHub repository, not under a
+Mandiant only:
+* Create branches directly under the `mandiant/` GitHub repository, not under a
   private fork.
+* Create a new local branch:
+```
+git clone https://github.com/mandiant/flare-fakenet-ng.git
+git checkout -b <your_branch_name>
+```
+* Make necessary changes, commit and push your local branch to remote:
+```
+git push origin <your_branch_name>
+```
+* Create a pull request
 
 All contributors:
 * Pull request comment should bear bulleted list for inclusion in change log.
@@ -256,17 +266,17 @@ fakenet1.4.3\
     		+-- ssl_detector.py
 ```
 
-FireEye only:
+Mandiant only:
 * Create a zip file of the release distribution named `fakenet<ver>.zip`, where
   `<ver>` is the dot-decimal version number. For example: `fakenet1.4.3.zip`.
 * The top-level directory in the zip file should be `fakenet<ver>` e.g.
   `fakenet1.4.3`.
 * Test the distribution before adding it to the appropriate release tag.
 
-Tagging a Release (FireEye only)
+Tagging a Release (Mandiant only)
 --------------------------------
 
-1. Visit <https://github.com/fireeye/flare-fakenet-ng/releases>
+1. Visit <https://github.com/mandiant/flare-fakenet-ng/releases>
 2. Click `Draft a new release`
 3. Tag version: `v<ver>`, e.g. `v1.4.3`
 4. Release title: `FakeNet-NG <ver>`, e.g. `FakeNet-NG 1.4.3`

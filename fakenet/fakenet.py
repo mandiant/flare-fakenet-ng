@@ -1,3 +1,5 @@
+# Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
+
 #!/usr/bin/env python
 #
 # FakeNet-NG is a next generation dynamic network analysis tool for malware
@@ -331,9 +333,10 @@ def main():
  | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
  |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                        Version 1.4.12
+                        Version 1.4.13
   _____________________________________________________________
                    Developed by FLARE Team
+    Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
   _____________________________________________________________
                                                """
 

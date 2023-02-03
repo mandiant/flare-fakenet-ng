@@ -36,7 +36,10 @@ application's specific functionality and prototyping PoCs.
 Installation
 ============
 
-You can install FakeNet-NG in a few different ways.
+You can install FakeNet-NG in a few different ways. Note that the following
+installation processes will retrieve third-party open-source libraries used
+by FakeNet-NG to your system. These libraries will be dynamically loaded at
+runtime, and some of these libraries may be LGPL licensed.
 
 Stand-alone executable
 ----------------------
@@ -44,7 +47,7 @@ Stand-alone executable
 It is easiest to simply download the compiled version which can be obtained from
 the releases page:
 
-    https://github.com/fireeye/flare-fakenet-ng/releases
+    https://github.com/mandiant/flare-fakenet-ng/releases
 
 Execute FakeNet-NG by running 'fakenet.exe'.
 
@@ -66,13 +69,17 @@ Installation on Linux requires the following dependencies:
  * libnetfilterqueue development files (e.g. libnetfilter-queue-dev for
    Ubuntu).
 
+Install these dependencies using the following command:
+
+    sudo apt-get install build-essential python-dev libnetfilter-queue-dev
+
 Install FakeNet-NG as a Python module using pip:
 
-    pip install https://github.com/fireeye/flare-fakenet-ng/zipball/master
+    pip install https://github.com/mandiant/flare-fakenet-ng/zipball/master
 
 Or by obtaining the latest source code and installing it manually:
 
-    git clone https://github.com/fireeye/flare-fakenet-ng/
+    git clone https://github.com/mandiant/flare-fakenet-ng/
 
 Change directory to the downloaded flare-fakenet-ng and run:
 
@@ -104,7 +111,7 @@ install dependencies as follows:
 
 3) Download the FakeNet-NG source code:
 
-    git clone https://github.com/fireeye/flare-fakenet-ng
+    git clone https://github.com/mandiant/flare-fakenet-ng
 
 Execute FakeNet-NG by running it with a Python interpreter in a privileged
 shell:
@@ -129,6 +136,7 @@ parameter to get simple help:
                              Version  1.0
       _____________________________________________________________
                        Developed by FLARE Team
+        Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
       _____________________________________________________________
     Usage: fakenet.py [options]:
 
@@ -183,6 +191,7 @@ and an HTTP connection:
                              Version  1.0
       _____________________________________________________________
                        Developed by FLARE Team
+        Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
       _____________________________________________________________
 
     07/06/16 10:20:52 PM [           FakeNet] Loaded configuration file: configs/default.ini
@@ -847,5 +856,5 @@ Contact
 =======
 
 For bugs, crashes, or other comments please contact
-FakeNet@fireeye.com.
+FakeNet@mandiant.com.
 
