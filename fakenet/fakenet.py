@@ -191,6 +191,18 @@ class Fakenet(object):
                 from diverters.linux import Diverter
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
 
+            elif platform_name.lower().startswith('darwin'):
+                self.diverter_config['networkmode']= 'singlehost'
+                from diverters.darwin.factory import make_diverter
+                diverter = make_diverter(self.diverter_config,
+                                         self.listeners_config,
+                                         ip_addrs,
+                                         self.logging_level)
+                if diverter is None:
+                    self.logger.critical("Error: Failed to make Darwin diverter")
+                    sys.exit(1)
+                self.diverter = diverter
+
             else:
                 self.logger.critical(
                     'Error: Your system %s is currently not supported.' %
