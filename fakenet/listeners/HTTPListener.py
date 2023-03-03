@@ -382,7 +382,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
         try:
             f = open(response_filename, 'rb')
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Failed to open response file: %s', response_filename)
             response_type = 'text/html'
         else:
@@ -403,20 +403,20 @@ def test(config):
 
     url = "%s://localhost:%s" % ('http' if config.get('usessl') == 'No' else 'https', int(config.get('port', 8080)))
 
-    print "\t[HTTPListener] Testing HEAD request."
-    print '-'*80
-    print requests.head(url, verify=False, stream=True).text
-    print '-'*80
+    print("\t[HTTPListener] Testing HEAD request.")
+    print('-'*80)
+    print(requests.head(url, verify=False, stream=True).text)
+    print('-'*80)
 
-    print "\t[HTTPListener] Testing GET request."
-    print '-'*80
-    print requests.get(url, verify=False, stream=True).text
-    print '-'*80
+    print("\t[HTTPListener] Testing GET request.")
+    print('-'*80)
+    print(requests.get(url, verify=False, stream=True).text)
+    print('-'*80)
 
-    print "\t[HTTPListener] Testing POST request."
-    print '-'*80
-    print requests.post(url, {'param1':'A'*80, 'param2':'B'*80}, verify=False, stream=True).text
-    print '-'*80
+    print("\t[HTTPListener] Testing POST request.")
+    print('-'*80)
+    print(requests.post(url, {'param1':'A'*80, 'param2':'B'*80}, verify=False, stream=True).text)
+    print('-'*80)
 
 def main():
     """

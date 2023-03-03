@@ -84,7 +84,7 @@ class DNSHandler():
             # Parse data as DNS        
             d = DNSRecord.parse(data)
 
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Error: Invalid DNS Request')
             for line in hexdump_table(data):
                 self.server.logger.warning(INDENT + line)
@@ -204,7 +204,7 @@ class UDPHandler(DNSHandler, SocketServer.BaseRequestHandler):
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)
 
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Error: %s', e)
 
 class TCPHandler(DNSHandler, SocketServer.BaseRequestHandler):
@@ -234,7 +234,7 @@ class TCPHandler(DNSHandler, SocketServer.BaseRequestHandler):
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror)
 
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Error: %s', e)
 
 class ThreadedUDPServer(SocketServer.ThreadingMixIn, SocketServer.UDPServer):
@@ -270,31 +270,31 @@ def hexdump_table(data, length=16):
 # Testing code
 def test(config):
 
-    print "\t[DNSListener] Testing 'google.com' A record."
+    print("\t[DNSListener] Testing 'google.com' A record.")
     query = DNSRecord(q=DNSQuestion('google.com',getattr(QTYPE,'A')))
     answer_pkt = query.send('localhost', int(config.get('port', 53)))
     answer = DNSRecord.parse(answer_pkt)
 
-    print '-'*80
-    print answer
-    print '-'*80
+    print('-'*80)
+    print(answer)
+    print('-'*80)
 
-    print "\t[DNSListener] Testing 'google.com' MX record."
+    print("\t[DNSListener] Testing 'google.com' MX record.")
     query = DNSRecord(q=DNSQuestion('google.com',getattr(QTYPE,'MX')))
     answer_pkt = query.send('localhost', int(config.get('port', 53)))
     answer = DNSRecord.parse(answer_pkt)
 
-    print '-'*80
-    print answer
+    print('-'*80)
+    print(answer)
 
-    print "\t[DNSListener] Testing 'google.com' TXT record."
+    print("\t[DNSListener] Testing 'google.com' TXT record.")
     query = DNSRecord(q=DNSQuestion('google.com',getattr(QTYPE,'TXT')))
     answer_pkt = query.send('localhost', int(config.get('port', 53)))
     answer = DNSRecord.parse(answer_pkt)
 
-    print '-'*80
-    print answer
-    print '-'*80
+    print('-'*80)
+    print(answer)
+    print('-'*80)
 
 def main():
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)

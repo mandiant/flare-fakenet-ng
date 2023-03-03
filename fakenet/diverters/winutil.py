@@ -379,7 +379,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                         subprocess.check_call(cmd_set_gw, shell=True,
                                               stdout=subprocess.PIPE,
                                               stderr=subprocess.PIPE)
-                    except subprocess.CalledProcessError, e:
+                    except subprocess.CalledProcessError as e:
                         self.logger.error("         Failed to set gateway %s on interface %s."
                                           % (gw_address, interface_name))
                     else:
@@ -420,7 +420,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                               shell=True,
                                               stdout=subprocess.PIPE,
                                               stderr=subprocess.PIPE)
-                    except subprocess.CalledProcessError, e:
+                    except subprocess.CalledProcessError as e:
                         self.logger.error("         Failed to set DNS %s on interface %s."
                                           % (dns_address, interface_name))
                     else:
@@ -650,7 +650,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                       service_name, shell=True,
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError, e:
+            except subprocess.CalledProcessError as e:
                 self.logger.error(
                     'Failed to enable the service %s. (sc config)',
                     service_name)
@@ -700,7 +700,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                 subprocess.check_call("net start %s" % service_name,
                                       shell=True, stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError, e:
+            except subprocess.CalledProcessError as e:
                 self.logger.error(
                     'Failed to start the service %s. (net stop)', service_name)
             else:
@@ -739,7 +739,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                       service_name, shell=True,
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError, e:
+            except subprocess.CalledProcessError as e:
                 self.logger.error(
                     'Failed to disable the service %s. (sc config)', service_name)
             else:
@@ -788,7 +788,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
                 subprocess.check_call("net stop %s" % service_name,
                                       shell=True, stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError, e:
+            except subprocess.CalledProcessError as e:
                 self.logger.error(
                     'Failed to stop the service %s. (net stop)', service_name)
             else:
@@ -1200,7 +1200,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
         try:
             subprocess.check_call(
                 'ipconfig /flushdns', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        except subprocess.CalledProcessError, e:
+        except subprocess.CalledProcessError as e:
             self.logger.error("Failed to flush DNS cache. Local machine may "
                               "use cached DNS results.")
         else:

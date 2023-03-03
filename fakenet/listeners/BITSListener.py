@@ -278,7 +278,7 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
             crange, total_length = content_range.split("/")
             total_length = int(total_length)
             range_start, range_end = [int(num) for num in crange.split("-")]
-        except AttributeError, IndexError:
+        except (AttributeError, IndexError):
             self.__send_response(status_code = HTTPStatus.BAD_REQUEST)
             return
 

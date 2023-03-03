@@ -242,7 +242,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             except socket.error as msg:
                 self.server.logger.error('Error: %s', msg.strerror or msg)
 
-            except Exception, e:
+            except Exception as e:
                 self.server.logger.error('Error: %s', e)
 
 class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
@@ -264,7 +264,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
             except socket.error as msg:
                 self.server.logger.error('Error: %s', msg.strerror or msg)
 
-            except Exception, e:
+            except Exception as e:
                 self.server.logger.error('Error: %s', e)
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
@@ -292,7 +292,7 @@ def test(config):
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    print "\t[RawListener] Sending request:\n%s" % "HELO\n"
+    print("\t[RawListener] Sending request:\n%s" % "HELO\n")
     try:
         # Connect to server and send data
         sock.connect(('localhost', int(config.get('port', 23))))

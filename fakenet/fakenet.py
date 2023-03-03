@@ -325,7 +325,7 @@ class IfaceIpInfo():
 
 def main():
 
-    print """
+    print ("""
   ______      _  ________ _   _ ______ _______     _   _  _____
  |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
  | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
@@ -338,7 +338,7 @@ def main():
                    Developed by FLARE Team
     Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
   _____________________________________________________________
-                                               """
+                                               """)
 
     # Parse command line arguments
     parser = OptionParser(usage = "fakenet.py [options]:")

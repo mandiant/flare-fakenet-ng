@@ -136,7 +136,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)
 
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Error: %s', e)
 
     def pop_DEFAULT(self, cmd, params):
@@ -254,8 +254,8 @@ def test(config):
     server.pass_('password')
 
     logger.info('Listing and retrieving messages.')
-    print server.list()
-    print server.retr(1)
+    print(server.list())
+    print(server.retr(1))
     server.quit()
 
 def main():

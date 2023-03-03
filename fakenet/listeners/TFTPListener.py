@@ -159,7 +159,7 @@ class ThreadedUDPRequestHandler(SocketServer.BaseRequestHandler):
 
                 self.server.logger.error('Unknown opcode: %d', struct.unpack('!H', data[:2])[0])
 
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Error: %s', e)
             raise e
 

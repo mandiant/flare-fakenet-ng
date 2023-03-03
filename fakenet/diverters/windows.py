@@ -127,7 +127,7 @@ class Diverter(DiverterBase, WinUtilMixin):
         try:
             self.handle = WinDivert(filter=self.filter)
             self.handle.open()
-        except WindowsError, e:
+        except WindowsError as e:
             if e.winerror == 5:
                 self.logger.critical('ERROR: Insufficient privileges to run '
                                      'windows diverter.')
@@ -196,7 +196,7 @@ class Diverter(DiverterBase, WinUtilMixin):
                 self.setLastErrorNull()  # WinDivert/LastError workaround
                 try:
                     self.handle.send(pkt.wdpkt)
-                except Exception, e:
+                except Exception as e:
 
                     protocol = 'Unknown'
 
@@ -234,7 +234,7 @@ class Diverter(DiverterBase, WinUtilMixin):
                 subprocess.check_call(cmd_set_dhcp, shell=True,
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError, e:
+            except subprocess.CalledProcessError as e:
                 self.logger.error('Failed to restore DHCP on interface %s.' %
                                   interface_name)
             else:
@@ -257,7 +257,7 @@ class Diverter(DiverterBase, WinUtilMixin):
                 subprocess.check_call(cmd_set_dns_dhcp, shell=True,
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError, e:
+            except subprocess.CalledProcessError as e:
                 self.logger.error("Failed to restore DNS on interface %s." %
                                   interface_name)
             else:
