@@ -1,5 +1,8 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 import logging
 import os
+import sys
 
 def safe_join(root, path):
     """ 
@@ -30,8 +33,12 @@ def abs_config_path(path):
     if os.path.exists(abspath):
         return abspath
 
-    # Try to locate the location relative to application path
-    relpath = os.path.join(os.path.dirname(os.path.dirname(__file__)), path) 
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        relpath = os.path.join(os.getcwd(), path)
+    else:
+
+        # Try to locate the location relative to application path
+        relpath = os.path.join(os.path.dirname(os.path.dirname(__file__)), path)
 
     if os.path.exists(relpath):
         return os.path.abspath(relpath)

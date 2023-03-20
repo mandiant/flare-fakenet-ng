@@ -1,8 +1,10 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 import logging
 
 import threading
 import netifaces
-import SocketServer
+import socketserver
 from dnslib import *
 
 import ssl
@@ -45,7 +47,7 @@ class DNSListener(object):
         self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
-        for key, value in config.iteritems():
+        for key, value in config.items():
             self.logger.debug('  %10s: %s', key, value)
 
     def start(self):
@@ -84,7 +86,7 @@ class DNSHandler():
             # Parse data as DNS        
             d = DNSRecord.parse(data)
 
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Error: Invalid DNS Request')
             for line in hexdump_table(data):
                 self.server.logger.warning(INDENT + line)
@@ -190,7 +192,7 @@ class DNSHandler():
                 
         return response  
 
-class UDPHandler(DNSHandler, SocketServer.BaseRequestHandler):
+class UDPHandler(DNSHandler, socketserver.BaseRequestHandler):
 
     def handle(self):
 
@@ -204,10 +206,10 @@ class UDPHandler(DNSHandler, SocketServer.BaseRequestHandler):
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)
 
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Error: %s', e)
 
-class TCPHandler(DNSHandler, SocketServer.BaseRequestHandler):
+class TCPHandler(DNSHandler, socketserver.BaseRequestHandler):
 
     def handle(self):
 
@@ -234,18 +236,18 @@ class TCPHandler(DNSHandler, SocketServer.BaseRequestHandler):
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror)
 
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Error: %s', e)
 
-class ThreadedUDPServer(SocketServer.ThreadingMixIn, SocketServer.UDPServer):
+class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
 
     # Override SocketServer.UDPServer to add extra parameters
     def __init__(self, server_address, config, logger, RequestHandlerClass):
         self.config = config
         self.logger = logger
-        SocketServer.UDPServer.__init__(self, server_address, RequestHandlerClass)
+        socketserver.UDPServer.__init__(self, server_address, RequestHandlerClass)
 
-class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     
     # Override default value
     allow_reuse_address = True
@@ -254,7 +256,7 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     def __init__(self, server_address, config, logger, RequestHandlerClass):
         self.config = config
         self.logger = logger
-        SocketServer.TCPServer.__init__(self,server_address,RequestHandlerClass)
+        socketserver.TCPServer.__init__(self,server_address,RequestHandlerClass)
 
 def hexdump_table(data, length=16):
 
@@ -270,31 +272,31 @@ def hexdump_table(data, length=16):
 # Testing code
 def test(config):
 
-    print "\t[DNSListener] Testing 'google.com' A record."
+    print("\t[DNSListener] Testing 'google.com' A record.")
     query = DNSRecord(q=DNSQuestion('google.com',getattr(QTYPE,'A')))
     answer_pkt = query.send('localhost', int(config.get('port', 53)))
     answer = DNSRecord.parse(answer_pkt)
 
-    print '-'*80
-    print answer
-    print '-'*80
+    print('-'*80)
+    print(answer)
+    print('-'*80)
 
-    print "\t[DNSListener] Testing 'google.com' MX record."
+    print("\t[DNSListener] Testing 'google.com' MX record.")
     query = DNSRecord(q=DNSQuestion('google.com',getattr(QTYPE,'MX')))
     answer_pkt = query.send('localhost', int(config.get('port', 53)))
     answer = DNSRecord.parse(answer_pkt)
 
-    print '-'*80
-    print answer
+    print('-'*80)
+    print(answer)
 
-    print "\t[DNSListener] Testing 'google.com' TXT record."
+    print("\t[DNSListener] Testing 'google.com' TXT record.")
     query = DNSRecord(q=DNSQuestion('google.com',getattr(QTYPE,'TXT')))
     answer_pkt = query.send('localhost', int(config.get('port', 53)))
     answer = DNSRecord.parse(answer_pkt)
 
-    print '-'*80
-    print answer
-    print '-'*80
+    print('-'*80)
+    print(answer)
+    print('-'*80)
 
 def main():
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)

@@ -116,7 +116,7 @@ install dependencies as follows:
 Execute FakeNet-NG by running it with a Python interpreter in a privileged
 shell:
 
-    python fakenet.py
+    python -m fakenet.fakenet
 
 Usage
 =====
@@ -138,7 +138,7 @@ parameter to get simple help:
                        Developed by FLARE Team
         Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
       _____________________________________________________________
-    Usage: fakenet.py [options]:
+    Usage: python -m fakenet.fakenet [options]:
 
     Options:
       -h, --help            show this help message and exit

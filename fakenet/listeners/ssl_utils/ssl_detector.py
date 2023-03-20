@@ -1,3 +1,5 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 import logging
 
 def looks_like_ssl(data):
@@ -37,20 +39,20 @@ def looks_like_ssl(data):
         return False
 
     # check for sslv2 which is deprecated but malware may use it anyway
-    if ord(data[0]) == 0x80:
-        if ord(data[2]) in handshake_message_types:
+    if data[0] == 0x80:
+        if data[2] in handshake_message_types:
             self.logger.info('SSLv2 detected')
             return True
         return False
 
-    elif ord(data[0]) not in content_types.values():
+    elif data[0] not in list(content_types.values()):
         return False
 
-    elif ord(data[0]) == content_types['Handshake']:
-        return ord(data[5]) in handshake_message_types.values()
+    elif data[0] == content_types['Handshake']:
+        return data[5] in list(handshake_message_types.values())
 
-    ssl_version = ord(data[1]) << 8 | ord(data[2])
-    if ssl_version not in valid_versions.values():
+    ssl_version = data[1] << 8 | data[2]
+    if ssl_version not in list(valid_versions.values()):
         return False
     return True
 

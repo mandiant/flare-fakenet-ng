@@ -1,10 +1,12 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 import logging
 
 import sys
 import os
 
 import threading
-import SocketServer
+import socketserver
 
 import ssl
 import socket
@@ -19,10 +21,10 @@ class SMTPListener(object):
         # the conversation with '220' message. However, if the client connects
         # to a nonstandard port there is no way for the proxy to know that
         # SMTP is the protocol until the client sends a message.
-        commands = ['HELO', 'EHLO', 'MAIL FROM', 'RCPT TO', 'TURN', 'ATRN', 
-                'SIZE', 'ETRN', 'PIPELINING', 'CHUNKING', 'DATA', 'DSN', 
-                'RSET', 'VRFY', 'HELP', 'QUIT', 'X-EXPS GSSAPI', 
-                'X-EXPS=LOGIN', 'X-EXCH50', 'X-LINK2STATE']
+        commands = [b'HELO', b'EHLO', b'MAIL FROM', b'RCPT TO', b'TURN', b'ATRN',
+                b'SIZE', b'ETRN', b'PIPELINING', b'CHUNKING', b'DATA', b'DSN',
+                b'RSET', b'VRFY', b'HELP', b'QUIT', b'X-EXPS GSSAPI',
+                b'X-EXPS=LOGIN', b'X-EXCH50', b'X-LINK2STATE']
         ports = [25, 587, 465]
         confidence = 1 if dport in ports else 0
 
@@ -53,7 +55,7 @@ class SMTPListener(object):
         self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
-        for key, value in config.iteritems():
+        for key, value in config.items():
             self.logger.debug('  %10s: %s', key, value)
 
     def start(self):
@@ -90,7 +92,7 @@ class SMTPListener(object):
             self.server.shutdown()
             self.server.server_close()
 
-class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
+class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
 
@@ -99,30 +101,30 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         try:
 
-            self.request.sendall("%s\r\n" % self.server.config.get('banner',"220 FakeNet SMTP Service Ready"))
+            self.request.sendall(b"%s\r\n" % self.server.config.get('banner', "220 FakeNet SMTP Service Ready").encode())
             while True:
                 data = self.request.recv(4096)
-                for line in data.split("\n"):
+                for line in data.split(b"\n"):
                     self.server.logger.debug(line)
 
-                command = data[:4].upper()
+                command = data[:4].decode("utf-8").upper()
 
                 if command == '':
                     break
 
                 elif command in ['HELO','EHLO']:
-                    self.request.sendall("250 evil.com\r\n")
+                    self.request.sendall(b"250 evil.com\r\n")
 
                 elif command in ['MAIL', 'RCPT', 'NOOP', 'RSET']:
-                    self.request.sendall("250 OK\r\n")
+                    self.request.sendall(b"250 OK\r\n")
 
                 elif command == 'QUIT':
-                    self.request.sendall("221 evil.com bye\r\n")
+                    self.request.sendall(b"221 evil.com bye\r\n")
 
                 elif command == "DATA":
-                    self.request.sendall("354 start mail input, end with <CRLF>.<CRLF>\r\n")
+                    self.request.sendall(b"354 start mail input, end with <CRLF>.<CRLF>\r\n")
 
-                    mail_data = ""
+                    mail_data = b""
                     while True:
                         mail_data_chunk = self.request.recv(4096)
 
@@ -131,17 +133,17 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         mail_data += mail_data_chunk
 
-                        if "\r\n.\r\n" in mail_data:
+                        if b"\r\n.\r\n" in mail_data:
                             break
 
                     self.server.logger.info('Received mail data.')
-                    for line in mail_data.split("\n"):
+                    for line in mail_data.split(b"\n"):
                         self.server.logger.info(line)
 
-                    self.request.sendall("250 OK\r\n")
+                    self.request.sendall(b"250 OK\r\n")
 
                 else:
-                    self.request.sendall("503 Command not supported\r\n")
+                    self.request.sendall(b"503 Command not supported\r\n")
 
         except socket.timeout:
             self.server.logger.warning('Connection timeout')
@@ -149,10 +151,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)
 
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Error: %s', e)
 
-class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
 ###############################################################################

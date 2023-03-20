@@ -1,3 +1,5 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 import random
 import socket
 import string
@@ -140,7 +142,7 @@ class BannerFactory(object):
         if banner.startswith('!'):
             banner = banner[1:]
             if banner.lower() == 'random':
-                banner = random.choice(bannerdict.keys())
+                banner = random.choice(list(bannerdict.keys()))
             elif banner not in bannerdict:
                 raise ValueError(
                         'Banner config escape !%s not a valid banner key' %

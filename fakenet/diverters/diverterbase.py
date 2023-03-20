@@ -1,3 +1,5 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 import os
 import abc
 import sys
@@ -10,7 +12,7 @@ import threading
 import subprocess
 from . import fnpacket
 from . import fnconfig
-from debuglevels import *
+from .debuglevels import *
 from collections import namedtuple
 from collections import OrderedDict
 
@@ -92,7 +94,7 @@ class DivertParms(object):
                     (self.pkt.dst_ip, self.pkt.dport))
 
 
-class DiverterPerOSDelegate(object):
+class DiverterPerOSDelegate(object, metaclass=abc.ABCMeta):
     """Delegate class for OS-specific methods that FakeNet-NG implementors must
     override.
 
@@ -105,7 +107,6 @@ class DiverterPerOSDelegate(object):
         check_gateways (currently only a warning)
         check_dns_servers (currently only a warning)
     """
-    __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
     def check_active_ethernet_adapters(self):
@@ -332,7 +333,7 @@ class ListenerPorts(object):
 
     def getPortList(self, proto):
         if proto in self.protos:
-            return self.protos[proto].keys()
+            return list(self.protos[proto].keys())
         return []
 
     def intersectsWithPorts(self, proto, ports):
@@ -540,7 +541,7 @@ class DiverterBase(fnconfig.Config):
         stringlists = ['HostBlackList']
         self.configure(diverter_config, portlists, stringlists)
         self.listeners_config = dict((k.lower(), v)
-                                     for k, v in listeners_config.iteritems())
+                                     for k, v in listeners_config.items())
 
         # Local IP address
         self.external_ip = socket.gethostbyname(socket.gethostname())
@@ -773,7 +774,7 @@ class DiverterBase(fnconfig.Config):
 
         #######################################################################
         # Populate diverter ports and process filters from the configuration
-        for listener_name, listener_config in listeners_config.iteritems():
+        for listener_name, listener_config in listeners_config.items():
 
             if 'port' in listener_config:
 
@@ -1238,6 +1239,12 @@ class DiverterBase(fnconfig.Config):
         Returns:
             A str containing the log line
         """
+        if pid == None:
+            pid = 'None'
+
+        if comm == None:
+            comm = 'None'
+
         logline = ''
 
         if pkt.proto == 'UDP':

@@ -1,13 +1,15 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 import logging
-from ConfigParser import ConfigParser
+from configparser import ConfigParser
 
 import os
 import sys
 import imp
 
 import threading
-import SocketServer
-import BaseHTTPServer
+import socketserver
+import http.server
 
 import ssl
 import socket
@@ -120,7 +122,7 @@ class CustomResponse(object):
     def respond(self, req, meth, postdata=None):
         current_time = req.date_time_string()
         if self.raw_file:
-            up_to_date = self.raw_file.replace('<RAW-DATE>', current_time)
+            up_to_date = self.raw_file.replace(b'<RAW-DATE>', current_time.encode("utf-8"))
             req.wfile.write(up_to_date)
         elif self.handler:
             self.handler(req, meth, postdata)
@@ -131,15 +133,15 @@ class CustomResponse(object):
             if self.content_type:
                 req.send_header('Content-Type', self.content_type)
             req.end_headers()
-            req.wfile.write(up_to_date)
+            req.wfile.write(up_to_date.encode("utf-8"))
 
 
 class HTTPListener(object):
 
     def taste(self, data, dport):
 
-        request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 
-            'OPTIONS', 'CONNECT', 'PATCH']
+        request_methods = [b'GET', b'HEAD', b'POST', b'PUT', b'DELETE', b'TRACE',
+            b'OPTIONS', b'CONNECT', b'PATCH']
 
         confidence = 1 if dport in [80, 443] else 0
 
@@ -173,7 +175,7 @@ class HTTPListener(object):
         self.port = self.config.get('port', 80)
 
         self.logger.debug('Initialized with config:')
-        for key, value in config.iteritems():
+        for key, value in config.items():
             self.logger.debug('  %10s: %s', key, value)
 
         # Initialize webroot directory
@@ -245,16 +247,16 @@ class HTTPListener(object):
             self.server.server_close()
 
 
-class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
+class ThreadedHTTPServer(http.server.HTTPServer):
 
     def handle_error(self, request, client_address):
         exctype, value = sys.exc_info()[:2]
         self.logger.error('Error: %s', value)
 
-class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
 
     def __init__(self, *args):
-        BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, *args)
+        http.server.BaseHTTPRequestHandler.__init__(self, *args)
         self.logger = self.server.logger
 
     def version_string(self):
@@ -262,7 +264,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     def setup(self):
         self.request.settimeout(int(self.server.config.get('timeout', 10)))
-        BaseHTTPServer.BaseHTTPRequestHandler.setup(self)
+        http.server.BaseHTTPRequestHandler.setup(self)
 
     def doCustomResponse(self, meth, post_data=None):
         uri = self.path
@@ -308,7 +310,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.wfile.write(response)
 
     def do_POST(self):
-        post_body = ''
+        post_body = b''
 
         content_len = int(self.headers.get('content-length', 0))
         post_body = self.rfile.read(content_len)
@@ -317,8 +319,8 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
             self.server.logger.info(INDENT + line)
-        for line in post_body.split("\n"):
-            self.server.logger.info(INDENT + line)
+        for line in post_body.split(b"\n"):
+            self.server.logger.info(INDENT.encode('utf-8') + line)
 
         # Store HTTP Posts
         if self.server.config.get('dumphttpposts') and self.server.config['dumphttpposts'].lower() == 'yes':
@@ -328,8 +330,8 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 http_f = open(http_filename, 'wb')
 
                 if http_f:
-                    http_f.write(self.requestline + "\r\n")
-                    http_f.write(str(self.headers) + "\r\n")
+                    http_f.write(self.requestline.encode('utf-8') + b"\r\n")
+                    http_f.write(str(self.headers).encode('utf-8') + b"\r\n")
                     http_f.write(post_body)
 
                     http_f.close()
@@ -382,7 +384,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
         try:
             f = open(response_filename, 'rb')
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Failed to open response file: %s', response_filename)
             response_type = 'text/html'
         else:
@@ -403,20 +405,20 @@ def test(config):
 
     url = "%s://localhost:%s" % ('http' if config.get('usessl') == 'No' else 'https', int(config.get('port', 8080)))
 
-    print "\t[HTTPListener] Testing HEAD request."
-    print '-'*80
-    print requests.head(url, verify=False, stream=True).text
-    print '-'*80
+    print("\t[HTTPListener] Testing HEAD request.")
+    print('-'*80)
+    print(requests.head(url, verify=False, stream=True).text)
+    print('-'*80)
 
-    print "\t[HTTPListener] Testing GET request."
-    print '-'*80
-    print requests.get(url, verify=False, stream=True).text
-    print '-'*80
+    print("\t[HTTPListener] Testing GET request.")
+    print('-'*80)
+    print(requests.get(url, verify=False, stream=True).text)
+    print('-'*80)
 
-    print "\t[HTTPListener] Testing POST request."
-    print '-'*80
-    print requests.post(url, {'param1':'A'*80, 'param2':'B'*80}, verify=False, stream=True).text
-    print '-'*80
+    print("\t[HTTPListener] Testing POST request.")
+    print('-'*80)
+    print(requests.post(url, {'param1':'A'*80, 'param2':'B'*80}, verify=False, stream=True).text)
+    print('-'*80)
 
 def main():
     """
