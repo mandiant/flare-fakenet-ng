@@ -1,3 +1,11 @@
+Version 3.0 (alpha)
+-----------
+* Migrate diverters, listeners and other components to Python 3
+* Retire BITS listener for now
+* Fix hard-coded FakeNet path for linux platform in test.py
+* Update README and developement documentation
+* Add copyright notice to modified files
+
 Version 1.4.13
 --------------
 * Port test scripts to Python 3

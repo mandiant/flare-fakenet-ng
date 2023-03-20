@@ -1,16 +1,3 @@
-Development Suspended
-=====================
-
-The FLARE Team must suspend development and maintenance of FakeNet-NG for the
-time being.
-
-FLARE has opted to indicate the project status here instead of archiving the
-project. This will allow users and maintainers to continue to log issues
-documenting valuable information about problems, troubleshooting, and
-work-arounds.
-
-Original Documentation Follows
-==============================
      ______      _  ________ _   _ ______ _______     _   _  _____
     |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
     | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
@@ -20,7 +7,7 @@ Original Documentation Follows
 
            D   O   C   U   M   E   N   T   A   T   I   O   N
 
-FakeNet-NG is a next generation dynamic network analysis tool for malware
+FakeNet-NG 3.0 (alpha) is a next generation dynamic network analysis tool for malware
 analysts and penetration testers. It is open source and designed for the latest
 versions of Windows (and Linux, for certain modes of operation). FakeNet-NG is
 based on the excellent Fakenet tool developed by Andrew Honig and Michael
@@ -57,10 +44,6 @@ analysis machine.
 
 Installing module
 -----------------
-
-Installation on Windows requires the following dependency:
- * [Microsoft Visual C++ Compiler for Python 2.7](https://aka.ms/vcpython27)
-
 Installation on Linux requires the following dependencies:
  * Python pip package manager (e.g. python-pip for Ubuntu).
  * Python development files (e.g. python-dev for Ubuntu).
@@ -94,7 +77,7 @@ Finally if you would like to avoid installing FakeNet-NG and just want to run it
 as-is (e.g. for development), then you would need to obtain the source code and
 install dependencies as follows:
 
-1) Install 64-bit or 32-bit Python 2.7.x for the 64-bit or 32-bit versions
+1) Install 64-bit or 32-bit Python 3.7.x for the 64-bit or 32-bit versions
    of Windows respectively.
 
 2) Install Python dependencies:
@@ -133,10 +116,10 @@ parameter to get simple help:
      | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
      |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                             Version  1.0
+                             Version  3.0 (alpha)
       _____________________________________________________________
                        Developed by FLARE Team
-        Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
+        Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
       _____________________________________________________________
     Usage: python -m fakenet.fakenet [options]:
 
@@ -188,7 +171,7 @@ and an HTTP connection:
      | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
      |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                             Version  1.0
+                             Version  3.0 (alpha)
       _____________________________________________________________
                        Developed by FLARE Team
         Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.

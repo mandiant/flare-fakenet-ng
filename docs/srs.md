@@ -116,7 +116,7 @@ currently implemented in any FakeNet-NG release), and `Auto`.
 ### Configuration Settings and Sections
 The configuration file used on each platform must conform to the format used by
 the others. As of this writing, it is based on the Python
-[ConfigParser](https://docs.python.org/2/library/configparser.html) package,
+[ConfigParser](https://docs.python.org/3/library/configparser.html) package,
 which is similar to an INI file.
 
 ### Quick Glossary of Miscellaneous Terms
