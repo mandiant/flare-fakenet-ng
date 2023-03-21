@@ -446,8 +446,9 @@ class FakeNetTester(object):
         logger.info('Testing')
         logger.info('-' * 79)
 
-        passedTests = 0
-        failedTests = 0
+        nPassedTests = 0
+        nFailedTests = 0
+        failedTests = []
 
         # Do each test
         for desc, (callback, args, expected) in tests.items():
@@ -460,17 +461,24 @@ class FakeNetTester(object):
                 passed = self._tryTest(desc, callback, args, expected)
 
             if passed:
-                passedTests += 1
+                nPassedTests += 1
             else:
-                failedTests += 1
+                nFailedTests += 1
+                failedTests.append(desc)
 
             self._printStatus(desc, passed)
 
             time.sleep(0.5)
 
         logger.info('-' * 79)
-        logger.info('Tests complete')
-        logger.info('%s/%s tests passed,  %s/%s tests failed' % (passedTests, len(tests), failedTests, len(tests)))
+        logger.info('Done.')
+        logger.info('Passed: %s/%s | Failed: %s/%s' % (nPassedTests, len(tests), nFailedTests, len(tests)))
+
+        if nFailedTests:
+            logger.info('\nFailed tests:')
+            for test in failedTests:
+                logger.info('[*] %s' % (test))
+
         logger.info('-' * 79)
 
         if self.settings.singlehost:
@@ -520,6 +528,8 @@ class FakeNetTester(object):
             recvd = s.recv(4096)
 
             retval = (recvd == expected)
+            if not retval:
+                logger.error('Expected response: %s, Received response: %s' % (expected, recvd))
 
         except socket.error as e:
             logger.error('Socket error: %s (%s %s:%d)' %
@@ -875,8 +885,8 @@ class FakeNetTestSettings:
         self.configpath = self.genPath('%TEMP%\\fakenet.ini', '/tmp/fakenet.ini')
         self.stopflag = self.genPath('%TEMP%\\stop_fakenet', '/tmp/stop_fakenet')
         self.logpath = self.genPath('%TEMP%\\fakenet.log', '/tmp/fakenet.log')
-        self.fakenet = self.genPath('fakenet', 'python fakenet.py')
-        self.fndir = self.genPath('.', '$HOME/files/src/flare-fakenet-ng/fakenet')
+        self.fakenet = self.genPath('fakenet', 'python3 -m fakenet.fakenet')
+        self.fndir = self.genPath('.', os.path.dirname(os.getcwd()))
 
         # For process blacklisting
         self.pythonname = os.path.basename(sys.executable)

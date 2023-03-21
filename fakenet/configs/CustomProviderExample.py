@@ -1,3 +1,5 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 import socket
 
 # To read about customizing HTTP responses, see docs/CustomResponse.md
@@ -14,7 +16,7 @@ def HandleRequest(req, method, post_data=None):
         The HTTP post data received by calling `rfile.read()` against the
         BaseHTTPRequestHandler that received the request.
     """
-    response = 'Ahoy\r\n'
+    response = b'Ahoy\r\n'
 
     if method == 'GET':
         req.send_response(200)
@@ -51,8 +53,8 @@ def HandleTcp(sock):
         if not data:
             break
 
-        resp = raw_input('\nEnter a response for the TCP client: ')
-        sock.sendall(resp)
+        resp = input('\nEnter a response for the TCP client: ')
+        sock.sendall(resp.encode())
 
 
 def HandleUdp(sock, data, addr):
@@ -68,5 +70,5 @@ def HandleUdp(sock, data, addr):
         The host and port of the remote peer
     """
     if data:
-        resp = raw_input('\nEnter a response for the UDP client: ')
-        sock.sendto(resp, addr)
+        resp = input('\nEnter a response for the UDP client: ')
+        sock.sendto(resp.encode(), addr)

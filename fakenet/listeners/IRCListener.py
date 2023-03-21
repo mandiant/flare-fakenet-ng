@@ -1,15 +1,17 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 import logging
 
 import sys
 import os
 
 import threading
-import SocketServer
+import socketserver
 
 import ssl
 import socket
 
-import BannerFactory
+from . import BannerFactory
 
 from . import *
 
@@ -48,15 +50,15 @@ class IRCListener(object):
             ]
 
         # ubuntu xchat uses 8001
-        ports = [194, 6667, range(6660, 7001), 8001]
+        ports = [194, 6667, list(range(6660, 7001)), 8001]
         
         confidence = 1 if dport in ports else 0
-        
+
         data = data.lstrip()
 
         # remove optional prefix
-        if data.startswith(':'):
-            data = data.split(' ')[0]
+        if data.startswith(b':'):
+            data = data.split(b' ')[0].decode()
 
         for command in commands:
             if data.startswith(command):
@@ -85,7 +87,7 @@ class IRCListener(object):
         self.logger.debug('Starting...')
 
         self.logger.debug('Initialized with config:')
-        for key, value in config.iteritems():
+        for key, value in config.items():
             self.logger.debug('  %10s: %s', key, value)
 
     def start(self):
@@ -112,7 +114,7 @@ class IRCListener(object):
         bannerfactory = BannerFactory.BannerFactory()
         return bannerfactory.genBanner(self.config, BANNERS)
 
-class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
+class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
 
@@ -125,14 +127,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
             while True:
 
-                data = self.request.recv(1024)
+                data = self.request.recv(1024).decode()
 
                 if not data:
                     break
 
                 elif len(data) > 0:
 
-                    for line in data.split("\n"):
+                    for line in data.split('\n'):
 
                         if line and len(line) > 0:
 
@@ -150,7 +152,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         except socket.error as msg:
             self.server.logger.error('Error: %s', msg.strerror or msg)
 
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Error: %s', e)
 
     def irc_DEFAULT(self, cmd, params):
@@ -173,10 +175,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             self.user = user
             self.mode = mode
             self.realname = realname
-            self.request.sendall('')
+            self.request.sendall(b'')
 
     def irc_PING(self, cmd, params):
-        self.request.sendall(":%s PONG :%s" % (self.server.servername, self.server.servername))
+        self.request.sendall((":%s PONG :%s" % (self.server.servername, self.server.servername)).encode())
 
 
     def irc_JOIN(self, cmd, params):
@@ -196,7 +198,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 self.server.logger.info('Client %s is joining channel %s with no key', self.nick, channel_name)
 
 
-            self.request.sendall(":root TOPIC %s :FakeNet\r\n" % channel_name)
+            self.request.sendall((":root TOPIC %s :FakeNet\r\n" % channel_name).encode())
             self.irc_send_client("JOIN :%s" % channel_name)
 
             nicks = ['botmaster', 'bot', 'admin', 'root', 'master']
@@ -230,15 +232,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         pass
 
     def irc_send_server(self, code, message):
-        self.request.sendall(":%s %s %s\r\n" % (self.server.servername, code, message))
+        self.request.sendall((":%s %s %s\r\n" % (self.server.servername, code, message)).encode())
 
     def irc_send_client(self, message):
         self.irc_send_client_custom(self.nick, self.user, self.server.servername, message)
 
     def irc_send_client_custom(self, nick, user, servername, message):
-        self.request.sendall(":%s!%s@%s %s\r\n" % (nick, user, servername, message))
+        self.request.sendall((":%s!%s@%s %s\r\n" % (nick, user, servername, message)).encode())
 
-class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     # Avoid [Errno 98] Address already in use due to TIME_WAIT status on TCP
     # sockets, for details see:
     # https://stackoverflow.com/questions/4465959/python-errno-98-address-already-in-use

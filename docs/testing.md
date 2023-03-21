@@ -127,7 +127,7 @@ into `pytest`, that is fine, but the current script serves.
 The salient peculiarity of `test.py` is that on Windows it requires you to
 install FakeNet and it then runs the global `fakenet.exe` script entry point
 available via the Windows path environment variable; and on Linux, it executes
-`python fakenet.py` directly. Alas, this is for purely undocumented and
+`python -m fakenet.fakenet` directly. Alas, this is for purely undocumented and
 forgettable reasons. It shouldn't be too difficult to make these consistent if
 that becomes important to someone.
 
@@ -210,7 +210,8 @@ modes, and clients:
 
 In each combination, FakeNet must be tested against the full range of
 applicable tests in the Automated Test Suite provided by the test script
-`test/test.py`.
+`test/test.py`. It should be noted that some tests are expected to output
+errors such as socket errors even when the tests are successful.
 
 As of this writing, the Manual Test Suite must also be executed if the FakeNet
 feature set is to be fully exercised for quality assurance of a given release.
