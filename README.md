@@ -20,6 +20,9 @@ Penetration testers and bug hunters will find FakeNet-NG's configurable
 interception engine and modular framework highly useful when testing
 application's specific functionality and prototyping PoCs.
 
+The current version, 3.0 (alpha), is a pre-release of the Python 3 port of FakeNet-NG.
+If you encounter any bugs in this version, please report them via GitHub issues.
+
 Installation
 ============
 
@@ -88,7 +91,7 @@ install dependencies as follows:
    driver in the `%PYTHONHOME%\DLLs` directory. FakeNet-NG bundles those
    files so they are not necessary for normal use.
 
-2b) Optionally, you can install the following module used for testing:
+   Optionally, you can install the following module used for testing:
 
     pip install requests
 
