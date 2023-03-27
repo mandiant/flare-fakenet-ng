@@ -159,6 +159,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         self.server.logger.info('Client issued an unknown command %s %s', cmd, params)      
         self.irc_send_server("421", "%s :Unknown command" % cmd)          
 
+    def irc_WHOIS(self, cmd, params):
+        output = f"ircname : {self.realname}\nhostname : {self.user}\nserver : {self.server}\nmodes : {self.mode}"
+        self.irc_send_server("001", f"{output}")
+        self.irc_send_server("001", "%s :End of WHOIS" % params)
+    
     def irc_NICK(self, cmd, params):
 
         self.nick = params
