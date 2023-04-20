@@ -128,7 +128,7 @@ class ThreadedTCPClientSocket(threading.Thread):
                         self.listener_q.put(data)
                     else:
                         self.sock.close()
-                        exit(1)
+                        sys.exit(1)
         except Exception as e:
             self.logger.debug('Listener socket exception %s' % e.message)
 
@@ -332,7 +332,7 @@ def main():
         TCP_server.shutdown()
     finally:
         logger.debug('Closing ProxyListener')
-        exit(1)
+        sys.exit(1)
     logger.debug('Exiting')
     TCP_server.shutdown()
 
