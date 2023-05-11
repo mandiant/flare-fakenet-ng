@@ -905,7 +905,7 @@ class FakeNetTestSettings:
         self.listener_host_white = 8083 # HTTP listener with host whitelists
         self.localhost = '127.0.0.1'
         self.dns_expected = '192.0.2.123'
-        self.domain_dne = 'does-not-exist-amirite.fireeye.com'
+        self.domain_dne = 'does-not-exist-amirite.mandiant.com'
         self.sender = 'from-fakenet@example.org'
         self.recipient = 'to-fakenet@example.org'
         self.smtpmsg = 'FakeNet-NG SMTP test email'
