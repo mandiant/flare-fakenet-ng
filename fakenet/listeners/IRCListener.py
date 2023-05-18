@@ -160,9 +160,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         self.irc_send_server("421", "%s :Unknown command" % cmd)          
 
     def irc_WHOIS(self, cmd, params):
-        output = f"ircname : {self.realname}\nhostname : {self.user}\nserver : {self.server}\nmodes : {self.mode}"
+        output = f"{self.nick} {self.user} {self.servername} * :{self.realname}"
         self.irc_send_server("001", f"{output}")
-        self.irc_send_server("001", "%s :End of WHOIS" % params)
+        self.irc_send_server("001", "%s :End of /WHOIS list" % self.nick)
     
     def irc_NICK(self, cmd, params):
 
