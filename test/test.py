@@ -115,6 +115,7 @@ class IrcTester(object):
 
     def _irc_evt_handler(self, srv, evt):
         """Check for each case and set the corresponding success flag."""
+        import pdb;pdb.set_trace()
         if evt.type == 'join':
             if evt.target.startswith(self.join_chan):
                 self.join_ok = True
@@ -129,6 +130,9 @@ class IrcTester(object):
             if (evt.arguments[0].startswith(self.black_market) and
                 evt.target == self.pub_chan):
                 self.pubmsg_ok = True
+        elif evt.type == "whois":
+            if (evt.arguments[0].startswith(self.nick)):
+                self.whois_ok = True
 
     def _irc_script(self, srv):
         """Callback manages individual test cases for IRC."""
@@ -137,12 +141,14 @@ class IrcTester(object):
         self.join_ok = False
         self.privmsg_ok = False
         self.pubmsg_ok = False
+        self.whois_ok = False
 
         # This handler should set the success flags in success cases
         srv.add_global_handler('join', self._irc_evt_handler)
         srv.add_global_handler('welcome', self._irc_evt_handler)
         srv.add_global_handler('privmsg', self._irc_evt_handler)
         srv.add_global_handler('pubmsg', self._irc_evt_handler)
+        srv.add_global_handler('whois', self._irc_evt_handler)
 
         # Issue all commands, indirectly invoking the event handler for each
         # flag
@@ -154,6 +160,9 @@ class IrcTester(object):
         srv.process_data()
 
         srv.privmsg(self.clouseau, self.safehouse)
+        srv.process_data()
+
+        srv.whois([self.clouseau])
         srv.process_data()
 
         srv.quit()
@@ -171,11 +180,15 @@ class IrcTester(object):
         if not self.pubmsg_ok:
             raise FakeNetTestException('pubmsg test failed')
 
+        if not self.whois_ok:
+            raise FakeNetTestException('whois test failed')
+
         return all([
             self.welcome_ok,
             self.join_ok,
             self.privmsg_ok,
-            self.pubmsg_ok
+            self.pubmsg_ok,
+            self.whois_ok
            ])
 
     def _run_irc_script(self, nm, callback):
