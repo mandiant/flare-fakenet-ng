@@ -115,7 +115,6 @@ class IrcTester(object):
 
     def _irc_evt_handler(self, srv, evt):
         """Check for each case and set the corresponding success flag."""
-        import pdb;pdb.set_trace()
         if evt.type == 'join':
             if evt.target.startswith(self.join_chan):
                 self.join_ok = True
