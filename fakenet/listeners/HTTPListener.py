@@ -370,6 +370,7 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         nbi["version"] = version
 
         for line in str(headers).rstrip().split("\n"):
+            # Split atmost 1 time to ensure ':' in attribute values (ex- URLs) are not treated as a new key
             key, value = line.split(":", 1)
             nbi[key] = value.lstrip()
 
@@ -377,8 +378,10 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             nbi["post_data"] = post_data
 
         global nbi_f
+        # If dict has keys, create new key = last key + 1
         if nbi_f:
             nbi_f[int(list(nbi_f.keys())[-1])+1] = nbi
+        # If dict is empty, create key = 1
         else:
             nbi_f[1] = nbi
 
