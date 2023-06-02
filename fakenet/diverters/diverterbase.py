@@ -90,7 +90,7 @@ class DivertParms(object):
         Returns:
             True if this pair of endpoints hasn't conversed before, else False
         """
-        return not (self.diverter.sessions.get(self.pkt.sport) ==
+        return not (self.diverter.sessions.get(self.pkt.sport)[:2] ==
                     (self.pkt.dst_ip, self.pkt.dport))
 
 
@@ -1761,7 +1761,8 @@ class DiverterBase(fnconfig.Config):
         Returns:
             None
         """
-        self.sessions[pkt.sport] = (pkt.dst_ip, pkt.dport)
+        pid, comm = self.get_pid_comm(pkt)
+        self.sessions[pkt.sport] = (pkt.dst_ip, pkt.dport, pid, comm)
 
     def maybeExecuteCmd(self, pkt, pid, comm):
         """Execute any ExecuteCmd associated with this port/listener.
