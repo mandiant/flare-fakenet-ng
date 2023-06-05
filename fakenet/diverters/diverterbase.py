@@ -90,7 +90,12 @@ class DivertParms(object):
         Returns:
             True if this pair of endpoints hasn't conversed before, else False
         """
-        return not (self.diverter.sessions.get(self.pkt.sport)[:2] ==
+        # sessions.get returns (ip, port, pid and comm) or None.
+        # We just want ip and port for comparison.
+        s_dst_ip_port = self.diverter.sessions.get(self.pkt.sport)
+        if s_dst_ip_port:
+            s_dst_ip_port = s_dst_ip_port[:2]
+        return not (s_dst_ip_port ==
                     (self.pkt.dst_ip, self.pkt.dport))
 
 

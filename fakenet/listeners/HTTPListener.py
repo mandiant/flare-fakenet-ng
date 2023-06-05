@@ -370,8 +370,7 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         nbi["version"] = version
 
         for line in str(headers).rstrip().split("\n"):
-            # Split atmost 1 time to ensure ':' in attribute values (ex- URLs) are not treated as a new key
-            key, value = line.split(":", 1)
+            key, _, value = line.partition(":")
             nbi[key] = value.lstrip()
 
         if post_data:
