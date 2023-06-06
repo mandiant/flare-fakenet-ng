@@ -35,7 +35,6 @@ MIME_FILE_RESPONSE = {
 
 INDENT = '  '
 
-
 def qualify_file_path(filename, fallbackdir):
     path = filename
     if path:
@@ -193,6 +192,7 @@ class HTTPListener(object):
         self.server.config = self.config
         self.server.webroot_path = self.webroot_path
         self.server.extensions_map = self.extensions_map
+        self.server.diverter = None
 
         if self.config.get('usessl') == 'Yes':
             self.logger.debug('Using SSL socket.')
@@ -246,14 +246,15 @@ class HTTPListener(object):
             self.server.shutdown()
             self.server.server_close()
 
+    def acceptDiverter(self, diverter):
+        self.server.diverter = diverter
+
 
 class ThreadedHTTPServer(http.server.HTTPServer):
 
     def handle_error(self, request, client_address):
         exctype, value = sys.exc_info()[:2]
         self.logger.error('Error: %s', value)
-
-nbi_f = {}
 
 class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
 
@@ -365,24 +366,19 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
     def collect_nbi(self, requestline, headers, post_data=None):
         nbi = {}
         method, uri, version = requestline.split(" ")
-        nbi["method"] = method
-        nbi["uri"] = uri
-        nbi["version"] = version
+        nbi["method"] = [method]
+        nbi["uri"] = [uri]
+        nbi["version"] = [version]
 
         for line in str(headers).rstrip().split("\n"):
             key, _, value = line.partition(":")
-            nbi[key] = value.lstrip()
+            nbi[key] = [value.lstrip()]
 
         if post_data:
-            nbi["post_data"] = post_data
+            nbi["post_data"] = [post_data]
 
-        global nbi_f
-        # If dict has keys, create new key = last key + 1
-        if nbi_f:
-            nbi_f[int(list(nbi_f.keys())[-1])+1] = nbi
-        # If dict is empty, create key = 1
-        else:
-            nbi_f[1] = nbi
+        # report diverter each time when NBI is reported
+        self.server.diverter.logNBI(self.client_address[1], nbi)
 
     def get_response(self, path):
         response = "<html><head><title>FakeNet</title><body><h1>FakeNet</h1></body></html>"

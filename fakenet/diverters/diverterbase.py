@@ -539,6 +539,12 @@ class DiverterBase(fnconfig.Config):
         self.logger = logging.getLogger('Diverter')
         self.logger.setLevel(logging_level)
 
+        # Network Based Indicators
+        self.nbiDict = {}
+        
+        # proxy to original source ports mapping
+        self.proxy_original_source_ports = {}
+
         # Rate limiting for displaying pid/comm/proto/IP/port
         self.last_conn = None
 
@@ -1787,4 +1793,25 @@ class DiverterBase(fnconfig.Config):
         if execCmd:
             self.logger.info('Executing command: %s' % (execCmd))
             self.execute_detached(execCmd)
+
+    def map_orig_sport_to_proxy_sport(self, orig_sport, proxy_sport):
+        self.proxy_original_source_ports[proxy_sport] = orig_sport
+
+    def logNBI(self, listener_port, nbi):
+        proxied_nbi = listener_port in self.proxy_original_source_ports.keys()
+        orig_source_port = proxy_original_source_ports[listener_port] if proxied_nbi else listener_port
+        _, __, pid, comm = self.sessions[orig_source_port]
+
+        # If it's a new NBI from an exisitng process, append nbi, else create new key
+        existing_process = (pid, comm) in self.nbiDict.keys()
+        if existing_process:
+            # {(123, chrome.exe): {"host": ["www.google.com"], "version": ["HTTP1.1"]}}
+            for nbi_attributes in nbi.keys():
+                if nbi_attributes in self.nbiDict[(pid, comm)].keys():
+                    self.nbiDict[(pid, comm)][nbi_attributes].append(nbi[nbi_attributes][0])
+                else:
+                    self.nbiDict[(pid, comm)][nbi_attributes] = nbi[nbi_attributes]
+
+        else:
+            self.nbiDict[(pid, comm)] = nbi
 
