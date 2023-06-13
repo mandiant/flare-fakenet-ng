@@ -112,10 +112,20 @@ class ThreadedTCPClientSocket(threading.Thread):
         self.logger = log
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
+    def connect(self):
+        try:
+            self.sock.connect((self.ip, self.port))
+            new_sport = self.sock.getsockname()[1]
+            return new_sport
+
+        except Exception as e:
+            self.logger.debug('Listener socket exception while attempting connection %s' % e.message)
+
+        return None
+
     def run(self):
 
         try:
-            self.sock.connect((self.ip, self.port))
             while True:
                 readable, writable, exceptional = select.select([self.sock],
                         [], [], .001)
@@ -225,6 +235,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 listener_sock = ThreadedTCPClientSocket(self.server.local_ip,
                         top_listener.port, listener_q, remote_q,
                         self.server.config, self.server.logger)
+
+                # Get proxy initiated source port and report to diverter
+                new_sport = listener_sock.connect()
+                if new_sport:
+                    self.server.diverter.map_orig_sport_to_proxy_sport(orig_src_port, new_sport)
+
                 listener_sock.daemon = True
                 listener_sock.start()
                 remote_sock.setblocking(0)

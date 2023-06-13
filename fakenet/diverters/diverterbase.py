@@ -1799,7 +1799,7 @@ class DiverterBase(fnconfig.Config):
 
     def logNBI(self, listener_port, nbi):
         proxied_nbi = listener_port in self.proxy_original_source_ports.keys()
-        orig_source_port = proxy_original_source_ports[listener_port] if proxied_nbi else listener_port
+        orig_source_port = self.proxy_original_source_ports[listener_port] if proxied_nbi else listener_port
         _, __, pid, comm = self.sessions[orig_source_port]
 
         # If it's a new NBI from an exisitng process, append nbi, else create new key
