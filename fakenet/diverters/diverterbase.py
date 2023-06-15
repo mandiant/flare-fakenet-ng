@@ -92,12 +92,11 @@ class DivertParms(object):
         """
         # sessions.get returns (ip, port, pid and comm) or None.
         # We just want ip and port for comparison.
-        s_dst_ip_port = self.diverter.sessions.get(self.pkt.sport)
-        if s_dst_ip_port:
-            s_dst_ip_port = s_dst_ip_port[:2]
-        return not (s_dst_ip_port ==
-                    (self.pkt.dst_ip, self.pkt.dport))
+        session = self.diverter.sessions.get(self.pkt.sport)
+        if session is None:
+            return True
 
+        return not (session[:2] == (self.pkt.dst_ip, self.pkt.dport))
 
 class DiverterPerOSDelegate(object, metaclass=abc.ABCMeta):
     """Delegate class for OS-specific methods that FakeNet-NG implementors must
@@ -540,7 +539,7 @@ class DiverterBase(fnconfig.Config):
         self.logger.setLevel(logging_level)
 
         # Network Based Indicators
-        self.nbiDict = {}
+        self.nbi = {}
         
         # proxy to original source ports mapping
         self.proxy_original_source_ports = {}
@@ -1794,24 +1793,24 @@ class DiverterBase(fnconfig.Config):
             self.logger.info('Executing command: %s' % (execCmd))
             self.execute_detached(execCmd)
 
-    def map_orig_sport_to_proxy_sport(self, orig_sport, proxy_sport):
+    def mapOrigSportToProxySport(self, orig_sport, proxy_sport):
         self.proxy_original_source_ports[proxy_sport] = orig_sport
 
-    def logNBI(self, listener_port, nbi):
-        proxied_nbi = listener_port in self.proxy_original_source_ports.keys()
+    def logNbi(self, listener_port, nbi):
+        proxied_nbi = listener_port in self.proxy_original_source_ports
         orig_source_port = self.proxy_original_source_ports[listener_port] if proxied_nbi else listener_port
         _, __, pid, comm = self.sessions[orig_source_port]
 
         # If it's a new NBI from an exisitng process, append nbi, else create new key
-        existing_process = (pid, comm) in self.nbiDict.keys()
+        existing_process = (pid, comm) in self.nbi
         if existing_process:
             # {(123, chrome.exe): {"host": ["www.google.com"], "version": ["HTTP1.1"]}}
-            for nbi_attributes in nbi.keys():
-                if nbi_attributes in self.nbiDict[(pid, comm)].keys():
-                    self.nbiDict[(pid, comm)][nbi_attributes].append(nbi[nbi_attributes][0])
+            for nbi_attributes in nbi:
+                if nbi_attributes in self.nbi[(pid, comm)]:
+                    self.nbi[(pid, comm)][nbi_attributes].append(nbi[nbi_attributes][0])
                 else:
-                    self.nbiDict[(pid, comm)][nbi_attributes] = nbi[nbi_attributes]
+                    self.nbi[(pid, comm)][nbi_attributes] = nbi[nbi_attributes]
 
         else:
-            self.nbiDict[(pid, comm)] = nbi
+            self.nbi[(pid, comm)] = nbi
 

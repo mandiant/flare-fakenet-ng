@@ -239,7 +239,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # Get proxy initiated source port and report to diverter
                 new_sport = listener_sock.connect()
                 if new_sport:
-                    self.server.diverter.map_orig_sport_to_proxy_sport(orig_src_port, new_sport)
+                    self.server.diverter.mapOrigSportToProxySport(orig_src_port, new_sport)
 
                 listener_sock.daemon = True
                 listener_sock.start()
