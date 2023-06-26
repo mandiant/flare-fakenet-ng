@@ -208,10 +208,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
         except Exception as e:
             self.server.logger.warning('recv() error: %s' % e.message)
+        
+        # 
+        is_ssl_encrypted = False
 
         if data:
 
             if ssl_detector.looks_like_ssl(data):
+                is_ssl_encrypted = True
                 self.server.logger.debug('SSL detected')
                 ssl_remote_sock = ssl.wrap_socket(
                         remote_sock, 
@@ -239,7 +243,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # Get proxy initiated source port and report to diverter
                 new_sport = listener_sock.connect()
                 if new_sport:
-                    self.server.diverter.mapOrigSportToProxySport(orig_src_port, new_sport)
+                    self.server.diverter.mapOrigSportToProxySport(orig_src_port,
+                            new_sport, is_ssl_encrypted)
 
                 listener_sock.daemon = True
                 listener_sock.start()

@@ -90,13 +90,14 @@ class DivertParms(object):
         Returns:
             True if this pair of endpoints hasn't conversed before, else False
         """
-        # sessions.get returns (ip, port, pid and comm) or None.
-        # We just want ip and port for comparison.
+        # sessions.get returns (dst_ip, dport, pid, comm, dport0, proto) or None.
+        # We just want dst_ip and dport for comparison.
         session = self.diverter.sessions.get(self.pkt.sport)
         if session is None:
             return True
 
-        return not (session[:2] == (self.pkt.dst_ip, self.pkt.dport))
+        return not ((session.dst_ip, session.dport) ==
+                        (self.pkt.dst_ip, self.pkt.dport))
 
 class DiverterPerOSDelegate(object, metaclass=abc.ABCMeta):
     """Delegate class for OS-specific methods that FakeNet-NG implementors must
@@ -541,8 +542,11 @@ class DiverterBase(fnconfig.Config):
         # Network Based Indicators
         self.nbi = {}
         
-        # proxy to original source ports mapping
+        # Proxy to original source ports mapping
         self.proxy_original_source_ports = {}
+
+        # Check if proxied requests are ssl encrypted
+        self.proxy_original_sports_ssl_encrypted = {}
 
         # Rate limiting for displaying pid/comm/proto/IP/port
         self.last_conn = None
@@ -1771,8 +1775,11 @@ class DiverterBase(fnconfig.Config):
         Returns:
             None
         """
+        session = namedtuple('session', ['dst_ip', 'dport', 'pid',
+                                         'comm', 'dport0', 'proto'])
         pid, comm = self.get_pid_comm(pkt)
-        self.sessions[pkt.sport] = (pkt.dst_ip, pkt.dport, pid, comm)
+        self.sessions[pkt.sport] = session(pkt.dst_ip, pkt.dport, pid,
+                                           comm, pkt._dport0, pkt.proto)
 
     def maybeExecuteCmd(self, pkt, pid, comm):
         """Execute any ExecuteCmd associated with this port/listener.
@@ -1793,13 +1800,20 @@ class DiverterBase(fnconfig.Config):
             self.logger.info('Executing command: %s' % (execCmd))
             self.execute_detached(execCmd)
 
-    def mapOrigSportToProxySport(self, orig_sport, proxy_sport):
+    def mapOrigSportToProxySport(self, orig_sport, proxy_sport, is_ssl_encrypted):
         self.proxy_original_source_ports[proxy_sport] = orig_sport
+        self.proxy_original_sports_ssl_encrypted[(orig_sport, proxy_sport)] = is_ssl_encrypted
 
-    def logNbi(self, listener_port, nbi):
+    def logNbi(self, listener_port, nbi, application_layer_proto, is_ssl_encrypted):
         proxied_nbi = listener_port in self.proxy_original_source_ports
         orig_source_port = self.proxy_original_source_ports[listener_port] if proxied_nbi else listener_port
-        _, __, pid, comm = self.sessions[orig_source_port]
+        _, __, pid, comm, orig_dport, proto = self.sessions.get(orig_source_port)
+
+        # If it is a proxied nbi, double check ssl_encryption from the Proxy Listener
+        # (More preference to the value returned by Proxy Listener)
+        # For non-proxied nbis, use listener provided is_ssl_encrypted
+        if proxied_nbi:
+            is_ssl_encrypted = self.proxy_original_sports_ssl_encrypted.get((orig_source_port, listener_port))
 
         # If it's a new NBI from an exisitng process, append nbi, else create new key
         existing_process = (pid, comm) in self.nbi
@@ -1813,4 +1827,5 @@ class DiverterBase(fnconfig.Config):
 
         else:
             self.nbi[(pid, comm)] = nbi
+        import pdb;pdb.set_trace()
 

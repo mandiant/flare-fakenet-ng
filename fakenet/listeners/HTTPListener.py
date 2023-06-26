@@ -378,7 +378,7 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             nbi["post_data"] = [post_data]
 
         # report diverter each time when NBI is reported
-        self.server.diverter.logNbi(self.client_address[1], nbi)
+        self.server.diverter.logNbi(self.client_address[1], nbi, 'HTTP', self.server.config.get('usessl'))
 
     def get_response(self, path):
         response = "<html><head><title>FakeNet</title><body><h1>FakeNet</h1></body></html>"
