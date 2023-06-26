@@ -35,6 +35,7 @@ MIME_FILE_RESPONSE = {
 
 INDENT = '  '
 
+
 def qualify_file_path(filename, fallbackdir):
     path = filename
     if path:
@@ -377,8 +378,9 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         if post_data:
             nbi["post_data"] = [post_data]
 
-        # report diverter each time when NBI is reported
-        self.server.diverter.logNbi(self.client_address[1], nbi, 'HTTP', self.server.config.get('usessl'))
+        # report diverter everytime we capture an NBI
+        self.server.diverter.logNbi(self.client_address[1],
+                nbi, 'HTTP', self.server.config.get('usessl'))
 
     def get_response(self, path):
         response = "<html><head><title>FakeNet</title><body><h1>FakeNet</h1></body></html>"

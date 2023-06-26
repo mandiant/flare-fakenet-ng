@@ -542,11 +542,11 @@ class DiverterBase(fnconfig.Config):
         # Network Based Indicators
         self.nbi = {}
         
-        # Proxy to original source ports mapping
-        self.proxy_original_source_ports = {}
+        # Maps Proxy initiated source ports to original source ports
+        self.proxy_orig_sports = {}
 
-        # Check if proxied requests are ssl encrypted
-        self.proxy_original_sports_ssl_encrypted = {}
+        # Checks if Proxied requests are SSL encrypted
+        self.proxy_orig_sports_ssl_encrypted = {}
 
         # Rate limiting for displaying pid/comm/proto/IP/port
         self.last_conn = None
@@ -1800,25 +1800,61 @@ class DiverterBase(fnconfig.Config):
             self.logger.info('Executing command: %s' % (execCmd))
             self.execute_detached(execCmd)
 
-    def mapOrigSportToProxySport(self, orig_sport, proxy_sport, is_ssl_encrypted):
-        self.proxy_original_source_ports[proxy_sport] = orig_sport
-        self.proxy_original_sports_ssl_encrypted[(orig_sport, proxy_sport)] = is_ssl_encrypted
+    def mapProxySportToOrigSport(self, orig_sport, proxy_sport, is_ssl_encrypted):
+        """Maps Proxy initiated source ports to their original source ports.
 
-    def logNbi(self, listener_port, nbi, application_layer_proto, is_ssl_encrypted):
-        proxied_nbi = listener_port in self.proxy_original_source_ports
-        orig_source_port = self.proxy_original_source_ports[listener_port] if proxied_nbi else listener_port
-        _, __, pid, comm, orig_dport, proto = self.sessions.get(orig_source_port)
+        The Proxy listener uses this method to notify the diverter
+        about the proxy originated source port for the original
+        source port. It also notifies if the packet uses SSL
+        encryption.
 
-        # If it is a proxied nbi, double check ssl_encryption from the Proxy Listener
-        # (More preference to the value returned by Proxy Listener)
+        Args:
+            orig_sport: int source port that originated the packet
+            proxy_sport: int source port initiated by Proxy listener
+            is_ssl_encrypted: bool is the packet SSL encrypted or not
+
+        Returns:
+            None
+        """
+        self.proxy_orig_sports[proxy_sport] = orig_sport
+        self.proxy_orig_sports_ssl_encrypted[(orig_sport, proxy_sport)] = is_ssl_encrypted
+
+    def logNbi(self, listener_port, nbi, appl_layer_proto, is_ssl_encrypted):
+        """Collects the NBIs from all listeners into a dictionary.
+
+        All listeners (currently only HTTPListener) use this
+        method to notify the diverter about any NBI captured
+        within their scope.
+
+        Args:
+            listener_port: int port bound by listener
+            nbi: dict NBI captured within the listener
+            appl_layer_proto: str Application layer protocol of the pkt
+            is_ssl_encrpted: str is the listener configured to use SSL or not
+
+        Returns:
+            None
+        """
+        proxied_nbi = listener_port in self.proxy_orig_sports
+        orig_sport = (self.proxy_orig_sports[listener_port]
+                        if proxied_nbi else 
+                        listener_port)
+        _, __, pid, comm, orig_dport, proto = self.sessions.get(orig_sport)
+
+        # For proxied nbis, override the listener's is_ssl_encrypted
+        # with Proxy listener's is_ssl_encrypted.
         # For non-proxied nbis, use listener provided is_ssl_encrypted
         if proxied_nbi:
-            is_ssl_encrypted = self.proxy_original_sports_ssl_encrypted.get((orig_source_port, listener_port))
+            is_ssl_encrypted = (
+                    self.proxy_orig_sports_ssl_encrypted.get(
+                        (orig_sport, listener_port)
+                        )
+                    )
 
-        # If it's a new NBI from an exisitng process, append nbi, else create new key
+        # If it's a new NBI from an exisitng process,
+        # append nbi, else create new key
         existing_process = (pid, comm) in self.nbi
         if existing_process:
-            # {(123, chrome.exe): {"host": ["www.google.com"], "version": ["HTTP1.1"]}}
             for nbi_attributes in nbi:
                 if nbi_attributes in self.nbi[(pid, comm)]:
                     self.nbi[(pid, comm)][nbi_attributes].append(nbi[nbi_attributes][0])

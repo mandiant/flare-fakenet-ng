@@ -209,7 +209,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         except Exception as e:
             self.server.logger.warning('recv() error: %s' % e.message)
         
-        # 
+        # Is the pkt ssl encrypted?
         is_ssl_encrypted = False
 
         if data:
@@ -243,7 +243,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # Get proxy initiated source port and report to diverter
                 new_sport = listener_sock.connect()
                 if new_sport:
-                    self.server.diverter.mapOrigSportToProxySport(orig_src_port,
+                    self.server.diverter.mapProxySportToOrigSport(orig_src_port,
                             new_sport, is_ssl_encrypted)
 
                 listener_sock.daemon = True
