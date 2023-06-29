@@ -367,16 +367,16 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
     def collect_nbi(self, requestline, headers, post_data=None):
         nbi = {}
         method, uri, version = requestline.split(" ")
-        nbi["method"] = [method]
-        nbi["uri"] = [uri]
-        nbi["version"] = [version]
+        nbi["method"] = method
+        nbi["uri"] = uri
+        nbi["version"] = version
 
         for line in str(headers).rstrip().split("\n"):
             key, _, value = line.partition(":")
-            nbi[key] = [value.lstrip()]
+            nbi[key] = value.lstrip()
 
         if post_data:
-            nbi["post_data"] = [post_data]
+            nbi["post_data"] = post_data
 
         # report diverter everytime we capture an NBI
         self.server.diverter.logNbi(self.client_address[1],

@@ -1819,7 +1819,7 @@ class DiverterBase(fnconfig.Config):
         self.proxy_orig_sports[proxy_sport] = orig_sport
         self.proxy_orig_sports_ssl_encrypted[(orig_sport, proxy_sport)] = is_ssl_encrypted
 
-    def logNbi(self, listener_port, nbi, appl_layer_proto, is_ssl_encrypted):
+    def logNbi(self, sport, nbi, application_layer_proto, is_ssl_encrypted):
         """Collects the NBIs from all listeners into a dictionary.
 
         All listeners (currently only HTTPListener) use this
@@ -1827,41 +1827,39 @@ class DiverterBase(fnconfig.Config):
         within their scope.
 
         Args:
-            listener_port: int port bound by listener
+            sport: int port bound by listener
             nbi: dict NBI captured within the listener
-            appl_layer_proto: str Application layer protocol of the pkt
+            application_layer_proto: str Application layer protocol of the pkt
             is_ssl_encrpted: str is the listener configured to use SSL or not
 
         Returns:
             None
         """
-        proxied_nbi = listener_port in self.proxy_orig_sports
-        orig_sport = (self.proxy_orig_sports[listener_port]
-                        if proxied_nbi else 
-                        listener_port)
+        proxied_nbi = sport in self.proxy_orig_sports
+        
+        # For proxied nbis, override the listener's is_ssl_encrypted with
+        # Proxy listener's is_ssl_encrypted, and update the original sport.
+        # For non-proxied nbis, use listener provided is_ssl_encrypted and sport.
+        if proxied_nbi:
+            orig_sport = self.proxy_orig_sports[sport]
+            is_ssl_encrypted = self.proxy_orig_sports_ssl_encrypted.get(
+                    (orig_sport, sport))
+        else:
+            orig_sport = sport
+
         _, __, pid, comm, orig_dport, proto = self.sessions.get(orig_sport)
 
-        # For proxied nbis, override the listener's is_ssl_encrypted
-        # with Proxy listener's is_ssl_encrypted.
-        # For non-proxied nbis, use listener provided is_ssl_encrypted
-        if proxied_nbi:
-            is_ssl_encrypted = (
-                    self.proxy_orig_sports_ssl_encrypted.get(
-                        (orig_sport, listener_port)
-                        )
-                    )
-
-        # If it's a new NBI from an exisitng process,
-        # append nbi, else create new key
-        existing_process = (pid, comm) in self.nbi
-        if existing_process:
-            for nbi_attributes in nbi:
-                if nbi_attributes in self.nbi[(pid, comm)]:
-                    self.nbi[(pid, comm)][nbi_attributes].append(nbi[nbi_attributes][0])
-                else:
-                    self.nbi[(pid, comm)][nbi_attributes] = nbi[nbi_attributes]
-
-        else:
-            self.nbi[(pid, comm)] = nbi
-        import pdb;pdb.set_trace()
+        # Craft the dictionary
+        nbi_entry = {
+                'transport_layer_proto': proto,
+                'sport': orig_sport,
+                'dport': orig_dport,
+                'is_ssl_encrypted': is_ssl_encrypted,
+                'nbi': nbi}
+        application_layer_proto = application_layer_proto.lower()
+ 
+        # If it's a new NBI from an exisitng process or existing
+        # protocol, append the nbi, else create new key
+        self.nbi.setdefault((pid, comm), {}).setdefault(application_layer_proto,
+                []).append(nbi_entry)
 

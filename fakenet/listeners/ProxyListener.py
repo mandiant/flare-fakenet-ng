@@ -210,12 +210,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             self.server.logger.warning('recv() error: %s' % e.message)
         
         # Is the pkt ssl encrypted?
-        is_ssl_encrypted = False
+        is_ssl_encrypted = 'No'
 
         if data:
 
             if ssl_detector.looks_like_ssl(data):
-                is_ssl_encrypted = True
+                is_ssl_encrypted = 'Yes'
                 self.server.logger.debug('SSL detected')
                 ssl_remote_sock = ssl.wrap_socket(
                         remote_sock, 
