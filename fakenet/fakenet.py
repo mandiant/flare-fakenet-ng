@@ -206,6 +206,10 @@ class Fakenet(object):
                     (platform_name))
                 sys.exit(1)
 
+        # Import DiverterWrapper
+        from fakenet.diverters.diverterbase import DiverterWrapper
+        self.diverterWrapper = DiverterWrapper(self.diverter.logNbi)
+
         # Start all of the listeners
         for listener_name in self.listeners_config:
 
@@ -264,6 +268,13 @@ class Fakenet(object):
                 listener.acceptDiverter(self.diverter)
             except AttributeError:
                 self.logger.debug("acceptDiverter() not implemented by Listener %s" % listener.name)
+
+            # Only listeners that implement acceptDiverterWrapper(diverterWrapper)
+            # interface receive diverterWrapper
+            try:
+                listener.acceptDiverterWrapper(self.diverterWrapper)
+            except AttributeError:
+                self.logger.debug("acceptDiverterWrapper() not implemented by Listener %s" % listener.name)
 
     def stop(self):
 

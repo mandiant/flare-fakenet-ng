@@ -193,7 +193,6 @@ class HTTPListener(object):
         self.server.config = self.config
         self.server.webroot_path = self.webroot_path
         self.server.extensions_map = self.extensions_map
-        self.server.diverter = None
 
         if self.config.get('usessl') == 'Yes':
             self.logger.debug('Using SSL socket.')
@@ -247,8 +246,8 @@ class HTTPListener(object):
             self.server.shutdown()
             self.server.server_close()
 
-    def acceptDiverter(self, diverter):
-        self.server.diverter = diverter
+    def acceptDiverterWrapper(self, diverterWrapper):
+        self.server.diverterWrapper = diverterWrapper
 
 
 class ThreadedHTTPServer(http.server.HTTPServer):
@@ -379,7 +378,7 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             nbi["post_data"] = post_data
 
         # report diverter everytime we capture an NBI
-        self.server.diverter.logNbi(self.client_address[1],
+        self.server.diverterWrapper.logNbi(self.client_address[1],
                 nbi, 'HTTP', self.server.config.get('usessl'))
 
     def get_response(self, path):

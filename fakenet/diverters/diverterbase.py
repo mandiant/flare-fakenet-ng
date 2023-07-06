@@ -1863,3 +1863,17 @@ class DiverterBase(fnconfig.Config):
         self.nbi.setdefault((pid, comm), {}).setdefault(application_layer_proto,
                 []).append(nbi_entry)
 
+
+class DiverterWrapper():
+    """A wrapper class for the diverter that provides controlled access
+    to specific methods required by listeners for reporting NBIs.
+    This prevents exposing the entire diverter to the listeners.
+    """
+    def __init__(self, logNbiMethod):
+        """Initialize the DiverterWrapper.
+
+        Args:
+            logNbiMethod: A callback for the diverter's logNbi() method
+        """
+        self.logNbi = logNbiMethod
+
