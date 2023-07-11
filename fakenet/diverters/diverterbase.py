@@ -1852,8 +1852,8 @@ class DiverterBase(fnconfig.Config):
 
         _, __, pid, comm, orig_dport, proto = self.sessions.get(orig_sport)
 
-        # Check for MultiHost mode
-        if self.network_mode.lower() == 'multihost':
+        # Normalize pid and comm for MultiHost mode
+        if pid==comm==None and self.network_mode.lower() == 'multihost':
             self.remote_pid_counter+=1
             pid = self.remote_pid_counter
             comm = 'Remote Process'
