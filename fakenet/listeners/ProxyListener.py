@@ -98,6 +98,9 @@ class ProxyListener(object):
     def acceptDiverter(self, diverter):
         self.server.diverter = diverter
 
+    def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
+        self.server.diverterListenerCallbacks = diverterListenerCallbacks
+
 class ThreadedTCPClientSocket(threading.Thread):
 
 
@@ -243,8 +246,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # Get proxy initiated source port and report to diverter
                 new_sport = listener_sock.connect()
                 if new_sport:
-                    self.server.diverter.mapProxySportToOrigSport(orig_src_port,
-                            new_sport, is_ssl_encrypted)
+                    self.server.diverterListenerCallbacks.mapProxySportToOrigSport(
+                            orig_src_port, new_sport, is_ssl_encrypted)
 
                 listener_sock.daemon = True
                 listener_sock.start()

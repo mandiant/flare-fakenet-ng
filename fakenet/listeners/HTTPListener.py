@@ -246,8 +246,8 @@ class HTTPListener(object):
             self.server.shutdown()
             self.server.server_close()
 
-    def acceptDiverterWrapper(self, diverterWrapper):
-        self.server.diverterWrapper = diverterWrapper
+    def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
+        self.server.diverterListenerCallbacks = diverterListenerCallbacks
 
 
 class ThreadedHTTPServer(http.server.HTTPServer):
@@ -378,7 +378,7 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             nbi["post_data"] = post_data
 
         # report diverter everytime we capture an NBI
-        self.server.diverterWrapper.logNbi(self.client_address[1],
+        self.server.diverterListenerCallbacks.logNbi(self.client_address[1],
                 nbi, 'HTTP', self.server.config.get('usessl'))
 
     def get_response(self, path):

@@ -1864,16 +1864,22 @@ class DiverterBase(fnconfig.Config):
                 []).append(nbi_entry)
 
 
-class DiverterWrapper():
+class DiverterListenerCallbacks():
     """A wrapper class for the diverter that provides controlled access
     to specific methods required by listeners for reporting NBIs.
     This prevents exposing the entire diverter to the listeners.
     """
-    def __init__(self, logNbiMethod):
+    def __init__(self, diverter):
         """Initialize the DiverterWrapper.
 
         Args:
-            logNbiMethod: A callback for the diverter's logNbi() method
+            diverter: The Diverter object
         """
-        self.logNbi = logNbiMethod
+        self.__diverter = diverter
+
+    def logNbi(self, sport, nbi, application_layer_proto, is_ssl_encrypted):
+        self.__diverter.logNbi(sport, nbi, application_layer_proto, is_ssl_encrypted)
+
+    def mapProxySportToOrigSport(self, orig_sport, proxy_sport, is_ssl_encrypted):
+        self.__diverter.mapProxySportToOrigSport(orig_sport, proxy_sport, is_ssl_encrypted)
 
