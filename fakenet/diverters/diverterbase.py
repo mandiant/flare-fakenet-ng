@@ -541,6 +541,9 @@ class DiverterBase(fnconfig.Config):
 
         # Network Based Indicators
         self.nbi = {}
+
+        # Index remote Process IDs for MultiHost operations
+        self.remote_pid_counter = 0
         
         # Maps Proxy initiated source ports to original source ports
         self.proxy_orig_sports = {}
@@ -1848,6 +1851,12 @@ class DiverterBase(fnconfig.Config):
             orig_sport = sport
 
         _, __, pid, comm, orig_dport, proto = self.sessions.get(orig_sport)
+
+        # Check for MultiHost mode
+        if self.network_mode.lower() == 'multihost':
+            self.remote_pid_counter+=1
+            pid = self.remote_pid_counter
+            comm = 'Remote Process'
 
         # Craft the dictionary
         nbi_entry = {
