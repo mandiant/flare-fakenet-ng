@@ -700,6 +700,7 @@ class DiverterBase(fnconfig.Config):
 
     def stop(self):
         self.logger.info('Stopping...')
+        self.prettyPrintNbi()
         return self.stopCallback()
 
     @abc.abstractmethod
@@ -1873,7 +1874,57 @@ class DiverterBase(fnconfig.Config):
         # protocol, append the nbi, else create new key
         self.nbi.setdefault((pid, comm), {}).setdefault(application_layer_proto,
                 []).append(nbi_entry)
-        import pdb;pdb.set_trace()
+
+    def prettyPrintNbi(self):
+        """Convenience method to print all NBIs in appropriate format
+        upon diverter exit.
+        """
+        banner = r"""     
+                                                                
+                                                                  
+            NNNNNNNN        NNNNNNNNBBBBBBBBBBBBBBBBB   IIIIIIIIII
+            N:::::::N       N::::::NB::::::::::::::::B  I::::::::I
+            N::::::::N      N::::::NB::::::BBBBBB:::::B I::::::::I
+            N:::::::::N     N::::::NBB:::::B     B:::::BII::::::II
+            N::::::::::N    N::::::N  B::::B     B:::::B  I::::I  
+            N:::::::::::N   N::::::N  B::::B     B:::::B  I::::I  
+            N:::::::N::::N  N::::::N  B::::BBBBBB:::::B   I::::I  
+            N::::::N N::::N N::::::N  B:::::::::::::BB    I::::I  
+            N::::::N  N::::N:::::::N  B::::BBBBBB:::::B   I::::I  
+            N::::::N   N:::::::::::N  B::::B     B:::::B  I::::I  
+            N::::::N    N::::::::::N  B::::B     B:::::B  I::::I  
+            N::::::N     N:::::::::N  B::::B     B:::::B  I::::I  
+            N::::::N      N::::::::NBB:::::BBBBBB::::::BII::::::II
+            N::::::N       N:::::::NB:::::::::::::::::B I::::::::I
+            N::::::N        N::::::NB::::::::::::::::B  I::::::::I
+            NNNNNNNN         NNNNNNNBBBBBBBBBBBBBBBBB   IIIIIIIIII
+                                                                                                               
+                                                                
+            =======================================================
+                       Network Based Indicators Summary
+            =======================================================
+        """
+        indent = "  "
+        self.logger.info(banner)
+        process_counter = 0
+        for process_info, values in self.nbi.items():
+            process_counter+=1
+            self.logger.info(f'[{process_counter}] Process ID: {process_info[0]}, Process Name: {process_info[1]}')
+            for application_layer_proto, nbi_entry in values.items():
+                self.logger.info(f'{indent*2} Protocol: {application_layer_proto}')
+                nbi_counter=0
+                for attributes in nbi_entry:
+                    nbi_counter+=1
+                    self.logger.info(f"{indent*3}{nbi_counter}.Transport Layer Protocol: {attributes['transport_layer_proto']}")
+                    self.logger.info(f"{indent*4}Source port: {attributes['sport']}")
+                    self.logger.info(f"{indent*4}Destination port: {attributes['dport']}")
+                    self.logger.info(f"{indent*4}SSL encrypted: {attributes['is_ssl_encrypted']}")
+                    for key, v in attributes['nbi'].items():
+                        # Let's print maximum 20 characters for NBI values
+                        v = (v[:20]+"...") if len(v)>20 else v
+                        self.logger.info(f"{indent*6}-{key}: {v}")
+                    self.logger.info("\r")
+            self.logger.info("\r")
 
 
 class DiverterListenerCallbacks():
