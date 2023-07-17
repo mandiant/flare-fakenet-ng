@@ -546,10 +546,10 @@ class DiverterBase(fnconfig.Config):
         self.remote_pid_counter = 0
         
         # Maps Proxy initiated source ports to original source ports
-        self.proxy_orig_sports = {}
+        self.proxy_sport_to_orig_sport_map = {}
 
-        # Checks if Proxied requests are SSL encrypted
-        self.proxy_orig_sports_ssl_encrypted = {}
+        # Maps (proxy_sport, orig_sport) to pkt SSL encryption
+        self.is_proxied_pkt_ssl_encrypted = {}
 
         # Rate limiting for displaying pid/comm/proto/IP/port
         self.last_conn = None
@@ -1803,7 +1803,7 @@ class DiverterBase(fnconfig.Config):
             self.logger.info('Executing command: %s' % (execCmd))
             self.execute_detached(execCmd)
 
-    def mapProxySportToOrigSport(self, orig_sport, proxy_sport, is_ssl_encrypted):
+    def mapProxySportToOrigSport(self, proto, orig_sport, proxy_sport, is_ssl_encrypted):
         """Maps Proxy initiated source ports to their original source ports.
 
         The Proxy listener uses this method to notify the diverter
@@ -1812,6 +1812,7 @@ class DiverterBase(fnconfig.Config):
         encryption.
 
         Args:
+            proto: str protocol of socket created by ProxyListner
             orig_sport: int source port that originated the packet
             proxy_sport: int source port initiated by Proxy listener
             is_ssl_encrypted: bool is the packet SSL encrypted or not
@@ -1819,10 +1820,10 @@ class DiverterBase(fnconfig.Config):
         Returns:
             None
         """
-        self.proxy_orig_sports[proxy_sport] = orig_sport
-        self.proxy_orig_sports_ssl_encrypted[(orig_sport, proxy_sport)] = is_ssl_encrypted
+        self.proxy_sport_to_orig_sport_map[(proto, proxy_sport)] = orig_sport
+        self.is_proxied_pkt_ssl_encrypted[(orig_sport, proxy_sport)] = is_ssl_encrypted
 
-    def logNbi(self, sport, nbi, application_layer_proto, is_ssl_encrypted):
+    def logNbi(self, sport, nbi, proto, application_layer_proto, is_ssl_encrypted):
         """Collects the NBIs from all listeners into a dictionary.
 
         All listeners (currently only HTTPListener) use this
@@ -1832,25 +1833,26 @@ class DiverterBase(fnconfig.Config):
         Args:
             sport: int port bound by listener
             nbi: dict NBI captured within the listener
+            proto: str protocol used by the listener
             application_layer_proto: str Application layer protocol of the pkt
             is_ssl_encrpted: str is the listener configured to use SSL or not
 
         Returns:
             None
         """
-        proxied_nbi = sport in self.proxy_orig_sports
+        proxied_nbi = (proto, sport) in self.proxy_sport_to_orig_sport_map
         
         # For proxied nbis, override the listener's is_ssl_encrypted with
         # Proxy listener's is_ssl_encrypted, and update the original sport.
         # For non-proxied nbis, use listener provided is_ssl_encrypted and sport.
         if proxied_nbi:
-            orig_sport = self.proxy_orig_sports[sport]
-            is_ssl_encrypted = self.proxy_orig_sports_ssl_encrypted.get(
+            orig_sport = self.proxy_sport_to_orig_sport_map[(proto, sport)]
+            is_ssl_encrypted = self.is_proxied_pkt_ssl_encrypted.get(
                     (orig_sport, sport))
         else:
             orig_sport = sport
 
-        _, __, pid, comm, orig_dport, proto = self.sessions.get(orig_sport)
+        _, __, pid, comm, orig_dport, transport_layer_proto = self.sessions.get(orig_sport)
 
         # Normalize pid and comm for MultiHost mode
         if pid==comm==None and self.network_mode.lower() == 'multihost':
@@ -1860,7 +1862,7 @@ class DiverterBase(fnconfig.Config):
 
         # Craft the dictionary
         nbi_entry = {
-                'transport_layer_proto': proto,
+                'transport_layer_proto': transport_layer_proto,
                 'sport': orig_sport,
                 'dport': orig_dport,
                 'is_ssl_encrypted': is_ssl_encrypted,
@@ -1871,6 +1873,7 @@ class DiverterBase(fnconfig.Config):
         # protocol, append the nbi, else create new key
         self.nbi.setdefault((pid, comm), {}).setdefault(application_layer_proto,
                 []).append(nbi_entry)
+        import pdb;pdb.set_trace()
 
 
 class DiverterListenerCallbacks():
@@ -1886,9 +1889,9 @@ class DiverterListenerCallbacks():
         """
         self.__diverter = diverter
 
-    def logNbi(self, sport, nbi, application_layer_proto, is_ssl_encrypted):
-        self.__diverter.logNbi(sport, nbi, application_layer_proto, is_ssl_encrypted)
+    def logNbi(self, sport, nbi, proto, application_layer_proto, is_ssl_encrypted):
+        self.__diverter.logNbi(sport, nbi, proto, application_layer_proto, is_ssl_encrypted)
 
-    def mapProxySportToOrigSport(self, orig_sport, proxy_sport, is_ssl_encrypted):
-        self.__diverter.mapProxySportToOrigSport(orig_sport, proxy_sport, is_ssl_encrypted)
+    def mapProxySportToOrigSport(self, proto, orig_sport, proxy_sport, is_ssl_encrypted):
+        self.__diverter.mapProxySportToOrigSport(proto, orig_sport, proxy_sport, is_ssl_encrypted)
 

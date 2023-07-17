@@ -199,11 +199,12 @@ class RawListener(object):
         self.server.diverterListenerCallbacks = diverterListenerCallbacks
 
 class SocketWithHexdumpRecv():
-    def __init__(self, s, logger, sport, application_layer_proto,
+    def __init__(self, s, logger, sport, proto, application_layer_proto,
             is_ssl_encrypted, diverterCallbacks):
         self.s = s
         self.logger = logger
         self.sport = sport
+        self.proto = proto
         self.application_layer_proto = application_layer_proto
         self.is_ssl_encrypted = is_ssl_encrypted
         self.diverterCallbacks = diverterCallbacks
@@ -217,7 +218,7 @@ class SocketWithHexdumpRecv():
     def do_hexdump(self, data):
         # Collect NBIs
         hexdump_lines = hexdump_table(data)
-        collect_nbi(self.sport, hexdump_lines, self.application_layer_proto,
+        collect_nbi(self.sport, hexdump_lines, self.proto, self.application_layer_proto,
                 self.is_ssl_encrypted, self.diverterCallbacks)
 
         for line in hexdump_lines:
@@ -240,8 +241,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         # as recv attribute became read-only
 
         self.request = SocketWithHexdumpRecv(self.request, self.server.logger,
-                self.client_address[1], 'Raw', self.server.config.get('usessl'),
-                self.server.diverterListenerCallbacks)
+                self.client_address[1], self.server.config.get('protocol'), 'Raw',
+                self.server.config.get('usessl'), self.server.diverterListenerCallbacks)
 
         # Timeout connection to prevent hanging
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
@@ -282,8 +283,8 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
         if data:
             # Collect NBIs
             hexdump_lines = hexdump_table(data)
-            collect_nbi(self.client_address[1], hexdump_lines, 'Raw', 
-                    self.server.config.get('usessl'), self.server.diverterListenerCallbacks)
+            collect_nbi(self.client_address[1], hexdump_lines, self.server.config.get('protocol'),
+                    'Raw', self.server.config.get('usessl'), self.server.diverterListenerCallbacks)
 
             for line in hexdump_lines:
                 self.server.logger.info(INDENT + line)
@@ -320,13 +321,13 @@ def hexdump_table(data, length=16):
         hexdump_lines.append("%04X: %-*s %s" % (i, length*3, hex_line, ascii_line ))
     return hexdump_lines
 
-def collect_nbi(sport, hexdump_lines, application_layer_proto,
+def collect_nbi(sport, hexdump_lines, proto, application_layer_proto,
         is_ssl_encrypted, diverterCallbacks):
     nbi = {}
-    nbi['hexdump'] = hexdump_lines
+    nbi['hexdump'] = hexdump_lines[0]
 
     # Report diverter everytime we capture an NBI
-    diverterCallbacks.logNbi(sport, nbi, application_layer_proto,
+    diverterCallbacks.logNbi(sport, nbi, proto, application_layer_proto,
             is_ssl_encrypted)
 
 ###############################################################################
