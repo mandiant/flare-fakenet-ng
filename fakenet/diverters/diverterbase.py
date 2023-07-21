@@ -1813,7 +1813,7 @@ class DiverterBase(fnconfig.Config):
         encryption.
 
         Args:
-            proto: str protocol of socket created by ProxyListner
+            proto: str protocol of socket created by ProxyListener
             orig_sport: int source port that originated the packet
             proxy_sport: int source port initiated by Proxy listener
             is_ssl_encrypted: bool is the packet SSL encrypted or not
@@ -1877,32 +1877,33 @@ class DiverterBase(fnconfig.Config):
 
     def prettyPrintNbi(self):
         """Convenience method to print all NBIs in appropriate format
-        upon diverter exit.
+        upon fakenet session termination. Called by stop() method of
+        diverter.
         """
-        banner = r"""     
-                                                                
-                                                                  
-            NNNNNNNN        NNNNNNNNBBBBBBBBBBBBBBBBB   IIIIIIIIII
-            N:::::::N       N::::::NB::::::::::::::::B  I::::::::I
-            N::::::::N      N::::::NB::::::BBBBBB:::::B I::::::::I
-            N:::::::::N     N::::::NBB:::::B     B:::::BII::::::II
-            N::::::::::N    N::::::N  B::::B     B:::::B  I::::I  
-            N:::::::::::N   N::::::N  B::::B     B:::::B  I::::I  
-            N:::::::N::::N  N::::::N  B::::BBBBBB:::::B   I::::I  
-            N::::::N N::::N N::::::N  B:::::::::::::BB    I::::I  
-            N::::::N  N::::N:::::::N  B::::BBBBBB:::::B   I::::I  
-            N::::::N   N:::::::::::N  B::::B     B:::::B  I::::I  
-            N::::::N    N::::::::::N  B::::B     B:::::B  I::::I  
-            N::::::N     N:::::::::N  B::::B     B:::::B  I::::I  
-            N::::::N      N::::::::NBB:::::BBBBBB::::::BII::::::II
-            N::::::N       N:::::::NB:::::::::::::::::B I::::::::I
-            N::::::N        N::::::NB::::::::::::::::B  I::::::::I
-            NNNNNNNN         NNNNNNNBBBBBBBBBBBBBBBBB   IIIIIIIIII
+        banner = r"""
+                                                                       
+                                                                       
+            NNNNNNNN        NNNNNNNNBBBBBBBBBBBBBBBBB   IIIIIIIIII                 
+            N:::::::N       N::::::NB::::::::::::::::B  I::::::::I                 
+            N::::::::N      N::::::NB::::::BBBBBB:::::B I::::::::I                 
+            N:::::::::N     N::::::NBB:::::B     B:::::BII::::::II                 
+            N::::::::::N    N::::::N  B::::B     B:::::B  I::::I      ssssssssss   
+            N:::::::::::N   N::::::N  B::::B     B:::::B  I::::I    ss::::::::::s  
+            N:::::::N::::N  N::::::N  B::::BBBBBB:::::B   I::::I  ss:::::::::::::s 
+            N::::::N N::::N N::::::N  B:::::::::::::BB    I::::I  s::::::ssss:::::s
+            N::::::N  N::::N:::::::N  B::::BBBBBB:::::B   I::::I   s:::::s  ssssss 
+            N::::::N   N:::::::::::N  B::::B     B:::::B  I::::I     s::::::s      
+            N::::::N    N::::::::::N  B::::B     B:::::B  I::::I        s::::::s   
+            N::::::N     N:::::::::N  B::::B     B:::::B  I::::I  ssssss   s:::::s 
+            N::::::N      N::::::::NBB:::::BBBBBB::::::BII::::::IIs:::::ssss::::::s
+            N::::::N       N:::::::NB:::::::::::::::::B I::::::::Is::::::::::::::s 
+            N::::::N        N::::::NB::::::::::::::::B  I::::::::I s:::::::::::ss  
+            NNNNNNNN         NNNNNNNBBBBBBBBBBBBBBBBB   IIIIIIIIII  sssssssssss    
+                                                                       
                                                                                                                
-                                                                
-            =======================================================
-                       Network Based Indicators Summary
-            =======================================================
+            ========================================================================
+                                Network-Based Indicators Summary
+            ========================================================================
         """
         indent = "  "
         self.logger.info(banner)
@@ -1920,6 +1921,10 @@ class DiverterBase(fnconfig.Config):
                     self.logger.info(f"{indent*4}Destination port: {attributes['dport']}")
                     self.logger.info(f"{indent*4}SSL encrypted: {attributes['is_ssl_encrypted']}")
                     for key, v in attributes['nbi'].items():
+                        # Let's convert the NBI value to str if it is not already
+                        if isinstance(v, bytes):
+                            v = v.decode('utf-8')
+
                         # Let's print maximum 20 characters for NBI values
                         v = (v[:20]+"...") if len(v)>20 else v
                         self.logger.info(f"{indent*6}-{key}: {v}")
@@ -1941,8 +1946,19 @@ class DiverterListenerCallbacks():
         self.__diverter = diverter
 
     def logNbi(self, sport, nbi, proto, application_layer_proto, is_ssl_encrypted):
+        """Delegate the logging of NBIs to the diverter.
+
+        This method forwards the provided NBI information to the logNbi() method
+        in the underlying diverter object. Called by all listeners to log NBIs.
+        """
         self.__diverter.logNbi(sport, nbi, proto, application_layer_proto, is_ssl_encrypted)
 
     def mapProxySportToOrigSport(self, proto, orig_sport, proxy_sport, is_ssl_encrypted):
+        """Delegate the mapping of proxy sport to original sport to the diverter.
+
+        This method forwards the provided parameters to the mapProxySportToOrigSport()
+        method in the underlying diverter object. Called by ProxyListener to report
+        the mapping between proxy initiated source port and original source port.
+        """
         self.__diverter.mapProxySportToOrigSport(proto, orig_sport, proxy_sport, is_ssl_encrypted)
 
