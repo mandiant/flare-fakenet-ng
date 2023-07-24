@@ -158,6 +158,12 @@ class FakeFTPHandler(FTPHandler, object):
         if not self.authorizer.has_user(self.username):
             self.authorizer.add_user(self.username, line, self.ftproot_path, 'elradfmwM')
 
+        # Collect NBIs
+        indicator = f"trying to login with username '{self.username}' and password '{line}'"
+        nbi = {"PASS": indicator}
+        collect_nbi(self.remote_port, nbi, self.server.config.get('usessl'),
+                self.server.diverterListenerCallbacks)
+
         return super(FakeFTPHandler, self).ftp_PASS(line)
 
 class TLS_FakeFTPHandler(TLS_FTPHandler, object):
@@ -167,6 +173,12 @@ class TLS_FakeFTPHandler(TLS_FTPHandler, object):
         # Dynamically add user to authorizer
         if not self.authorizer.has_user(self.username):
             self.authorizer.add_user(self.username, line, self.ftproot_path, 'elradfmwM')
+
+        # Collect NBIs
+        indicator = f"trying to login with username '{self.username}' and password '{line}'"
+        nbi = {"PASS": indicator}
+        collect_nbi(self.remote_port, nbi, self.server.config.get('usessl'),
+                self.server.diverterListenerCallbacks)
 
         return super(TLS_FakeFTPHandler, self).ftp_PASS(line)
 
@@ -182,6 +194,12 @@ class FakeFS(AbstractedFS):
             # Calculate absolute path to a fake file
             filename = os.path.join(os.path.dirname(filename), EXT_FILE_RESPONSE.get(file_extension.lower(), 'FakeNetMini.exe'))
 
+        # Collect NBIs
+        indicator = f"trying to open file {filename} with mode '{mode}'"
+        nbi = {"RETR": indicator}
+        collect_nbi(self.cmd_channel.remote_port, nbi, self.cmd_channel.server.config.get('usessl'),
+                self.cmd_channel.server.diverterListenerCallbacks)
+
         return super(FakeFS, self).open(filename, mode)
 
     def chdir(self, path):
@@ -190,14 +208,32 @@ class FakeFS(AbstractedFS):
         if not self.lexists(path):
             path = '.'
 
+        # Collect NBIs
+        indicator = f"trying to change working directory to {path}"
+        nbi = {"CWD": indicator}
+        collect_nbi(self.cmd_channel.remote_port, nbi, self.cmd_channel.server.config.get('usessl'),
+                self.cmd_channel.server.diverterListenerCallbacks)
+
         return super(FakeFS, self).chdir(path)
 
     def remove(self, path):
+
+        # Collect NBIs
+        indicator = f"trying to remove file {path}"
+        nbi = {"DELETE": indicator}
+        collect_nbi(self.cmd_channel.remote_port, nbi, self.cmd_channel.server.config.get('usessl'),
+                self.cmd_channel.server.diverterListenerCallbacks)
 
         # Don't remove anything
         pass
 
     def rmdir(self, path):
+
+        # Collect NBIs
+        indicator = f"trying to remove directory {path}"
+        nbi = {"RMD": indicator}
+        collect_nbi(self.cmd_channel.remote_port, nbi, self.cmd_channel.server.config.get('usessl'),
+                self.cmd_channel.server.diverterListenerCallbacks)
 
         # Don't remove anything
         pass
@@ -299,6 +335,7 @@ class FTPListener(object):
 
 
         self.server = ThreadedFTPServer((self.local_ip, int(self.config['port'])), self.handler)
+        self.server.config = self.config
 
         # Override pyftpdlib logger name
         logging.getLogger('pyftpdlib').name = self.name
@@ -316,6 +353,14 @@ class FTPListener(object):
     def genBanner(self):
         bannerfactory = BannerFactory.BannerFactory()
         return bannerfactory.genBanner(self.config, BANNERS)
+
+    def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
+        self.server.diverterListenerCallbacks = diverterListenerCallbacks
+
+def collect_nbi(sport, nbi, is_ssl_encrypted, diverterCallbacks):
+
+    # Report diverter everytime we capture an NBI
+    diverterCallbacks.logNbi(sport, nbi, 'TCP', 'FTP', is_ssl_encrypted)
 
 ###############################################################################
 # Testing code
