@@ -159,8 +159,7 @@ class FakeFTPHandler(FTPHandler, object):
             self.authorizer.add_user(self.username, line, self.ftproot_path, 'elradfmwM')
 
         # Collect NBIs
-        indicator = f"trying to login with username '{self.username}' and password '{line}'"
-        nbi = {"PASS": indicator}
+        nbi = {"command": "PASS", "username": self.username, "password": line}
         collect_nbi(self.remote_port, nbi, self.server.config.get('usessl'),
                 self.server.diverterListenerCallbacks)
 
@@ -175,8 +174,7 @@ class TLS_FakeFTPHandler(TLS_FTPHandler, object):
             self.authorizer.add_user(self.username, line, self.ftproot_path, 'elradfmwM')
 
         # Collect NBIs
-        indicator = f"trying to login with username '{self.username}' and password '{line}'"
-        nbi = {"PASS": indicator}
+        nbi = {"command": "PASS", "username": self.username, "password": line}
         collect_nbi(self.remote_port, nbi, self.server.config.get('usessl'),
                 self.server.diverterListenerCallbacks)
 
@@ -195,8 +193,7 @@ class FakeFS(AbstractedFS):
             filename = os.path.join(os.path.dirname(filename), EXT_FILE_RESPONSE.get(file_extension.lower(), 'FakeNetMini.exe'))
 
         # Collect NBIs
-        indicator = f"trying to open file {filename} with mode '{mode}'"
-        nbi = {"RETR": indicator}
+        nbi = {"command": "RETR", "filename": filename, "mode": mode}
         collect_nbi(self.cmd_channel.remote_port, nbi, self.cmd_channel.server.config.get('usessl'),
                 self.cmd_channel.server.diverterListenerCallbacks)
 
@@ -209,8 +206,7 @@ class FakeFS(AbstractedFS):
             path = '.'
 
         # Collect NBIs
-        indicator = f"trying to change working directory to {path}"
-        nbi = {"CWD": indicator}
+        nbi = {"command": "CWD", "path": path}
         collect_nbi(self.cmd_channel.remote_port, nbi, self.cmd_channel.server.config.get('usessl'),
                 self.cmd_channel.server.diverterListenerCallbacks)
 
@@ -219,8 +215,7 @@ class FakeFS(AbstractedFS):
     def remove(self, path):
 
         # Collect NBIs
-        indicator = f"trying to remove file {path}"
-        nbi = {"DELETE": indicator}
+        nbi = {"command": "DELETE", "filename": path}
         collect_nbi(self.cmd_channel.remote_port, nbi, self.cmd_channel.server.config.get('usessl'),
                 self.cmd_channel.server.diverterListenerCallbacks)
 
@@ -230,8 +225,7 @@ class FakeFS(AbstractedFS):
     def rmdir(self, path):
 
         # Collect NBIs
-        indicator = f"trying to remove directory {path}"
-        nbi = {"RMD": indicator}
+        nbi = {"command": "RMD", "directory": path}
         collect_nbi(self.cmd_channel.remote_port, nbi, self.cmd_channel.server.config.get('usessl'),
                 self.cmd_channel.server.diverterListenerCallbacks)
 

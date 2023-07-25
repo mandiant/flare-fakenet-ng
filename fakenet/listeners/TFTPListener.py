@@ -136,10 +136,10 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 self.handle_rrq(socket, filename.decode('utf-8'))
 
                 # Collect NBIs
+                indicator_filename = filename
                 if isinstance(filename, bytes):
                     indicator_filename = filename.decode('utf-8')
-                indicator = f"Received request to download {indicator_filename}"
-                nbi = {"RRQ": indicator}
+                nbi = {"command": "RRQ", "filename": indicator_filename}
                 self.collect_nbi(nbi)
 
             elif opcode == OPCODE_WRQ:
@@ -150,9 +150,10 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 self.handle_wrq(socket, filename)
 
                 # Collect NBIs
-                indicator_filename = filename.decode('utf-8')
-                indicator = f"Received request to upload {indicator_filename}"
-                nbi = {"WRQ": indicator}
+                indicator_filename = filename
+                if isinstance(filename, bytes):
+                    indicator_filename = filename.decode('utf-8')
+                nbi = {"command": "WRQ", "filename": indicator_filename}
                 self.collect_nbi(nbi)
 
             elif opcode == OPCODE_ACK:
@@ -193,23 +194,27 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 f.close()
 
                 # Collect NBIs
+                indicator_data = data
+                indicator_filename = self.server.filename_path
                 if isinstance(data, bytes):
                     indicator_data = data.decode('utf-8')
                 if isinstance(self.server.filename_path, bytes):
                     indicator_filename = self.server.filename_path.decode('utf-8')
-                indicator = f"Received request to write to file {indicator_filename} with data '{indicator_data[4:]}'"
 
                 # Send ACK packet for the given block number
                 ack_packet = OPCODE_ACK + data[2:4]
                 socket.sendto(ack_packet, self.client_address)
 
             else:
+                # Collect NBIs
+                indicator_data = data
+                indicator_filename = None
                 if isinstance(data, bytes):
                     indicator_data = data.decode('utf-8')
-                indicator = f"Received data '{indicator_data[4:]}'"
+
                 self.server.logger.error('Received DATA packet but don\'t know where to store it.')
 
-            nbi = {"DATA": indicator}
+            nbi = {"command": "DATA", "data": indicator_data[4:], "filename": indicator_filename}
             self.collect_nbi(nbi)
 
     def handle_rrq(self, socket, filename):
