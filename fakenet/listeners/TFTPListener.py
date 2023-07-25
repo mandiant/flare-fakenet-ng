@@ -115,6 +115,9 @@ class TFTPListener(object):
             self.server.shutdown()
             self.server.server_close()
 
+    def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
+        self.server.diverterListenerCallbacks = diverterListenerCallbacks
+
 class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
@@ -132,12 +135,25 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 self.server.logger.info('Received request to download %s', filename)
                 self.handle_rrq(socket, filename.decode('utf-8'))
 
+                # Collect NBIs
+                if isinstance(filename, bytes):
+                    indicator_filename = filename.decode('utf-8')
+                indicator = f"Received request to download {indicator_filename}"
+                nbi = {"RRQ": indicator}
+                self.collect_nbi(nbi)
+
             elif opcode == OPCODE_WRQ:
 
                 filename, mode = self.parse_rrq_wrq_packet(data)
                 self.server.logger.info('Received request to upload %s', filename)
 
                 self.handle_wrq(socket, filename)
+
+                # Collect NBIs
+                indicator_filename = filename.decode('utf-8')
+                indicator = f"Received request to upload {indicator_filename}"
+                nbi = {"WRQ": indicator}
+                self.collect_nbi(nbi)
 
             elif opcode == OPCODE_ACK:
 
@@ -176,12 +192,25 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 f.write(data[4:])
                 f.close()
 
+                # Collect NBIs
+                if isinstance(data, bytes):
+                    indicator_data = data.decode('utf-8')
+                if isinstance(self.server.filename_path, bytes):
+                    indicator_filename = self.server.filename_path.decode('utf-8')
+                indicator = f"Received request to write to file {indicator_filename} with data '{indicator_data[4:]}'"
+
                 # Send ACK packet for the given block number
                 ack_packet = OPCODE_ACK + data[2:4]
                 socket.sendto(ack_packet, self.client_address)
 
             else:
+                if isinstance(data, bytes):
+                    indicator_data = data.decode('utf-8')
+                indicator = f"Received data '{indicator_data[4:]}'"
                 self.server.logger.error('Received DATA packet but don\'t know where to store it.')
+
+            nbi = {"DATA": indicator}
+            self.collect_nbi(nbi)
 
     def handle_rrq(self, socket, filename):
 
@@ -232,6 +261,11 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
         filename, mode, _ = data[2:].split(b"\x00", 2)
         return (filename, mode)
+
+    def collect_nbi(self, nbi):
+        # Report diverter everytime we capture an NBI
+        self.server.diverterListenerCallbacks.logNbi(self.client_address[1], nbi,
+                'UDP', 'TFTP', 'No')
 
 class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
     pass
