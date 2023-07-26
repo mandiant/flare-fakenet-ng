@@ -1853,7 +1853,13 @@ class DiverterBase(fnconfig.Config):
         else:
             orig_sport = sport
 
+        if self.sessions.get(orig_sport) is None:
+            return
+
         _, _, pid, comm, orig_dport, transport_layer_proto = self.sessions.get(orig_sport)
+
+        if application_layer_proto == '':
+            application_layer_proto = transport_layer_proto
 
         # Normalize pid and comm for MultiHost mode
         if pid is None and comm is None and self.network_mode.lower() == 'multihost':
