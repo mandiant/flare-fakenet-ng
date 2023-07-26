@@ -122,8 +122,7 @@ class ThreadedTCPClientSocket(threading.Thread):
             return new_sport
 
         except Exception as e:
-            self.logger.debug('Listener socket exception while attempting
-                    connection %s' % e.message)
+            self.logger.debug('Listener socket exception while attempting connection %s' % e.message)
 
         return None
 

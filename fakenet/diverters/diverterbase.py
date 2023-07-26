@@ -540,7 +540,7 @@ class DiverterBase(fnconfig.Config):
         self.logger.setLevel(logging_level)
 
         # Network Based Indicators
-        self.nbi = {}
+        self.nbis = {}
 
         # Index remote Process IDs for MultiHost operations
         self.remote_pid_counter = 0
@@ -1822,12 +1822,10 @@ class DiverterBase(fnconfig.Config):
             None
         """
         self.proxy_sport_to_orig_sport_map[(proto, proxy_sport)] = orig_sport
-        self.is_proxied_pkt_ssl_encrypted[(orig_sport, proxy_sport)] =
-        is_ssl_encrypted
+        self.is_proxied_pkt_ssl_encrypted[(proto, proxy_sport)] = is_ssl_encrypted
 
     def logNbi(self, sport, nbi, proto, application_layer_proto,
             is_ssl_encrypted):
-
         """Collects the NBIs from all listeners into a dictionary.
 
         All listeners (currently only HTTPListener) use this
@@ -1847,37 +1845,37 @@ class DiverterBase(fnconfig.Config):
         proxied_nbi = (proto, sport) in self.proxy_sport_to_orig_sport_map
         
         # For proxied nbis, override the listener's is_ssl_encrypted with Proxy
-        # listener's is_ssl_encrypted, and update the original sport.  For
+        # listener's is_ssl_encrypted, and update the original sport. For
         # non-proxied nbis, use listener provided is_ssl_encrypted and sport.
         if proxied_nbi:
             orig_sport = self.proxy_sport_to_orig_sport_map[(proto, sport)]
-            is_ssl_encrypted =
-            self.is_proxied_pkt_ssl_encrypted.get((orig_sport, sport))
+            is_ssl_encrypted = self.is_proxied_pkt_ssl_encrypted.get((proto, sport))
         else:
             orig_sport = sport
 
-        _, __, pid, comm, orig_dport, transport_layer_proto =
-        self.sessions.get(orig_sport)
+        _, _, pid, comm, orig_dport, transport_layer_proto = self.sessions.get(orig_sport)
 
         # Normalize pid and comm for MultiHost mode
-        if pid==comm==None and self.network_mode.lower() == 'multihost':
-            self.remote_pid_counter+=1
+        if pid is None and comm is None and self.network_mode.lower() == 'multihost':
+            self.remote_pid_counter += 1
             pid = self.remote_pid_counter
             comm = 'Remote Process'
 
         # Craft the dictionary
         nbi_entry = {
-                'transport_layer_proto': transport_layer_proto,
-                'sport': orig_sport,
-                'dport': orig_dport,
-                'is_ssl_encrypted': is_ssl_encrypted,
-                'nbi': nbi}
+            'transport_layer_proto': transport_layer_proto,
+            'sport': orig_sport,
+            'dport': orig_dport,
+            'is_ssl_encrypted': is_ssl_encrypted,
+            'network_mode': self.network_mode.lower(),
+            'nbi': nbi
+            }
         application_layer_proto = application_layer_proto.lower()
  
         # If it's a new NBI from an exisitng process or existing protocol,
         # append the nbi, else create new key
-        self.nbi.setdefault((pid, comm), {}).setdefault(application_layer_proto,
-                []).append(nbi_entry)
+        self.nbis.setdefault((pid, comm), {}).setdefault(application_layer_proto,
+                                                         []).append(nbi_entry)
 
     def prettyPrintNbi(self):
         """Convenience method to print all NBIs in appropriate format upon
@@ -1911,24 +1909,27 @@ class DiverterBase(fnconfig.Config):
         indent = "  "
         self.logger.info(banner)
         process_counter = 0
-        for process_info, values in self.nbi.items():
+        for process_info, values in self.nbis.items():
             process_counter += 1
-            self.logger.info(f'[{process_counter}] Process ID:
-                    {process_info[0]}, Process Name: {process_info[1]}')
+            self.logger.info(f"[{process_counter}] Process ID: "
+                    f"{process_info[0]}, Process Name: {process_info[1]}")
+
             for application_layer_proto, nbi_entry in values.items():
-                self.logger.info(f'{indent*2} Protocol:
-                        {application_layer_proto}')
+                self.logger.info(f"{indent*2} Protocol: "
+                                 f"{application_layer_proto}")
                 nbi_counter = 0
+
                 for attributes in nbi_entry:
                     nbi_counter += 1
-                    self.logger.info(f"{indent*3}{nbi_counter}.Transport Layer
-                            Protocol: {attributes['transport_layer_proto']}")
-                    self.logger.info(f"{indent*4}Source port:
-                            {attributes['sport']}")
-                    self.logger.info(f"{indent*4}Destination port:
-                            {attributes['dport']}")
-                    self.logger.info(f"{indent*4}SSL encrypted:
-                            {attributes['is_ssl_encrypted']}")
+                    self.logger.info(f"{indent*3}{nbi_counter}.Transport Layer "
+                                     f"Protocol: {attributes['transport_layer_proto']}")
+                    self.logger.info(f"{indent*4}Source port: {attributes['sport']}")
+                    self.logger.info(f"{indent*4}Destination port: {attributes['dport']}")
+                    self.logger.info(f"{indent*4}SSL encrypted: "
+                                     f"{attributes['is_ssl_encrypted']}")
+                    self.logger.info(f"{indent*4}Network mode: "
+                                     f"{attributes['network_mode']}")
+
                     for key, v in attributes['nbi'].items():
                         # Let's convert the NBI value to str if it's not already
                         if isinstance(v, bytes):
@@ -1937,7 +1938,9 @@ class DiverterBase(fnconfig.Config):
                         # Let's print maximum 20 characters for NBI values
                         v = (v[:20]+"...") if len(v)>20 else v
                         self.logger.info(f"{indent*6}-{key}: {v}")
+
                     self.logger.info("\r")
+
             self.logger.info("\r")
 
 
@@ -1962,7 +1965,7 @@ class DiverterListenerCallbacks():
         in the underlying diverter object. Called by all listeners to log NBIs.
         """
         self.__diverter.logNbi(sport, nbi, proto, application_layer_proto,
-                is_ssl_encrypted)
+                               is_ssl_encrypted)
 
     def mapProxySportToOrigSport(self, proto, orig_sport, proxy_sport,
             is_ssl_encrypted):
@@ -1975,5 +1978,5 @@ class DiverterListenerCallbacks():
         source port and original source port.
         """
         self.__diverter.mapProxySportToOrigSport(proto, orig_sport, proxy_sport,
-                is_ssl_encrypted)
+                                                 is_ssl_encrypted)
 
