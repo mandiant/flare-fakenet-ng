@@ -122,7 +122,8 @@ class ThreadedTCPClientSocket(threading.Thread):
             return new_sport
 
         except Exception as e:
-            self.logger.debug('Listener socket exception while attempting connection %s' % e.message)
+            self.logger.debug('Listener socket exception while attempting
+                    connection %s' % e.message)
 
         return None
 
@@ -213,8 +214,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             self.server.logger.warning('recv() error: %s' % e.message)
         
         # Is the pkt ssl encrypted?
-        # Using a str here instead of bool to match
-        # the format returned by configs of other listeners
+        # Using a str here instead of bool to match the format returned by
+        # configs of other listeners
         is_ssl_encrypted = 'No'
 
         if data:
@@ -248,8 +249,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # Get proxy initiated source port and report to diverter
                 new_sport = listener_sock.connect()
                 if new_sport:
-                    self.server.diverterListenerCallbacks.mapProxySportToOrigSport(
-                            'TCP', orig_src_port, new_sport, is_ssl_encrypted)
+                    self.server.diverterListenerCallbacks.mapProxySportToOrigSport('TCP',
+                            orig_src_port, new_sport, is_ssl_encrypted)
 
                 listener_sock.daemon = True
                 listener_sock.start()

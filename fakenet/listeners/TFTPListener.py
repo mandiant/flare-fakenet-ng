@@ -214,7 +214,8 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
                 self.server.logger.error('Received DATA packet but don\'t know where to store it.')
 
-            nbi = {"command": "DATA", "data": indicator_data[4:], "filename": indicator_filename}
+            nbi = {"command": "DATA", "data": indicator_data[4:], "filename":
+                    indicator_filename}
             self.collect_nbi(nbi)
 
     def handle_rrq(self, socket, filename):
@@ -269,8 +270,8 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
     def collect_nbi(self, nbi):
         # Report diverter everytime we capture an NBI
-        self.server.diverterListenerCallbacks.logNbi(self.client_address[1], nbi,
-                'UDP', 'TFTP', 'No')
+        self.server.diverterListenerCallbacks.logNbi(self.client_address[1],
+                nbi, 'UDP', 'TFTP', 'No')
 
 class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
     pass

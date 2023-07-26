@@ -218,8 +218,9 @@ class SocketWithHexdumpRecv():
     def do_hexdump(self, data):
         # Collect NBIs
         hexdump_lines = hexdump_table(data)
-        collect_nbi(self.sport, hexdump_lines, self.proto, self.application_layer_proto,
-                self.is_ssl_encrypted, self.diverterCallbacks)
+        collect_nbi(self.sport, hexdump_lines, self.proto,
+                self.application_layer_proto, self.is_ssl_encrypted,
+                self.diverterCallbacks)
 
         for line in hexdump_lines:
             self.logger.info(INDENT + line)
@@ -241,8 +242,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         # as recv attribute became read-only
 
         self.request = SocketWithHexdumpRecv(self.request, self.server.logger,
-                self.client_address[1], self.server.config.get('protocol'), 'Raw',
-                self.server.config.get('usessl'), self.server.diverterListenerCallbacks)
+                self.client_address[1], self.server.config.get('protocol'),
+                'Raw', self.server.config.get('usessl'),
+                self.server.diverterListenerCallbacks)
 
         # Timeout connection to prevent hanging
         self.request.settimeout(int(self.server.config.get('timeout', 5)))
@@ -283,8 +285,10 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
         if data:
             # Collect NBIs
             hexdump_lines = hexdump_table(data)
-            collect_nbi(self.client_address[1], hexdump_lines, self.server.config.get('protocol'),
-                    'Raw', self.server.config.get('usessl'), self.server.diverterListenerCallbacks)
+            collect_nbi(self.client_address[1], hexdump_lines,
+                    self.server.config.get('protocol'), 'Raw',
+                    self.server.config.get('usessl'),
+                    self.server.diverterListenerCallbacks)
 
             for line in hexdump_lines:
                 self.server.logger.info(INDENT + line)

@@ -90,8 +90,8 @@ class DivertParms(object):
         Returns:
             True if this pair of endpoints hasn't conversed before, else False
         """
-        # sessions.get returns (dst_ip, dport, pid, comm, dport0, proto) or None.
-        # We just want dst_ip and dport for comparison.
+        # sessions.get returns (dst_ip, dport, pid, comm, dport0, proto) or
+        # None. We just want dst_ip and dport for comparison.
         session = self.diverter.sessions.get(self.pkt.sport)
         if session is None:
             return True
@@ -1804,13 +1804,13 @@ class DiverterBase(fnconfig.Config):
             self.logger.info('Executing command: %s' % (execCmd))
             self.execute_detached(execCmd)
 
-    def mapProxySportToOrigSport(self, proto, orig_sport, proxy_sport, is_ssl_encrypted):
+    def mapProxySportToOrigSport(self, proto, orig_sport, proxy_sport,
+            is_ssl_encrypted):
         """Maps Proxy initiated source ports to their original source ports.
 
-        The Proxy listener uses this method to notify the diverter
-        about the proxy originated source port for the original
-        source port. It also notifies if the packet uses SSL
-        encryption.
+        The Proxy listener uses this method to notify the diverter about the
+        proxy originated source port for the original source port. It also
+        notifies if the packet uses SSL encryption.
 
         Args:
             proto: str protocol of socket created by ProxyListener
@@ -1822,9 +1822,12 @@ class DiverterBase(fnconfig.Config):
             None
         """
         self.proxy_sport_to_orig_sport_map[(proto, proxy_sport)] = orig_sport
-        self.is_proxied_pkt_ssl_encrypted[(orig_sport, proxy_sport)] = is_ssl_encrypted
+        self.is_proxied_pkt_ssl_encrypted[(orig_sport, proxy_sport)] =
+        is_ssl_encrypted
 
-    def logNbi(self, sport, nbi, proto, application_layer_proto, is_ssl_encrypted):
+    def logNbi(self, sport, nbi, proto, application_layer_proto,
+            is_ssl_encrypted):
+
         """Collects the NBIs from all listeners into a dictionary.
 
         All listeners (currently only HTTPListener) use this
@@ -1843,17 +1846,18 @@ class DiverterBase(fnconfig.Config):
         """
         proxied_nbi = (proto, sport) in self.proxy_sport_to_orig_sport_map
         
-        # For proxied nbis, override the listener's is_ssl_encrypted with
-        # Proxy listener's is_ssl_encrypted, and update the original sport.
-        # For non-proxied nbis, use listener provided is_ssl_encrypted and sport.
+        # For proxied nbis, override the listener's is_ssl_encrypted with Proxy
+        # listener's is_ssl_encrypted, and update the original sport.  For
+        # non-proxied nbis, use listener provided is_ssl_encrypted and sport.
         if proxied_nbi:
             orig_sport = self.proxy_sport_to_orig_sport_map[(proto, sport)]
-            is_ssl_encrypted = self.is_proxied_pkt_ssl_encrypted.get(
-                    (orig_sport, sport))
+            is_ssl_encrypted =
+            self.is_proxied_pkt_ssl_encrypted.get((orig_sport, sport))
         else:
             orig_sport = sport
 
-        _, __, pid, comm, orig_dport, transport_layer_proto = self.sessions.get(orig_sport)
+        _, __, pid, comm, orig_dport, transport_layer_proto =
+        self.sessions.get(orig_sport)
 
         # Normalize pid and comm for MultiHost mode
         if pid==comm==None and self.network_mode.lower() == 'multihost':
@@ -1870,15 +1874,14 @@ class DiverterBase(fnconfig.Config):
                 'nbi': nbi}
         application_layer_proto = application_layer_proto.lower()
  
-        # If it's a new NBI from an exisitng process or existing
-        # protocol, append the nbi, else create new key
+        # If it's a new NBI from an exisitng process or existing protocol,
+        # append the nbi, else create new key
         self.nbi.setdefault((pid, comm), {}).setdefault(application_layer_proto,
                 []).append(nbi_entry)
 
     def prettyPrintNbi(self):
-        """Convenience method to print all NBIs in appropriate format
-        upon fakenet session termination. Called by stop() method of
-        diverter.
+        """Convenience method to print all NBIs in appropriate format upon
+        fakenet session termination. Called by stop() method of diverter.
         """
         banner = r"""
                                                                        
@@ -1909,19 +1912,25 @@ class DiverterBase(fnconfig.Config):
         self.logger.info(banner)
         process_counter = 0
         for process_info, values in self.nbi.items():
-            process_counter+=1
-            self.logger.info(f'[{process_counter}] Process ID: {process_info[0]}, Process Name: {process_info[1]}')
+            process_counter += 1
+            self.logger.info(f'[{process_counter}] Process ID:
+                    {process_info[0]}, Process Name: {process_info[1]}')
             for application_layer_proto, nbi_entry in values.items():
-                self.logger.info(f'{indent*2} Protocol: {application_layer_proto}')
-                nbi_counter=0
+                self.logger.info(f'{indent*2} Protocol:
+                        {application_layer_proto}')
+                nbi_counter = 0
                 for attributes in nbi_entry:
-                    nbi_counter+=1
-                    self.logger.info(f"{indent*3}{nbi_counter}.Transport Layer Protocol: {attributes['transport_layer_proto']}")
-                    self.logger.info(f"{indent*4}Source port: {attributes['sport']}")
-                    self.logger.info(f"{indent*4}Destination port: {attributes['dport']}")
-                    self.logger.info(f"{indent*4}SSL encrypted: {attributes['is_ssl_encrypted']}")
+                    nbi_counter += 1
+                    self.logger.info(f"{indent*3}{nbi_counter}.Transport Layer
+                            Protocol: {attributes['transport_layer_proto']}")
+                    self.logger.info(f"{indent*4}Source port:
+                            {attributes['sport']}")
+                    self.logger.info(f"{indent*4}Destination port:
+                            {attributes['dport']}")
+                    self.logger.info(f"{indent*4}SSL encrypted:
+                            {attributes['is_ssl_encrypted']}")
                     for key, v in attributes['nbi'].items():
-                        # Let's convert the NBI value to str if it is not already
+                        # Let's convert the NBI value to str if it's not already
                         if isinstance(v, bytes):
                             v = v.decode('utf-8')
 
@@ -1933,9 +1942,9 @@ class DiverterBase(fnconfig.Config):
 
 
 class DiverterListenerCallbacks():
-    """A wrapper class for the diverter that provides controlled access
-    to specific methods required by listeners for reporting NBIs.
-    This prevents exposing the entire diverter to the listeners.
+    """A wrapper class for the diverter that provides controlled access to
+    specific methods required by listeners for reporting NBIs.  This prevents
+    exposing the entire diverter to the listeners.
     """
     def __init__(self, diverter):
         """Initialize the DiverterWrapper.
@@ -1945,20 +1954,26 @@ class DiverterListenerCallbacks():
         """
         self.__diverter = diverter
 
-    def logNbi(self, sport, nbi, proto, application_layer_proto, is_ssl_encrypted):
+    def logNbi(self, sport, nbi, proto, application_layer_proto,
+            is_ssl_encrypted):
         """Delegate the logging of NBIs to the diverter.
 
         This method forwards the provided NBI information to the logNbi() method
         in the underlying diverter object. Called by all listeners to log NBIs.
         """
-        self.__diverter.logNbi(sport, nbi, proto, application_layer_proto, is_ssl_encrypted)
+        self.__diverter.logNbi(sport, nbi, proto, application_layer_proto,
+                is_ssl_encrypted)
 
-    def mapProxySportToOrigSport(self, proto, orig_sport, proxy_sport, is_ssl_encrypted):
-        """Delegate the mapping of proxy sport to original sport to the diverter.
+    def mapProxySportToOrigSport(self, proto, orig_sport, proxy_sport,
+            is_ssl_encrypted):
+        """Delegate the mapping of proxy sport to original sport to the
+        diverter.
 
-        This method forwards the provided parameters to the mapProxySportToOrigSport()
-        method in the underlying diverter object. Called by ProxyListener to report
-        the mapping between proxy initiated source port and original source port.
+        This method forwards the provided parameters to the
+        mapProxySportToOrigSport() method in the underlying diverter object.
+        Called by ProxyListener to report the mapping between proxy initiated
+        source port and original source port.
         """
-        self.__diverter.mapProxySportToOrigSport(proto, orig_sport, proxy_sport, is_ssl_encrypted)
+        self.__diverter.mapProxySportToOrigSport(proto, orig_sport, proxy_sport,
+                is_ssl_encrypted)
 

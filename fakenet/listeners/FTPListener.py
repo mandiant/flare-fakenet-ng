@@ -194,7 +194,8 @@ class FakeFS(AbstractedFS):
 
         # Collect NBIs
         nbi = {"command": "RETR", "filename": filename, "mode": mode}
-        collect_nbi(self.cmd_channel.remote_port, nbi, self.cmd_channel.server.config.get('usessl'),
+        collect_nbi(self.cmd_channel.remote_port, nbi,
+                self.cmd_channel.server.config.get('usessl'),
                 self.cmd_channel.server.diverterListenerCallbacks)
 
         return super(FakeFS, self).open(filename, mode)
@@ -207,7 +208,8 @@ class FakeFS(AbstractedFS):
 
         # Collect NBIs
         nbi = {"command": "CWD", "path": path}
-        collect_nbi(self.cmd_channel.remote_port, nbi, self.cmd_channel.server.config.get('usessl'),
+        collect_nbi(self.cmd_channel.remote_port, nbi,
+                self.cmd_channel.server.config.get('usessl'),
                 self.cmd_channel.server.diverterListenerCallbacks)
 
         return super(FakeFS, self).chdir(path)
@@ -216,7 +218,8 @@ class FakeFS(AbstractedFS):
 
         # Collect NBIs
         nbi = {"command": "DELETE", "filename": path}
-        collect_nbi(self.cmd_channel.remote_port, nbi, self.cmd_channel.server.config.get('usessl'),
+        collect_nbi(self.cmd_channel.remote_port, nbi,
+                self.cmd_channel.server.config.get('usessl'),
                 self.cmd_channel.server.diverterListenerCallbacks)
 
         # Don't remove anything
@@ -226,7 +229,8 @@ class FakeFS(AbstractedFS):
 
         # Collect NBIs
         nbi = {"command": "RMD", "directory": path}
-        collect_nbi(self.cmd_channel.remote_port, nbi, self.cmd_channel.server.config.get('usessl'),
+        collect_nbi(self.cmd_channel.remote_port, nbi,
+                self.cmd_channel.server.config.get('usessl'),
                 self.cmd_channel.server.diverterListenerCallbacks)
 
         # Don't remove anything
