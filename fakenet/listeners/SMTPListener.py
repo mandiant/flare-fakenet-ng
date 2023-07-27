@@ -92,6 +92,9 @@ class SMTPListener(object):
             self.server.shutdown()
             self.server.server_close()
 
+    def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
+        self.server.diverterListenerCallbacks = diverterListenerCallbacks
+
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
@@ -108,6 +111,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     self.server.logger.debug(line)
 
                 command = data[:4].decode("utf-8").upper()
+                args = data[4:].decode("utf-8").strip()
 
                 if command == '':
                     break
@@ -142,8 +146,26 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     self.request.sendall(b"250 OK\r\n")
 
+                    # Collect NBIs
+                    # Mail data can be long. Let's capture the first line of the
+                    # data for NBI.
+                    nbi = {
+                        "command": command,
+                        "mail_data": mail_data.decode('utf-8').split("\n")[0]
+                        }
+                    self.collect_nbi(nbi)
+
                 else:
                     self.request.sendall(b"503 Command not supported\r\n")
+
+                # Collect NBIs
+                if command != 'DATA':
+                    args = None if args == '' else args
+                    nbi = {
+                        "command": command,
+                        "args": args
+                        }
+                    self.collect_nbi(nbi)
 
         except socket.timeout:
             self.server.logger.warning('Connection timeout')
@@ -153,6 +175,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
         except Exception as e:
             self.server.logger.error('Error: %s', e)
+
+    def collect_nbi(self, nbi):
+        # Report diverter everytime we capture an NBI
+        self.server.diverterListenerCallbacks.logNbi(self.client_address[1],
+                                                     nbi,'TCP', 'SMTP', 
+                                                     self.server.config.get('usessl'))
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
