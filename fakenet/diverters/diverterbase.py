@@ -6,6 +6,7 @@ import sys
 import time
 import dpkt
 import signal
+import jinja2
 import socket
 import logging
 import threading
@@ -701,6 +702,7 @@ class DiverterBase(fnconfig.Config):
     def stop(self):
         self.logger.info('Stopping...')
         self.prettyPrintNbi()
+        self.generate_html_report()
         return self.stopCallback()
 
     @abc.abstractmethod
@@ -1937,19 +1939,39 @@ class DiverterBase(fnconfig.Config):
                                      f"{attributes['network_mode']}")
 
                     for key, v in attributes['nbi'].items():
-                        # Let's convert the NBI value to str if it's not already
-                        if isinstance(v, bytes):
-                            v = v.decode('utf-8')
+                        if v is not None:
+                            # Let's convert the NBI value to str if it's not already
+                            if isinstance(v, bytes):
+                                v = v.decode('utf-8')
 
-                        # Let's print maximum 20 characters for NBI values
-                        v = (v[:20]+"...") if len(v)>20 else v
+                            # Let's print maximum 40 characters for NBI values
+                            v = (v[:40]+"...") if len(v)>40 else v
                         self.logger.info(f"{indent*6}-{key}: {v}")
 
                     self.logger.info("\r")
 
             self.logger.info("\r")
 
+    def generate_html_report(self):
+        """Generates an interactive HTML report containing NBI summary saved
+        to the main working directory of flare-fakenet-ng. Called by stop() method
+        of diverter.
+        """
+        TEMPLATE_FILE = os.path.join("fakenet", "configs", "template.html")
+        template_loader = jinja2.FileSystemLoader(searchpath=os.path.dirname(TEMPLATE_FILE))
+        template_env = jinja2.Environment(loader=template_loader)
+        template = template_env.get_template(os.path.basename(TEMPLATE_FILE))
+        
+        timestamp = time.strftime('%Y%m%d_%H%M%S')
+        output_filename = f"report_{timestamp}.html"
 
+        with open(output_filename, "w") as output_file:
+            output_file.write(template.render(nbis=self.nbis))
+        
+        self.logger.info(f"Generated new HTML report: {output_filename}")
+    
+    
+    
 class DiverterListenerCallbacks():
     """A wrapper class for the diverter that provides controlled access to
     specific methods required by listeners for reporting NBIs.  This prevents

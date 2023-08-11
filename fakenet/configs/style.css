@@ -1,0 +1,203 @@
+/* Following the nord theme for the User Interface */
+:root {
+  --background-light: #2e3440;
+  --cell-background-light: #4c566a;
+}
+
+body {
+  background-color: var(--background-light);
+  color: #d8dee9;
+  font-family: "Courier New", monospace;
+}
+
+.table-container {
+  background-color: var(--cell-background-light);
+}
+
+table {
+  color: #2e3440;
+  width: 100%;
+}
+
+th,
+td {
+  background-color: #d8dee9;
+  font-weight: bold;
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #d8dee9;
+}
+
+tr:nth-child(even) td {
+  background-color: #eceff4;
+}
+
+tr[data-selectable] td,
+tr[data-selectable] th {
+  cursor: pointer;
+}
+
+tr:hover td {
+  background-color: #8FBCBB;
+}
+
+.search-container {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-input {
+  padding: 8px;
+  border: 1px solid #d8dee9;
+  border-radius: 5px;
+  flex: 1;
+  font-size: 14px;
+  color: #2e3440;
+  background-color: #eceff4;
+}
+
+.search-input:focus {
+  outline: none;
+  box-shadow: 0 0 4px #81a1c1;
+}
+
+.search-button,
+.copy-button,
+.copy-selected-button {
+  padding: 8px 16px;
+  font-size: 14px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-top: 10px;
+  background-color: #5e81ac;
+  color: #eceff4;
+}
+
+.copy-button:hover,
+.copy-selected-button:hover,
+.search-button:hover {
+  background-color: #88c0d0;
+}
+
+.collapsible {
+  background-color: #4c566a;
+  color: #eceff4;
+  cursor: pointer;
+  padding: 18px;
+  width: 100%;
+  border: none;
+  text-align: left;
+  outline: none;
+  font-size: 16px;
+  transition: 0.4s;
+}
+
+.active,
+.collapsible:hover {
+  background-color: #5e81ac;
+}
+
+.content {
+  padding: 0 18px;
+  display: none;
+  overflow: hidden;
+  background-color: #2e3440;
+}
+
+.main-header-text,
+h1,
+h2 {
+  text-align: center;
+  color: #eceff4;
+  font-size: 64px;
+}
+
+.go-top-button,
+.go-bottom-button {
+  position: fixed;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  text-align: center;
+  line-height: 40px;
+  border-radius: 50%;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  background-color: #5e81ac;
+  color: #eceff4;
+}
+
+.go-bottom-button {
+  bottom: 70px;
+}
+
+.go-top-button:before,
+.go-bottom-button:before {
+  content: "\f077";
+  font-family: "Font Awesome 5 Free";
+}
+
+.go-bottom-button:before {
+  content: "\f078";
+}
+
+.copy-button,
+.copy-selected-button {
+  padding: 5px 10px;
+  font-size: 16px;
+  background-color: #81a1c1;
+  color: #eceff4;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.copy-button:hover,
+.copy-selected-button:hover {
+  background-color: #88c0d0;
+}
+
+.nested {
+  margin-left: 20px;
+  padding: 0;
+  list-style: none;
+  font-weight: normal;
+}
+
+tr[data-selectable] {
+  cursor: pointer;
+}
+
+tr[data-selectable]:hover {
+  background-color: #5e81ac;
+}
+
+input[type="checkbox"] {
+  cursor: pointer;
+}
+.content {
+    display: none;
+}
+
+.content.expanded {
+    display: block;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.collapsible-checkbox {
+    margin-right: 10px;
+}
+
+.popup {
+	display: none;
+}

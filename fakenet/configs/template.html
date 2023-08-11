@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FAKENET-NG</title>
+  <link rel="stylesheet" href="fakenet/configs/style.css">
+  <script src="fakenet/configs/index.js" defer></script>
+</head>
+<body>
+  <div class="main-header-text">
+    <h1>FAKENET-NG</h1>
+    <h2>Network-Based Indicators</h2>
+  </div>
+  <div class="search-container">
+    <input type="text" class="search-input" id="searchInput" onkeyup="searchTable()" placeholder="Filter keywords...">
+    <button class="search-button" id="searchButton" onclick="searchTable()">Search</button>
+    <button class="copy-button" id="copyButton" onclick="copyAllTables()" title="Copy All NBIs Data">Copy Table Data</button>
+	<div class="popup">Copied!</div>
+	<button class="copy-selected-button" onclick="copySelectedNbis()" title="Copy Selected NBIs Data">Copy Selected NBIs</button>
+	<div class="popup">Copied!</div>
+  </div>
+  
+  {% for process, process_info in nbis.items() %}
+  <div class="collapsible-container">
+	<label class="checkbox-label">
+        <input type="checkbox" class="collapsible-checkbox">
+        <button class="collapsible">Process ID: {{ process[0] }}, Process Name: {{ process[1] }}</button>
+    </label>
+    <div class="content">
+      {% for proto, nbis_list in process_info.items() %}
+        {% if proto != 'process_name' %}
+		<div class="collapsible-container">
+			<label class="checkbox-label">
+				<input type="checkbox" class="collapsible-checkbox">
+				<button class="collapsible">{{ proto.upper() }}</button>
+			</label>
+        <div class="content">
+          <ul class="nested">
+            <div class="table-container">
+              <table>
+                <tr>
+				  <th>Select</th>
+                  <th>NBI</th>
+                  <th>Additional Information</th>
+				  <th>Actions</th>
+                </tr>
+                {% for nbi_info in nbis_list %}
+                <tr data-selectable>
+				  <td><input type="checkbox" name="nbi-checkbox" class="nbi-checkbox"></td>
+                  <td>
+                    <ul class="nested">
+                      {% for key, value in nbi_info['nbi'].items() %}
+                      <li>{{ key }}: {{ value }}</li>
+                      {% endfor %}
+                    </ul>
+                  </td>
+                  <td>
+                    <ul class="nested">
+                      <li>Transport Layer Protocol: {{ nbi_info['transport_layer_proto'] }}</li>
+                      <li>Source port: {{ nbi_info['sport'] }}</li>
+                      <li>Destination port: {{ nbi_info['dport'] }}</li>
+                      <li>SSL encrypted: {{ nbi_info['is_ssl_encrypted'] }}</li>
+                      <li>Network mode: {{ nbi_info['network_mode'] }}</li>
+                    </ul>
+                  </td>
+				  <td><button class="copy-button" onclick="copyNbiData(this)" title="Copy Individual NBI Data">Copy</button></td>
+				  <div class="popup">Copied!</div>
+                </tr>
+                {% endfor %}
+              </table>
+            </div>
+          </ul>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+	</div>
+  </div>
+  {% endfor %}
+
+  <div class="go-top-button" title="Go to Top">Top</div>
+  <div class="go-bottom-button" title="Go to Bottom">Bottom</div>
+</body>
+</html>
