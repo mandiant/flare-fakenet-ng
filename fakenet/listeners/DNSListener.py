@@ -74,7 +74,10 @@ class DNSListener(object):
         # Stop listener
         if self.server:
             self.server.shutdown()
-            self.server.server_close()  
+            self.server.server_close()
+
+    def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
+        self.server.diverterListenerCallbacks = diverterListenerCallbacks
 
 
 class DNSHandler():
@@ -104,6 +107,8 @@ class DNSHandler():
                 if qname[-1] == '.': qname = qname[:-1]
 
                 qtype = QTYPE[d.q.qtype]
+                self.qname = qname
+                self.qtype = qtype
 
                 self.server.logger.info('Received %s request for domain \'%s\'.', qtype, qname)
 
@@ -200,6 +205,15 @@ class UDPHandler(DNSHandler, socketserver.BaseRequestHandler):
             (data,sk) = self.request
             response = self.parse(data)
 
+            # Collect NBI
+            nbi = {
+                'query_type': self.qtype,
+                'query_name': self.qname
+                }
+            collect_nbi(self.client_address[1], nbi, 'UDP',
+                        self.server.config.get('usessl'),
+                        self.server.diverterListenerCallbacks)
+
             if response:
                 sk.sendto(response, self.client_address)
 
@@ -223,6 +237,15 @@ class TCPHandler(DNSHandler, socketserver.BaseRequestHandler):
             # TCP DNS protocol
             data = data[2:]
             response = self.parse(data)
+
+            # Collect NBI
+            nbi = {
+                'query_type': self.qtype,
+                'query_name': self.qname
+                }
+            collect_nbi(self.client_address[1], nbi, 'TCP',
+                        self.server.config.get('usessl'),
+                        self.server.diverterListenerCallbacks)
             
             if response:
                 # Calculate and add the additional "length" parameter
@@ -267,6 +290,11 @@ def hexdump_table(data, length=16):
         ascii_line = ''.join([b if ord(b) > 31 and ord(b) < 127 else '.' for b in chunk ] )
         hexdump_lines.append("%04X: %-*s %s" % (i, length*3, hex_line, ascii_line ))
     return hexdump_lines
+
+def collect_nbi(sport, nbi, proto, is_ssl_encrypted, diverterListenerCallbacks):
+    # Report diverter everytime we capture an NBI
+    diverterListenerCallbacks.logNbi(sport, nbi, proto, 'DNS', is_ssl_encrypted)
+
 
 ###############################################################################
 # Testing code
