@@ -1858,7 +1858,7 @@ class DiverterBase(fnconfig.Config):
         if self.sessions.get(orig_sport) is None:
             return
 
-        _, _, pid, comm, orig_dport, transport_layer_proto = self.sessions.get(orig_sport)
+        dst_ip, _, pid, comm, orig_dport, transport_layer_proto = self.sessions.get(orig_sport)
 
         if application_layer_proto == '':
             application_layer_proto = transport_layer_proto
@@ -1873,6 +1873,7 @@ class DiverterBase(fnconfig.Config):
         nbi_entry = {
             'transport_layer_proto': transport_layer_proto,
             'sport': orig_sport,
+            'dst_ip': dst_ip,
             'dport': orig_dport,
             'is_ssl_encrypted': is_ssl_encrypted,
             'network_mode': self.network_mode.lower(),
@@ -1932,6 +1933,7 @@ class DiverterBase(fnconfig.Config):
                     self.logger.info(f"{indent*3}{nbi_counter}.Transport Layer "
                                      f"Protocol: {attributes['transport_layer_proto']}")
                     self.logger.info(f"{indent*4}Source port: {attributes['sport']}")
+                    self.logger.info(f"{indent*4}Destination IP: {attributes['dst_ip']}")
                     self.logger.info(f"{indent*4}Destination port: {attributes['dport']}")
                     self.logger.info(f"{indent*4}SSL encrypted: "
                                      f"{attributes['is_ssl_encrypted']}")

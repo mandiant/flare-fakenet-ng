@@ -3,6 +3,7 @@
 <head>
   <title>FAKENET-NG</title>
   <link rel="stylesheet" href="fakenet/configs/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
   <script src="fakenet/configs/index.js" defer></script>
 </head>
 <body>
@@ -10,14 +11,35 @@
     <h1>FAKENET-NG</h1>
     <h2>Network-Based Indicators</h2>
   </div>
+  
   <div class="search-container">
     <input type="text" class="search-input" id="searchInput" onkeyup="searchTable()" placeholder="Filter keywords...">
-    <button class="search-button" id="searchButton" onclick="searchTable()">Search</button>
-    <button class="copy-button" id="copyButton" onclick="copyAllTables()" title="Copy All NBIs Data">Copy Table Data</button>
-	<div class="popup">Copied!</div>
-	<button class="copy-selected-button" onclick="copySelectedNbis()" title="Copy Selected NBIs Data">Copy Selected NBIs</button>
-	<div class="popup">Copied!</div>
-  </div>
+</div>
+
+<div class="button-container">
+    <button class="copy-button" id="copyButton" onclick="copyAllTables()" title="Copy All NBIs Data">Copy All NBIs</button>
+    <button class="copy-selected-button" onclick="copySelectedNbis()" title="Copy Selected NBIs Data">Copy Selected NBIs</button>
+    <button class="copy-filtered-data" onclick="copyFilteredNbis()" title="Copy filtered Data">Copy Filtered NBIs</button>
+	<button class="disclaimer-button" title="Disclaimer">Disclaimer</button>
+	<button class="share-report-button" title="Share analysis report">Share Report</button>
+</div>
+
+<div class="copyContainer">
+    <div class="disclaimer-popup">
+        <div class="popup-content">
+            <span class="popup-close">&times;</span>
+            <div class="popup-header">Disclaimer</div>
+            <ol>
+		<li>In some scenarios, FakeNet may forward requests using a custom protocol through the Proxy. While FakeNet assumes the forwarded request to be of the chosen protocol, it could actually be a custom protocol. Users are advised to investigate and reverse engineer requests by analyzing PCAP files for accurate protocol identification.</li>
+		<li>During lengthy analysis sessions, there is a possibility of port reuse. Users are encouraged to consider the potential for port reuse when interpreting results. When in doubt, referring to PCAP files is recommended for a comprehensive understanding of network activity.</li>
+		<li>FakeNet does not capture the Process ID (PID) and Process Names of remote processes when operating in Multihost mode. Placeholder values are used for PID (Index) and process names (Unknown Process) in such cases.</li>
+		</ol>
+        </div>
+    </div>
+</div>
+
+<div class="popup">Copied!</div>
+
   
   {% for process, process_info in nbis.items() %}
   <div class="collapsible-container">
@@ -57,13 +79,13 @@
                     <ul class="nested">
                       <li>Transport Layer Protocol: {{ nbi_info['transport_layer_proto'] }}</li>
                       <li>Source port: {{ nbi_info['sport'] }}</li>
+					  <li>Destination IP: {{ nbi_info['dst_ip'] }}</li>
                       <li>Destination port: {{ nbi_info['dport'] }}</li>
                       <li>SSL encrypted: {{ nbi_info['is_ssl_encrypted'] }}</li>
                       <li>Network mode: {{ nbi_info['network_mode'] }}</li>
                     </ul>
                   </td>
-				  <td><button class="copy-button" onclick="copyNbiData(this)" title="Copy Individual NBI Data">Copy</button></td>
-				  <div class="popup">Copied!</div>
+				  <td><button class="copy-button" onclick="copyNbiData(this.closest('tr'))" title="Copy Individual NBI Data">Copy</button></td>
                 </tr>
                 {% endfor %}
               </table>
@@ -77,7 +99,6 @@
   </div>
   {% endfor %}
 
-  <div class="go-top-button" title="Go to Top">Top</div>
-  <div class="go-bottom-button" title="Go to Bottom">Bottom</div>
+ <div class="go-top-button" title="Go to Top" onclick="topFunction()"><i class="fa fa-arrow-up"></i></div>
 </body>
 </html>
