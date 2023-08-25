@@ -316,6 +316,12 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 sock.bind((self.server.local_ip, 0))
 
+                # Get proxy initiated source port and report to diverter
+                new_sport = sock.getsockname()[1]
+                if new_sport:
+                    self.server.diverterListenerCallbacks.mapProxySportToOrigSport('UDP',
+                            orig_src_port, new_sport, 'No')
+
                 sock.sendto(data, (self.server.local_ip, int(top_listener.port)))
                 reply = sock.recv(BUF_SZ)
                 self.server.logger.debug('Received %d bytes.', len(data))
