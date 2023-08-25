@@ -161,6 +161,14 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 block_num = struct.unpack('!H', data[2:4])[0]
                 self.server.logger.debug('Received ACK for block %d', block_num)
 
+                # Collect NBIs
+                nbi = {
+                    "command": "ACK",
+                    "block": block_num,
+                    "data": data.decode("utf-8")[4:]
+                    }
+                self.collect_nbi(nbi)
+
             elif opcode == OPCODE_DATA:
 
                 self.handle_data(socket, data)
@@ -168,13 +176,30 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
             elif opcode == OPCODE_ERROR:
 
                     error_num = struct.unpack('!H', data[2:4])[0]
-                    error_msg = data[4:]
+                    error_msg = data.decode('utf-8')[4:]
 
                     self.server.logger.info('Received error message %d:%s', error_num, error_msg)
 
+                    # Collect NBIs
+                    nbi = {
+                        "command": "ERROR",
+                        "error_number": error_num,
+                        "error_message": error_msg
+                        }
+                    self.collect_nbi(nbi)
+
             else:
 
-                self.server.logger.error('Unknown opcode: %d', struct.unpack('!H', data[:2])[0])
+                unknown_opcode = struct.unpack('!H', data[:2])[0]
+                self.server.logger.error('Unknown opcode: %d', unknown_opcode)
+
+                # Collect NBIs
+                nbi = {
+                    "command": "Unknown command",
+                    "opcode": str(unknown_opcode),
+                    "data": data.decode("utf-8")[4:]
+                    }
+                self.collect_nbi(nbi)
 
         except Exception as e:
             self.server.logger.error('Error: %s', e)
