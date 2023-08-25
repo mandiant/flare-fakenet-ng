@@ -208,10 +208,9 @@ class UDPHandler(DNSHandler, socketserver.BaseRequestHandler):
             # Collect NBI
             nbi = {
                 'query_type': self.qtype,
-                'query_name': self.qname
+                'domain': self.qname
                 }
-            collect_nbi(self.client_address[1], nbi, 'UDP',
-                        self.server.config.get('usessl'),
+            collect_nbi(self.client_address[1], nbi, 'UDP', 'No',
                         self.server.diverterListenerCallbacks)
 
             if response:
@@ -241,7 +240,7 @@ class TCPHandler(DNSHandler, socketserver.BaseRequestHandler):
             # Collect NBI
             nbi = {
                 'query_type': self.qtype,
-                'query_name': self.qname
+                'domain': self.qname
                 }
             collect_nbi(self.client_address[1], nbi, 'TCP',
                         self.server.config.get('usessl'),
