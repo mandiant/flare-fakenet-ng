@@ -279,7 +279,8 @@
             <ol>
 				<li>In some scenarios, FakeNet may forward requests using a custom protocol through the Proxy. While FakeNet assumes the forwarded request to be of the chosen protocol, it could actually be a custom protocol. Users are advised to investigate and reverse engineer requests by analyzing PCAP files for accurate protocol identification.</li>
 				<li>During lengthy analysis sessions, there is a possibility of port reuse. Users are encouraged to consider the potential for port reuse when interpreting results. When in doubt, referring to PCAP files is recommended for a comprehensive understanding of network activity.</li>
-				<li>FakeNet does not capture the Process ID (PID) and Process Names of remote processes when operating in Multihost mode. Placeholder values are used for PID (Index) and process names (Unknown Process) in such cases.</li>
+				<li>FakeNet does not capture the Process ID (PID) and Process Names of remote processes when operating in Multihost mode. Placeholder values are used for PID (Index) and process names (Remote Process) in such cases.</li>
+				<li>ICMP packets are not logged in the User Interface. To analyze ICMP interactions, refer to the generated PCAP files containing detailed network traffic information.</li>
 			</ol>
         </div>
     </div>
@@ -325,7 +326,6 @@
                   <td>
                     <ul class="nested">
                       <li>Transport Layer Protocol: {{ nbi_info['transport_layer_proto'] }}</li>
-                      <li>Source port: {{ nbi_info['sport'] }}</li>
 					  <li>Destination IP: {{ nbi_info['dst_ip'] }}</li>
                       <li>Destination port: {{ nbi_info['dport'] }}</li>
                       <li>SSL encrypted: {{ nbi_info['is_ssl_encrypted'] }}</li>
@@ -347,6 +347,7 @@
   {% endfor %}
 
  <div class="go-top-button" title="Go to Top" onclick="topFunction()"><i class="fa fa-arrow-up"></i></div>
+ <!--JavaScript for UI-->
  <script>
 	const collapsibleContainers = document.querySelectorAll('.collapsible-container');
 	collapsibleContainers.forEach(container => {
@@ -485,15 +486,9 @@
 		const protocolText = protocolCell.textContent.trim().toLowerCase();
 
 		if (protocolText === 'http') {
-		  let url = '';
-		  if (fieldMap['Additional Information']['SSL encrypted'] === 'Yes') {
-			url = `https[:]//${fieldMap['NBI']['Host']}:${fieldMap['Additional Information']['Destination port']}${fieldMap['NBI']['uri']}`;
-		  } else {
-			url = `http[:]//${fieldMap['NBI']['Host']}:${fieldMap['Additional Information']['Destination port']}${fieldMap['NBI']['uri']}`;
-		  }
 
 		  copiedText += '## URL\n\n';
-		  copiedText += `*   \`${url}\``;
+		  copiedText += `*   HTTP Headers`;
 		}
 		
 		else if (protocolText === 'dns') {
@@ -506,11 +501,6 @@
 			copiedText += '## Connections\n\n';
 			copiedText += `*   \`${protocolText}[:]//${fieldMap['Additional Information']['Destination IP']}:${fieldMap['Additional Information']['Destination port']}\``;
 		}
-		
-		/*	if (protocolText === 'pop/irc') {}//dk as of now
-		
-		if (protocolText === 'icmp') {}//dk as of now
-		*/
 		
 		Object.entries(fieldMap).forEach(([key, value]) => {
 			if (key !== 'Select' && key !== 'Actions') {
