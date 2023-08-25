@@ -132,11 +132,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             else:
                                 cmd, params = line, b''
 
-                            handler = getattr(self, 'pop_%s' % (cmd.decode("utf-8").upper()), self.pop_DEFAULT)
+                            cmd = cmd.decode("utf-8").upper()
+                            handler = getattr(self, 'pop_%s' % (cmd), self.pop_DEFAULT)
                             handler(cmd, params)
                             # Collect NBIs
                             nbi = {
-                                'cmd': cmd,
+                                'command': cmd,
                                 'params': params
                                 }
                             self.collect_nbi(nbi)
