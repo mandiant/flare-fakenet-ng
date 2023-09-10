@@ -164,8 +164,7 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 # Collect NBIs
                 nbi = {
                     "command": "ACK",
-                    "block": block_num,
-                    "data": data.decode("utf-8")[4:]
+                    "block": block_num
                     }
                 self.collect_nbi(nbi)
 
