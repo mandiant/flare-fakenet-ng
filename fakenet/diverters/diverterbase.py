@@ -1959,10 +1959,10 @@ class DiverterBase(fnconfig.Config):
         to the main working directory of flare-fakenet-ng. Called by stop() method
         of diverter.
         """
-        TEMPLATE_FILE = os.path.join("fakenet", "configs", "html_report_template.html")
-        template_loader = jinja2.FileSystemLoader(searchpath=os.path.dirname(TEMPLATE_FILE))
+        template_file = os.path.join("fakenet", "configs", "html_report_template.html")
+        template_loader = jinja2.FileSystemLoader(searchpath=os.path.dirname(template_file))
         template_env = jinja2.Environment(loader=template_loader)
-        template = template_env.get_template(os.path.basename(TEMPLATE_FILE))
+        template = template_env.get_template(os.path.basename(template_file))
         
         timestamp = time.strftime('%Y%m%d_%H%M%S')
         output_filename = f"report_{timestamp}.html"

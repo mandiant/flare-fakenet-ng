@@ -161,7 +161,7 @@ class FakeFTPHandler(FTPHandler, object):
         # Collect NBIs
         nbi = {"command": "PASS", "username": self.username, "password": line}
         collect_nbi(self.remote_port, nbi, self.server.config.get('usessl'),
-                self.server.diverterListenerCallbacks)
+                    self.server.diverterListenerCallbacks)
 
         return super(FakeFTPHandler, self).ftp_PASS(line)
 
@@ -176,7 +176,7 @@ class TLS_FakeFTPHandler(TLS_FTPHandler, object):
         # Collect NBIs
         nbi = {"command": "PASS", "username": self.username, "password": line}
         collect_nbi(self.remote_port, nbi, self.server.config.get('usessl'),
-                self.server.diverterListenerCallbacks)
+                    self.server.diverterListenerCallbacks)
 
         return super(TLS_FakeFTPHandler, self).ftp_PASS(line)
 
