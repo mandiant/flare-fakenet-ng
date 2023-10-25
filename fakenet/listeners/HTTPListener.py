@@ -112,7 +112,7 @@ class HTTPListener(object):
                 'ca_key': self.config.get('ca_key')
             }
             self.sslwrapper = SSLWrapper(config)
-            self.server.sslwrapper = sslwrapper
+            self.server.sslwrapper = self.sslwrapper
             self.server.socket = self.server.sslwrapper.wrap_socket(
                 self.server.socket)
 
