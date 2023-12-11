@@ -1,3 +1,5 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 # Debug print levels for fine-grained debug trace output control
 DNFQUEUE = (1 << 0)     # netfilterqueue
 DGENPKT = (1 << 1)      # Generic packet handling
@@ -39,4 +41,4 @@ DLABELS = {
     DMISC: 'MISC',
 }
 
-DLABELS_INV = {v.upper(): k for k, v in DLABELS.iteritems()}
+DLABELS_INV = {v.upper(): k for k, v in DLABELS.items()}

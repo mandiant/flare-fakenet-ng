@@ -1,3 +1,5 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 import os
 import platform
 
@@ -23,12 +25,12 @@ elif platform.system().lower().startswith('linux'):
 
 setup(
     name='FakeNet NG',
-    version='1.4.8',
+    version='3.0',
     description="",
     long_description="",
-    author="FireEye FLARE Team with credit to Peter Kacherginsky as the original developer",
-    author_email='FakeNet@fireeye.com',
-    url='https://www.github.com/fireeye/flare-fakenet-ng',
+    author="Mandiant FLARE Team with credit to Peter Kacherginsky as the original developer",
+    author_email='FakeNet@mandiant.com',
+    url='https://www.github.com/mandiant/flare-fakenet-ng',
     packages=[
         'fakenet',
     ],
@@ -49,6 +51,6 @@ setup(
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'Natural Language :: English',
-        "Programming Language :: Python :: 2",
+        'Programming Language :: Python :: 3',
     ],
 )

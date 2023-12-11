@@ -1,11 +1,15 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 import logging
+from configparser import ConfigParser
 
 import os
 import sys
+import imp
 
 import threading
-import SocketServer
-import BaseHTTPServer
+import socketserver
+import http.server
 
 import ssl
 import socket
@@ -36,6 +40,106 @@ MIME_FILE_RESPONSE = {
 INDENT = '  '
 
 
+def qualify_file_path(filename, fallbackdir):
+    path = filename
+    if path:
+        if not os.path.exists(path):
+            path = os.path.join(fallbackdir, filename)
+        if not os.path.exists(path):
+            raise RuntimeError('Cannot find %s' % (filename))
+
+    return path
+
+
+class CustomResponse(object):
+    def __init__(self, name, conf, configroot):
+        self.name = name
+
+        match_specs = {'httpuris', 'httphosts'}
+        response_specs = {'httprawfile', 'httpstaticstring', 'httpdynamic'}
+
+        if not match_specs.intersection(conf):
+            raise ValueError('Custom HTTP config section %s lacks '
+                             '%s' % (name, '/'.join(match_specs)))
+
+        nr_responses = len(response_specs.intersection(conf))
+        if nr_responses != 1:
+            raise ValueError('Custom HTTP config section %s has %d of %s' %
+                             (name, nr_responses, '/'.join(response_specs)))
+
+        if ('contenttype' in conf) and ('httpstaticstring' not in conf):
+            raise ValueError('Custom HTTP config section %s has ContentType '
+                             'which is only usable with '
+                             'HttpStaticString' % (name))
+
+        self.uris = conf.get('httpuris', {})
+        if self.uris:
+            self.uris = {u.strip() for u in self.uris.split(',')}
+
+        self.hosts = conf.get('httphosts', {})
+        if self.hosts:
+            self.hosts = {h.strip().lower() for h in self.hosts.split(',')}
+
+        self.raw_file = qualify_file_path(conf.get('httprawfile'), configroot)
+        if self.raw_file:
+            self.raw_file = open(self.raw_file, 'rb').read()
+
+        self.handler = None
+        pymod_path = qualify_file_path(conf.get('httpdynamic'), configroot)
+        if pymod_path:
+            pymod = imp.load_source('cr_' + self.name, pymod_path)
+            funcname = 'HandleHttp'
+            funcname_legacy = 'HandleRequest'
+            if hasattr(pymod, funcname):
+                self.handler = getattr(pymod, funcname)
+            elif hasattr(pymod, funcname_legacy):
+                self.handler = getattr(pymod, funcname_legacy)
+            else:
+                raise ValueError('Loaded %s module %s has no function %s' %
+                                 ('httpdynamic', conf.get('httpdynamic'),
+                                  funcname))
+
+        self.static_string = conf.get('httpstaticstring')
+        if self.static_string is not None:
+            self.static_string = self.static_string.replace('\\r\\n', '\r\n')
+        self.content_type = conf.get('ContentType')
+
+    def checkMatch(self, host, uri):
+        hostmatch = (host.strip().lower() in self.hosts)
+        if (not hostmatch) and (':' in host):
+            host = host[:host.find(':')]
+            hostmatch = (host.strip().lower() in self.hosts)
+
+
+        urimatch = False
+        for match_uri in self.uris:
+            if uri.endswith(match_uri):
+                urimatch = True
+                break
+
+        # Conjunctive (logical and) evaluation if both are specified
+        if self.uris and self.hosts:
+            return hostmatch and urimatch
+        else:
+            return hostmatch or urimatch
+
+    def respond(self, req, meth, postdata=None):
+        current_time = req.date_time_string()
+        if self.raw_file:
+            up_to_date = self.raw_file.replace(b'<RAW-DATE>', current_time.encode("utf-8"))
+            req.wfile.write(up_to_date)
+        elif self.handler:
+            self.handler(req, meth, postdata)
+        elif self.static_string is not None:
+            up_to_date = self.static_string.replace('<RAW-DATE>', current_time)
+            req.send_response(200)
+            req.send_header('Content-Length', len(up_to_date))
+            if self.content_type:
+                req.send_header('Content-Type', self.content_type)
+            req.end_headers()
+            req.wfile.write(up_to_date.encode("utf-8"))
+
+
 class HTTPListener(object):
     SSL_UTILS = os.path.join("listeners", "ssl_utils")
     CA_CERT = os.path.join(SSL_UTILS, "server.pem")
@@ -44,8 +148,8 @@ class HTTPListener(object):
 
     def taste(self, data, dport):
 
-        request_methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE',
-            'OPTIONS', 'CONNECT', 'PATCH']
+        request_methods = [b'GET', b'HEAD', b'POST', b'PUT', b'DELETE', b'TRACE',
+            b'OPTIONS', b'CONNECT', b'PATCH']
 
         confidence = 1 if dport in [80, 443] else 0
 
@@ -77,12 +181,11 @@ class HTTPListener(object):
         self.name = name
         self.local_ip = config.get('ipaddr')
         self.server = None
-        self.name = 'HTTP'
         self.port = self.config.get('port', 80)
         self.sslwrapper = None
 
         self.logger.debug('Initialized with config:')
-        for key, value in config.iteritems():
+        for key, value in config.items():
             self.logger.debug('  %10s: %s', key, value)
 
         # Initialize webroot directory
@@ -116,6 +219,32 @@ class HTTPListener(object):
             self.server.socket = self.server.sslwrapper.wrap_socket(
                 self.server.socket)
 
+        self.server.custom_responses = []
+        custom = self.config.get('custom')
+
+        def checkSetting(d, name, value):
+            if name not in d:
+                return False
+            return d[name].lower() == value.lower()
+
+        if custom:
+            configdir = self.config.get('configdir')
+            custom = qualify_file_path(custom, configdir)
+            customconf = ConfigParser()
+            customconf.read(custom)
+
+            for section in customconf.sections():
+                entries = dict(customconf.items(section))
+
+                if (('instancename' not in entries) and
+                        ('listenertype' not in entries)):
+                    msg = 'Custom Response lacks ListenerType or InstanceName'
+                    raise RuntimeError(msg)
+
+                if (checkSetting(entries, 'instancename', self.name) or
+                        checkSetting(entries, 'listenertype', 'HTTP')):
+                    cr = CustomResponse(section, entries, configdir)
+                    self.server.custom_responses.append(cr)
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
@@ -128,64 +257,80 @@ class HTTPListener(object):
             self.server.server_close()
 
 
-class ThreadedHTTPServer(BaseHTTPServer.HTTPServer):
+class ThreadedHTTPServer(http.server.HTTPServer):
 
     def handle_error(self, request, client_address):
         exctype, value = sys.exc_info()[:2]
         self.logger.error('Error: %s', value)
 
-class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
 
     def __init__(self, *args):
-        BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, *args)
+        http.server.BaseHTTPRequestHandler.__init__(self, *args)
+        self.logger = self.server.logger
 
     def version_string(self):
-	return self.server.config.get('version', "FakeNet/1.3")
+        return self.server.config.get('version', "FakeNet/1.3")
 
     def setup(self):
-        self.request.settimeout(int(self.server.config.get('timeout', 5)))
-        BaseHTTPServer.BaseHTTPRequestHandler.setup(self)
+        self.request.settimeout(int(self.server.config.get('timeout', 10)))
+        http.server.BaseHTTPRequestHandler.setup(self)
+
+    def doCustomResponse(self, meth, post_data=None):
+        uri = self.path
+        host = self.headers.get('host', '')
+
+        for cr in self.server.custom_responses:
+            if cr.checkMatch(host, uri):
+                self.server.logger.debug('Invoking custom response %s' % (cr.name))
+                cr.respond(self, meth, post_data)
+                return True
+
+        return False
 
     def do_HEAD(self):
-        # Process request
+        # Log request
         self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
             self.server.logger.info(INDENT + line)
 
         # Prepare response
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
+        if not self.doCustomResponse('HEAD'):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
 
     def do_GET(self):
-        # Process request
+        # Log request
         self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
             self.server.logger.info(INDENT + line)
 
-        # Get response type based on the requested path
-        response, response_type = self.get_response(self.path)
-
         # Prepare response
-        self.send_response(200)
-        self.send_header("Content-Type", response_type)
-        self.send_header("Content-Length", len(response))
-        self.end_headers()
+        if not self.doCustomResponse('GET'):
+            # Get response type based on the requested path
+            response, response_type = self.get_response(self.path)
 
-        self.wfile.write(response)
+            # Prepare response
+            self.send_response(200)
+            self.send_header("Content-Type", response_type)
+            self.send_header("Content-Length", len(response))
+            self.end_headers()
+
+            self.wfile.write(response)
 
     def do_POST(self):
-        post_body = ''
+        post_body = b''
 
         content_len = int(self.headers.get('content-length', 0))
         post_body = self.rfile.read(content_len)
 
-        # Process request
+        # Log request
         self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
             self.server.logger.info(INDENT + line)
-        for line in post_body.split("\n"):
-            self.server.logger.info(INDENT + line)
+        for line in post_body.split(b"\n"):
+            self.server.logger.info(INDENT.encode('utf-8') + line)
 
         # Store HTTP Posts
         if self.server.config.get('dumphttpposts') and self.server.config['dumphttpposts'].lower() == 'yes':
@@ -195,24 +340,26 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 http_f = open(http_filename, 'wb')
 
                 if http_f:
-                    http_f.write(self.requestline + "\r\n")
-                    http_f.write(str(self.headers) + "\r\n")
+                    http_f.write(self.requestline.encode('utf-8') + b"\r\n")
+                    http_f.write(str(self.headers).encode('utf-8') + b"\r\n")
                     http_f.write(post_body)
 
                     http_f.close()
                 else:
                     self.server.logger.error('Failed to write HTTP POST headers and data to %s.', http_filename)
 
-        # Get response type based on the requested path
-        response, response_type = self.get_response(self.path)
-
         # Prepare response
-        self.send_response(200)
-        self.send_header("Content-Type", response_type)
-        self.send_header("Content-Length", len(response))
-        self.end_headers()
+        if not self.doCustomResponse('GET', post_body):
+            # Get response type based on the requested path
+            response, response_type = self.get_response(self.path)
 
-        self.wfile.write(response)
+            # Prepare response
+            self.send_response(200)
+            self.send_header("Content-Type", response_type)
+            self.send_header("Content-Length", len(response))
+            self.end_headers()
+
+            self.wfile.write(response)
 
     def get_response(self, path):
         response = "<html><head><title>FakeNet</title><body><h1>FakeNet</h1></body></html>"
@@ -247,7 +394,7 @@ class ThreadedHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
         try:
             f = open(response_filename, 'rb')
-        except Exception, e:
+        except Exception as e:
             self.server.logger.error('Failed to open response file: %s', response_filename)
             response_type = 'text/html'
         else:
@@ -268,20 +415,20 @@ def test(config):
 
     url = "%s://localhost:%s" % ('http' if config.get('usessl') == 'No' else 'https', int(config.get('port', 8080)))
 
-    print "\t[HTTPListener] Testing HEAD request."
-    print '-'*80
-    print requests.head(url, verify=False, stream=True).text
-    print '-'*80
+    print("\t[HTTPListener] Testing HEAD request.")
+    print('-'*80)
+    print(requests.head(url, verify=False, stream=True).text)
+    print('-'*80)
 
-    print "\t[HTTPListener] Testing GET request."
-    print '-'*80
-    print requests.get(url, verify=False, stream=True).text
-    print '-'*80
+    print("\t[HTTPListener] Testing GET request.")
+    print('-'*80)
+    print(requests.get(url, verify=False, stream=True).text)
+    print('-'*80)
 
-    print "\t[HTTPListener] Testing POST request."
-    print '-'*80
-    print requests.post(url, {'param1':'A'*80, 'param2':'B'*80}, verify=False, stream=True).text
-    print '-'*80
+    print("\t[HTTPListener] Testing POST request.")
+    print('-'*80)
+    print(requests.post(url, {'param1':'A'*80, 'param2':'B'*80}, verify=False, stream=True).text)
+    print('-'*80)
 
 def main():
     """

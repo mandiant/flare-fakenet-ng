@@ -1,3 +1,37 @@
+Version 3.0 (alpha)
+-----------
+* Migrate diverters, listeners and other components to Python 3
+* Retire BITS listener for now
+* Fix hard-coded FakeNet path for linux platform in test.py
+* Update README and developement documentation
+* Add copyright notice to modified files
+
+Version 1.4.13
+--------------
+* Port test scripts to Python 3
+* Replace pyping package with icmplib as the former is not compatible with Python 3
+* Add additional logging to test.py to output the number of tests passed/failed
+* Add copyright notice to README.md, splash screen, and test.py
+
+Version 1.4.12
+--------------
+* Increase default timeout for HTTPListener to 10 seconds
+* Increase configured timeout for HTTPListener443 to 10 seconds
+
+Version 1.4.11
+--------------
+* TCP Custom Response and UDP Custom Response features
+* Removed stray `fcntl` import from `test.py` that prevented Windows testing in
+  some cases
+
+Version 1.4.10
+--------------
+* Fix format string errors due to line length limit
+
+Version 1.4.9
+-------------
+* Fully customizable HTTP responses without building a full listener
+
 Version 1.4.8
 -------------
 * FakeNet terminates upon listener exceptions, closing #117

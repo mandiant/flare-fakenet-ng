@@ -1,3 +1,5 @@
+# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+
 import sys
 import dpkt
 import time
@@ -7,10 +9,10 @@ import traceback
 import threading
 import subprocess
 import netfilterqueue
-from linutil import *
+from .linutil import *
 from . import fnpacket
-from debuglevels import *
-from diverterbase import *
+from .debuglevels import *
+from .diverterbase import *
 from collections import namedtuple
 from netfilterqueue import NetfilterQueue
 
