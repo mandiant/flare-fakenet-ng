@@ -46,6 +46,8 @@ class SSLWrapper(object):
     def wrap_socket(self, s):
         try:
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
+            ctx.options |= ssl.OP_NO_TLSv1
+            ctx.options |= ssl.OP_NO_TLSv1_1
         except AttributeError as e:
             self.logger.error('Exception calling ssl.SSLContext: %s' %
                               (e.message))
@@ -137,6 +139,8 @@ class SSLWrapper(object):
         if servername is None:
             servername = self.CN
         newctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
+        newctx.options |= ssl.OP_NO_TLSv1
+        newctx.options |= ssl.OP_NO_TLSv1_1
         cert_file, key_file = self.create_cert(servername, self.ca_cert, self.ca_key)
         if cert_file is None or key_file is None:
             return
