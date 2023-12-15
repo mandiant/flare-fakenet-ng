@@ -12,7 +12,7 @@ import select
 import logging
 import ssl
 from OpenSSL import SSL
-from .ssl_utils import ssl_detector
+from .ssl_utils import ssl_detector, SSLWrapper
 from . import *
 import os
 import traceback
@@ -54,7 +54,7 @@ class ProxyListener(object):
 
                 self.logger.debug('Starting TCP ...')                
                 config = {
-                    'cert_dir': self.config.get('cert_dir', 'temp_certs'),
+                    'cert_dir': self.config.get('cert_dir', 'configs/temp_certs'),
                     'networkmode': self.config.get('networkmode', None),
                     'static_ca': self.config.get('static_ca', False),
                     'ca_cert': self.config.get('ca_cert'),

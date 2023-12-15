@@ -18,11 +18,8 @@ import posixpath
 import mimetypes
 
 import time
-import shutil
-import traceback
-import subprocess
-from OpenSSL import crypto
-from ssl_utils import SSLWrapper
+
+from .ssl_utils import SSLWrapper
 from . import *
 
 MIME_FILE_RESPONSE = {
@@ -208,14 +205,14 @@ class HTTPListener(object):
         if self.config.get('usessl') == 'Yes':
             self.logger.debug("HTTP Listener starting with SSL")
             config = {
-                'cert_dir': self.config.get('cert_dir', 'temp_certs'),
+                'cert_dir': self.config.get('cert_dir', 'configs/temp_certs'),
                 'networkmode': self.config.get('networkmode', None),
-                'static_ca': self.config.get('static_ca', False),
+                'static_ca': self.config.get('static_ca', "No"),
                 'ca_cert': self.config.get('ca_cert'),
                 'ca_key': self.config.get('ca_key')
             }
             self.sslwrapper = SSLWrapper(config)
-            self.server.sslwrapper = sslwrapper
+            self.server.sslwrapper = self.sslwrapper
             self.server.socket = self.server.sslwrapper.wrap_socket(
                 self.server.socket)
 

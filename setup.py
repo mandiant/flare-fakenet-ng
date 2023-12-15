@@ -36,8 +36,8 @@ setup(
     ],
     package_dir={'fakenet': 'fakenet'},
     package_data={'fakenet': ['*.pem','diverters/*.py', 'listeners/*.py',
-        'listeners/ssl_utils/*.py', 'listeners/ssl_utils/*.pem', 'configs/*.ini', 'defaultFiles/*',
-        'lib/64/*', 'lib/32/*']},
+        'listeners/ssl_utils/*.py', 'configs/*.crt', 'configs/*.key',
+        'configs/*.ini', 'defaultFiles/*', 'lib/64/*', 'lib/32/*']},
     entry_points={
         "console_scripts": [
             "fakenet=fakenet.fakenet:main",
