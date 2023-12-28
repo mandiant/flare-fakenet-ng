@@ -140,7 +140,7 @@ class ThreadedTCPClientSocket(threading.Thread):
                         self.sock.close()
                         sys.exit(1)
         except Exception as e:
-            self.logger.debug('Listener socket exception %s' % e.message)
+            self.logger.debug('Listener socket exception %s' % e)
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
@@ -190,7 +190,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             self.server.logger.debug('%s', '-'*80,)
 
         except Exception as e:
-            self.server.logger.warning('recv() error: %s' % e.message)
+            self.server.logger.warning('recv() error: %s' % e)
 
         if data:
             if ssl_detector.looks_like_ssl(data):

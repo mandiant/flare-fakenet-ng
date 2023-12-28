@@ -937,7 +937,7 @@ class DiverterBase(fnconfig.Config):
         except KeyError as e:
             self.logger.error(('Failed to build ExecuteCmd for port %d due ' +
                               'to erroneous format key: %s') %
-                              (dport, e.message))
+                              (dport, e))
 
         return cmd
 
