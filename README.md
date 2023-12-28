@@ -52,20 +52,23 @@ Installation on Linux requires the following dependencies:
  * libnetfilterqueue development files (e.g. libnetfilter-queue-dev for
    Ubuntu).
 
-Install these dependencies using the following command:
+To install these dependencies, use the following command:
 
     sudo apt-get install build-essential python-dev libnetfilter-queue-dev
 
-Install FakeNet-NG as a Python module using pip:
+Either install FakeNet-NG as a Python module using pip:
 
     pip install https://github.com/mandiant/flare-fakenet-ng/zipball/master
 
-Or by obtaining the latest source code and installing it manually:
+Or, by obtaining the latest source code and installing it manually:
 
     git clone https://github.com/mandiant/flare-fakenet-ng/
 
+Next, install Microsoft C++ Build Tools from [here](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
+
 Change directory to the downloaded flare-fakenet-ng and run:
 
+    pip install setuptools
     python setup.py install
 
 Execute FakeNet-NG by running 'fakenet' in any directory.
@@ -77,30 +80,31 @@ Finally if you would like to avoid installing FakeNet-NG and just want to run it
 as-is (e.g. for development), then you would need to obtain the source code and
 install dependencies as follows:
 
-1) Install 64-bit or 32-bit Python 3.7.x for the 64-bit or 32-bit versions
+1) Install 64-bit or 32-bit Python 3.12 for the 64-bit or 32-bit versions
    of Windows respectively.
 
 2) Install Python dependencies:
-
+    ```
     pip install pydivert dnslib dpkt pyopenssl pyftpdlib netifaces
-
+    ```
    *NOTE*: pydivert will also download and install WinDivert library and
    driver in the `%PYTHONHOME%\DLLs` directory. FakeNet-NG bundles those
    files so they are not necessary for normal use.
 
-2b) Optionally, you can install the following module used for testing:
-
+   Optionally, you can install the following module used for testing:
+    ```
     pip install requests
+    ```
 
 3) Download the FakeNet-NG source code:
 
     git clone https://github.com/mandiant/flare-fakenet-ng
 
-Execute FakeNet-NG by running it with a Python interpreter in a privileged
+4) Execute FakeNet-NG by running it with a Python interpreter in a privileged
 shell:
-
+    ```
     python -m fakenet.fakenet
-
+    ```
 Usage
 =====
 

@@ -1,11 +1,12 @@
-# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+# Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
 
 import logging
 from configparser import ConfigParser
 
 import os
 import sys
-import imp
+import importlib.util
+import importlib.machinery
 
 import threading
 import socketserver
@@ -47,6 +48,16 @@ def qualify_file_path(filename, fallbackdir):
 
     return path
 
+def load_source(modname, filename):
+    loader = importlib.machinery.SourceFileLoader(modname, filename)
+    spec = importlib.util.spec_from_file_location(modname, filename, loader=loader)
+    module = importlib.util.module_from_spec(spec)
+    # The module is always executed and not cached in sys.modules.
+    # Uncomment the following line to cache the module.
+    # sys.modules[module.__name__] = module
+    loader.exec_module(module)
+    return module
+
 
 class CustomResponse(object):
     def __init__(self, name, conf, configroot):
@@ -84,7 +95,7 @@ class CustomResponse(object):
         self.handler = None
         pymod_path = qualify_file_path(conf.get('httpdynamic'), configroot)
         if pymod_path:
-            pymod = imp.load_source('cr_' + self.name, pymod_path)
+            pymod = load_source('cr_' + self.name, pymod_path)
             funcname = 'HandleHttp'
             funcname_legacy = 'HandleRequest'
             if hasattr(pymod, funcname):

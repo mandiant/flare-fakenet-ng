@@ -14,4 +14,4 @@ FakeNet-NG is based on the excellent Fakenet tool developed by Andrew Honig and 
 
 Contact
 
-For bugs, crashes, or other comments please contact the FLARE Team by email FakeNet@fireeye.com
+For bugs, crashes, or other comments please contact the FLARE Team by email FakeNet@mandiant.com

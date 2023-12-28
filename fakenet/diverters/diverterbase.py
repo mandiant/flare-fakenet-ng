@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+# Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
 
 import os
 import abc
@@ -1239,12 +1239,6 @@ class DiverterBase(fnconfig.Config):
         Returns:
             A str containing the log line
         """
-        if pid == None:
-            pid = 'None'
-
-        if comm == None:
-            comm = 'None'
-
         logline = ''
 
         if pkt.proto == 'UDP':
@@ -1252,8 +1246,8 @@ class DiverterBase(fnconfig.Config):
             logline = fmt.format(
                 label=pkt.label,
                 proto=pkt.proto,
-                pid=pid,
-                comm=comm,
+                pid=str(pid),
+                comm=str(comm),
                 src=pkt.src_ip,
                 sport=pkt.sport,
                 dst=pkt.dst_ip,
@@ -1284,8 +1278,8 @@ class DiverterBase(fnconfig.Config):
             logline = fmt.format(
                 label=pkt.label,
                 proto=pkt.proto,
-                pid=pid,
-                comm=comm,
+                pid=str(pid),
+                comm=str(comm),
                 src=pkt.src_ip,
                 sport=pkt.sport,
                 dst=pkt.dst_ip,
@@ -1299,8 +1293,8 @@ class DiverterBase(fnconfig.Config):
             logline = fmt.format(
                 label=pkt.label,
                 proto='UNK',
-                pid=pid,
-                comm=comm,
+                pid=str(pid),
+                comm=str(comm),
                 src=str(pkt.src_ip),
                 sport=str(pkt.sport),
                 dst=str(pkt.dst_ip),
