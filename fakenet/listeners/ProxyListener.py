@@ -12,14 +12,15 @@ import select
 import logging
 import ssl
 from OpenSSL import SSL
-from .ssl_utils import ssl_detector
+from .ssl_utils import ssl_detector, SSLWrapper
 from . import *
 import os
+import traceback
 
 BUF_SZ = 1024
 
-class ProxyListener(object):
 
+class ProxyListener(object):
 
     def __init__(
             self,
@@ -42,6 +43,7 @@ class ProxyListener(object):
         self.logger.debug('Initialized with config:')
         for key, value in config.items():
             self.logger.debug('  %10s: %s', key, value)
+    
 
     def start(self):
 
@@ -50,10 +52,18 @@ class ProxyListener(object):
 
             if proto == 'TCP':
 
-                self.logger.debug('Starting TCP ...')
-
+                self.logger.debug('Starting TCP ...')                
+                config = {
+                    'cert_dir': self.config.get('cert_dir', 'configs/temp_certs'),
+                    'networkmode': self.config.get('networkmode', None),
+                    'static_ca': self.config.get('static_ca', False),
+                    'ca_cert': self.config.get('ca_cert'),
+                    'ca_key': self.config.get('ca_key')
+                }
+                self.sslwrapper = SSLWrapper(config)
                 self.server = ThreadedTCPServer((self.local_ip,
                     int(self.config.get('port'))), ThreadedTCPRequestHandler)
+                self.server.sslwrapper = self.sslwrapper
 
             elif proto == 'UDP':
 
@@ -128,9 +138,9 @@ class ThreadedTCPClientSocket(threading.Thread):
                         self.listener_q.put(data)
                     else:
                         self.sock.close()
-                        exit(1)
+                        sys.exit(1)
         except Exception as e:
-            self.logger.debug('Listener socket exception %s' % e.message)
+            self.logger.debug('Listener socket exception %s' % e)
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
@@ -161,7 +171,6 @@ def get_top_listener(config, data, listeners, diverter, orig_src_ip,
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
-    
     def handle(self):
 
         remote_sock = self.request
@@ -170,22 +179,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         # queue for data received from remote
         remote_q = queue.Queue()
         data = None
-
-        ssl_remote_sock = None
-
-        keyfile_path = 'listeners/ssl_utils/privkey.pem'
-        keyfile_path = ListenerBase.abs_config_path(keyfile_path)
-        if keyfile_path is None:
-            self.logger.error('Could not locate %s', keyfile_path)
-            sys.exit(1)
-
-        certfile_path = 'listeners/ssl_utils/server.pem'
-        certfile_path = ListenerBase.abs_config_path(certfile_path)
-        if certfile_path is None:
-            self.logger.error('Could not locate %s', certfile_path)
-            sys.exit(1)
-
-        ssl_version = ssl.PROTOCOL_SSLv23
 
         try:
             data = remote_sock.recv(BUF_SZ, socket.MSG_PEEK)
@@ -197,20 +190,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             self.server.logger.debug('%s', '-'*80,)
 
         except Exception as e:
-            self.server.logger.warning('recv() error: %s' % e.message)
+            self.server.logger.warning('recv() error: %s' % e)
 
         if data:
-
             if ssl_detector.looks_like_ssl(data):
-                self.server.logger.debug('SSL detected')
-                ssl_remote_sock = ssl.wrap_socket(
-                        remote_sock, 
-                        server_side=True, 
-                        do_handshake_on_connect=True,
-                        certfile=certfile_path, 
-                        ssl_version=ssl_version,
-                        keyfile=keyfile_path )
+                ssl_remote_sock = self.server.sslwrapper.wrap_socket(remote_sock)
                 data = ssl_remote_sock.recv(BUF_SZ)
+
+            else:
+                ssl_remote_sock = None
+            
             
             orig_src_ip = self.client_address[0]
             orig_src_port = self.client_address[1]
@@ -332,7 +321,7 @@ def main():
         TCP_server.shutdown()
     finally:
         logger.debug('Closing ProxyListener')
-        exit(1)
+        sys.exit(1)
     logger.debug('Exiting')
     TCP_server.shutdown()
 

@@ -19,7 +19,7 @@ class DNSListener(object):
 
     def taste(self, data, dport):
 
-        confidence = 1 if dport is 53 else 0
+        confidence = 1 if dport == 53 else 0
 
         try:
             d = DNSRecord.parse(data)

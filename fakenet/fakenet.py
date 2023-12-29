@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+# Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
 
 #!/usr/bin/env python
 #
@@ -6,7 +6,7 @@
 # analysts and penetration testers.
 #
 # Original developer: Peter Kacherginsky
-# Current developer: FireEye FLARE Team (FakeNet@fireeye.com)
+# Current developer: Mandiant FLARE Team (FakeNet@mandiant.com)
 
 import logging
 import logging.handlers
@@ -229,7 +229,7 @@ class Fakenet(object):
                 self.logger.error("%s" % e)
 
             else:
-
+                listener_config['networkmode'] = self.diverter_config['networkmode']
                 listener_provider_instance = listener_provider(
                         listener_config, listener_name, self.logging_level)
 
@@ -341,7 +341,7 @@ def main():
                         Version 3.0 (alpha)
   _____________________________________________________________
                    Developed by FLARE Team
-    Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
+    Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
   _____________________________________________________________
                                                """)
 
