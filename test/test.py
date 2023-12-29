@@ -665,11 +665,11 @@ class FakeNetTester(object):
         f.connect(hostname, port)
         f.login()
         f.set_pasv(False)
-        f.retrbinary('RETR FakeNet.txt', update_hash)
+        f.retrbinary('RETR FakeNet.gif', update_hash)
         f.quit()
 
         digest = m.digest()
-        expected = binascii.unhexlify('8DFFD096C5F2C84632F0F8667638A0B0')
+        expected = binascii.unhexlify('a6b78c4791dc8110dec6c55f8a756395')
 
         return (digest == expected)
 
