@@ -139,7 +139,7 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 indicator_filename = filename
                 if isinstance(filename, bytes):
                     indicator_filename = filename.decode('utf-8')
-                nbi = {"command": "RRQ", "filename": indicator_filename}
+                nbi = {"Command": "RRQ", "Filename": indicator_filename}
                 self.collect_nbi(nbi)
 
             elif opcode == OPCODE_WRQ:
@@ -153,7 +153,7 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 indicator_filename = filename
                 if isinstance(filename, bytes):
                     indicator_filename = filename.decode('utf-8')
-                nbi = {"command": "WRQ", "filename": indicator_filename}
+                nbi = {"Command": "WRQ", "Filename": indicator_filename}
                 self.collect_nbi(nbi)
 
             elif opcode == OPCODE_ACK:
@@ -163,8 +163,8 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
                 # Collect NBIs
                 nbi = {
-                    "command": "ACK",
-                    "block": block_num
+                    "Command": "ACK",
+                    "Block Number": block_num
                     }
                 self.collect_nbi(nbi)
 
@@ -181,9 +181,9 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
                     # Collect NBIs
                     nbi = {
-                        "command": "ERROR",
-                        "error_number": error_num,
-                        "error_message": error_msg
+                        "Command": "ERROR",
+                        "Error Number": error_num,
+                        "Error Message": error_msg
                         }
                     self.collect_nbi(nbi)
 
@@ -194,9 +194,9 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
                 # Collect NBIs
                 nbi = {
-                    "command": "Unknown command",
-                    "opcode": str(unknown_opcode),
-                    "data": data.decode("utf-8")[4:]
+                    "Command": "Unknown command",
+                    "Opcode": str(unknown_opcode),
+                    "Data": data.decode("utf-8")[4:]
                     }
                 self.collect_nbi(nbi)
 
@@ -238,7 +238,7 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
                 self.server.logger.error('Received DATA packet but don\'t know where to store it.')
 
-            nbi = {"command": "DATA", "data": indicator_data[4:], "filename":
+            nbi = {"Command": "DATA", "Data": indicator_data[4:], "Filename":
                     indicator_filename}
             self.collect_nbi(nbi)
 

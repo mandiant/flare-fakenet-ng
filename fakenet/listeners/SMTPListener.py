@@ -150,8 +150,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # Mail data can be long. Let's capture the first line of the
                     # data for NBI.
                     nbi = {
-                        "command": command,
-                        "mail_data": mail_data.decode('utf-8').split("\n")[0]
+                        "Command": command,
+                        "Mail Data": mail_data.decode('utf-8').split("\n")[0]
                         }
                     self.collect_nbi(nbi)
 
@@ -162,8 +162,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 if command != 'DATA':
                     args = None if args == '' else args
                     nbi = {
-                        "command": command,
-                        "args": args
+                        "Command": command,
+                        "Args": args
                         }
                     self.collect_nbi(nbi)
 

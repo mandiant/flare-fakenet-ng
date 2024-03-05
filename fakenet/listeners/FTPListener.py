@@ -159,7 +159,7 @@ class FakeFTPHandler(FTPHandler, object):
             self.authorizer.add_user(self.username, line, self.ftproot_path, 'elradfmwM')
 
         # Collect NBIs
-        nbi = {"command": "PASS", "username": self.username, "password": line}
+        nbi = {"Command": "PASS", "Username": self.username, "Password": line}
         collect_nbi(self.remote_port, nbi, self.server.config.get('usessl'),
                     self.server.diverterListenerCallbacks)
 
@@ -174,7 +174,7 @@ class TLS_FakeFTPHandler(TLS_FTPHandler, object):
             self.authorizer.add_user(self.username, line, self.ftproot_path, 'elradfmwM')
 
         # Collect NBIs
-        nbi = {"command": "PASS", "username": self.username, "password": line}
+        nbi = {"Command": "PASS", "Username": self.username, "Password": line}
         collect_nbi(self.remote_port, nbi, self.server.config.get('usessl'),
                     self.server.diverterListenerCallbacks)
 
@@ -185,7 +185,7 @@ class FakeFS(AbstractedFS):
     def open(self, filename, mode):
 
         # Collect NBIs
-        nbi = {"command": "RETR", "filename": filename, "mode": mode}
+        nbi = {"Command": "RETR", "Filename": filename, "Mode": mode}
         collect_nbi(self.cmd_channel.remote_port, nbi,
                     self.cmd_channel.server.config.get('usessl'),
                     self.cmd_channel.server.diverterListenerCallbacks)
@@ -203,7 +203,7 @@ class FakeFS(AbstractedFS):
     def chdir(self, path):
 
         # Collect NBIs
-        nbi = {"command": "CWD", "path": path}
+        nbi = {"Command": "CWD", "Path": path}
         collect_nbi(self.cmd_channel.remote_port, nbi,
                     self.cmd_channel.server.config.get('usessl'),
                     self.cmd_channel.server.diverterListenerCallbacks)
@@ -220,7 +220,7 @@ class FakeFS(AbstractedFS):
         actual_ftp_path = self.fs2ftp(path)
         if actual_ftp_path.startswith('/'):
             actual_ftp_path = actual_ftp_path[1:] # remove leading '/'
-        nbi = {"command": "DELETE", "filename": actual_ftp_path}
+        nbi = {"Command": "DELETE", "Filename": actual_ftp_path}
         collect_nbi(self.cmd_channel.remote_port, nbi,
                     self.cmd_channel.server.config.get('usessl'),
                     self.cmd_channel.server.diverterListenerCallbacks)
@@ -234,7 +234,7 @@ class FakeFS(AbstractedFS):
         actual_ftp_path = self.fs2ftp(path)
         if actual_ftp_path.startswith('/'):
             actual_ftp_path = actual_ftp_path[1:] # remove leading '/'
-        nbi = {"command": "RMD", "directory": actual_ftp_path}
+        nbi = {"Command": "RMD", "Directory": actual_ftp_path}
         collect_nbi(self.cmd_channel.remote_port, nbi,
                     self.cmd_channel.server.config.get('usessl'),
                     self.cmd_channel.server.diverterListenerCallbacks)

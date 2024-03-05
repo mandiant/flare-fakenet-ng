@@ -19,25 +19,32 @@
 
 	.table-container {
 	  background-color: var(--cell-background-light);
+	  overflow: scroll;
 	}
 
 	table {
 	  color: #2e3440;
 	  width: 100%;
+	  table-layout: fixed;
 	}
 
-	th,
-	td {
+	th, td {
 	  background-color: #d8dee9;
 	  font-weight: bold;
 	  text-align: left;
 	  padding: 8px;
 	  border-bottom: 1px solid #d8dee9;
+	  min-width: 230px;
+	  word-wrap: break-word;
 	}
 
 	tr:nth-child(even) td {
 	  background-color: #eceff4;
 	}
+
+	table tr th:nth-child(4){
+       width: 10%;
+  }
 
 	tr[data-selectable] td,
 	tr[data-selectable] th {
@@ -249,6 +256,10 @@
 		margin-right: 10px;
 	}
 
+	.checkbox-width {
+		width: 5%;
+	}
+
 	.popup {
 		display: none;
 	}
@@ -261,7 +272,7 @@
   </div>
   
   <div class="search-container">
-    <i class="fa fa-search"></i><input type="text" class="search-input" id="searchInput" onkeyup="searchTable()" placeholder="Type to search...">
+    <i class="fa fa-search"></i><input type="text" class="search-input" id="searchInput" placeholder="Type to search...">
 </div>
 
 <div class="button-container">
@@ -277,10 +288,11 @@
             <span class="popup-close">&times;</span>
             <div class="popup-header">Disclaimer</div>
             <ol>
-				<li>In some scenarios, FakeNet may forward requests using a custom protocol through the Proxy. While FakeNet assumes the forwarded request to be of the chosen protocol, it could actually be a custom protocol. Users are advised to investigate and reverse engineer requests by analyzing PCAP files for accurate protocol identification.</li>
+				<li>FakeNet can dynamically deduce the network request protocol by leveraging multiple data points. However, the protocol identification process may not always be accurate, especially when encountering custom protocols. To ensure reliable protocol identification, users are recommended to utilize PCAP files as the definitive source.</li>
 				<li>During lengthy analysis sessions, there is a possibility of port reuse. Users are encouraged to consider the potential for port reuse when interpreting results. When in doubt, referring to PCAP files is recommended for a comprehensive understanding of network activity.</li>
-				<li>FakeNet does not capture the Process ID (PID) and Process Names of remote processes when operating in Multihost mode. Placeholder values are used for PID (Index) and process names (Remote Process) in such cases.</li>
+				<li>FakeNet does not capture the process ID (PID) and process name of remote processes when operating in MultiHost mode. Placeholder values are used for PID (Index) and process names (Remote Process) in such cases.</li>
 				<li>ICMP packets are not logged in the User Interface. To analyze ICMP interactions, refer to the generated PCAP files containing detailed network traffic information.</li>
+				<li>FakeNet's DNS listener resolves domain names to 192.0.2.123 by default and it is not be confused with a legitimate NBI</li>
 			</ol>
         </div>
     </div>
@@ -290,55 +302,65 @@
 
   
   {% for process, process_info in nbis.items() %}
-  <div class="collapsible-container">
+  <div class="collapsible-container process-block">
 	<label class="checkbox-label">
         <input type="checkbox" class="collapsible-checkbox">
-        <button class="collapsible">Process ID: {{ process[0] }}, Process Name: {{ process[1] }}</button>
+        <button class="collapsible">Process ID: {{ process[0]|e }}, Process Name: {{ process[1]|e }}</button>
     </label>
     <div class="content">
       {% for proto, nbis_list in process_info.items() %}
         {% if proto != 'process_name' %}
-		<div class="collapsible-container">
-			<label class="checkbox-label">
-				<input type="checkbox" class="collapsible-checkbox">
-				<button class="collapsible">{{ proto.upper() }}</button>
-			</label>
-        <div class="content">
-          <ul class="nested">
-            <div class="table-container">
-              <table>
-                <tr>
-				  <th>Select</th>
-                  <th>NBI</th>
-                  <th>Additional Information</th>
-				  <th>Actions</th>
-                </tr>
-                {% for nbi_info in nbis_list %}
-                <tr data-selectable>
-				  <td><input type="checkbox" name="nbi-checkbox" class="nbi-checkbox"></td>
-                  <td>
-                    <ul class="nested">
-                      {% for key, value in nbi_info['nbi'].items() %}
-                      <li>{{ key }}: {{ value }}</li>
-                      {% endfor %}
-                    </ul>
-                  </td>
-                  <td>
-                    <ul class="nested">
-                      <li>Transport Layer Protocol: {{ nbi_info['transport_layer_proto'] }}</li>
-					  <li>Destination IP: {{ nbi_info['dst_ip'] }}</li>
-                      <li>Destination port: {{ nbi_info['dport'] }}</li>
-                      <li>SSL encrypted: {{ nbi_info['is_ssl_encrypted'] }}</li>
-                      <li>Network mode: {{ nbi_info['network_mode'] }}</li>
-                    </ul>
-                  </td>
-				  <td><button class="copy-button" onclick="copyNbiData(this.closest('tr'))" title="Copy Individual NBI Data">Copy</button></td>
-                </tr>
-                {% endfor %}
-              </table>
-            </div>
-          </ul>
-        </div>
+				<div class="collapsible-container proto-block">
+					<label class="checkbox-label">
+						<input type="checkbox" class="collapsible-checkbox">
+						<button class="collapsible">{{ proto.upper()|e }}</button>
+					</label>
+	        <div class="content">
+	          <ul class="nested">
+	            <div class="table-container">
+	              <table>
+	              	<col span="1" class="checkbox-width">
+	                <tr>
+					  				<th>Select</th>
+	                  <th>NBI</th>
+	                  <th>Additional Information</th>
+					  				<th>Actions</th>
+	                </tr>
+	                {% for nbi_info in nbis_list %}
+	                <tr data-selectable>
+					  				<td><input type="checkbox" name="nbi-checkbox" class="nbi-checkbox"></td>
+	                  <td>
+	                    <ul class="nested">
+	                      {% for key, value in nbi_info['nbi'].items() %}
+	                      	{% if key == 'Data Hexdump' %}
+	                      		<li><b>{{ key|e }} (showing first 256 bytes)</b>:
+															{% for line in value %}
+	    													<p>{{ line|e }}<p/>
+															{% endfor %} 
+														</li>
+	                      	{% else %}
+	                      		<li><b>{{ key|e }}</b>: {{ value|e }}</li>
+	                      	{% endif %}
+	                      {% endfor %}
+	                    </ul>
+	                  </td>
+	                  <td>
+	                    <ul class="nested">
+	                      <li><b>Transport Layer Protocol</b>: {{ nbi_info['transport_layer_proto']|e }}</li>
+						  					<li><b>Destination IP</b>: {{ nbi_info['dst_ip']|e }}</li>
+	                      <li><b>Destination port</b>: {{ nbi_info['dport']|e }}</li>
+	                      <li><b>SSL encrypted</b>: {{ nbi_info['is_ssl_encrypted']|e }}</li>
+	                      <li><b>Network mode</b>: {{ nbi_info['network_mode']|e }}</li>
+	                    </ul>
+	                  </td>
+					  				<td><button class="copy-button" onclick="copyNbiData(this.closest('tr'))" title="Copy Individual NBI Data">Copy</button></td>
+	                </tr>
+	                {% endfor %}
+	              </table>
+	            </div>
+	          </ul>
+	       </div>
+	      </div>
         {% endif %}
       {% endfor %}
     </div>
@@ -394,37 +416,63 @@
 
 	function performSearch() {
 		const searchTerm = searchInput.value.toLowerCase();
-		let headerRowDisplayed = false;
+		let dataCells = null;
+		let protocolContainer =  null;
+		let found = false;
+		let expandedContainers = null;
 
-		tableRows.forEach((row, index) => {
-			if (index === 0) {
-				tableHeader.style.display = searchTerm.length === 0 || headerRowDisplayed ? "table-row" : "none";
-				headerRowDisplayed = true;
-				return;
-			}
+		if (searchTerm.length === 0) {
+			expandedContainers = document.querySelectorAll('button.collapsible.expanded');
+			expandedContainers.forEach((btn) => {
+					btn.click();
+			});
 
-			if (searchTerm.length === 0) {
-				row.style.display = "table-row";
-				return;
-			}
+			// Unhide rows
+			hiddenRows = document.querySelectorAll("tr[style*='display: none;']");
+			hiddenRows.forEach((row) => {
+					row.style.display = "table-row";
+			});
+			return;
+		}
 
-			const dataCells = row.querySelectorAll("ul.nested li");
-			let found = false;
+		selectableRows.forEach((row, index) => {
+			// searching NBIs
+			found = false;
+			dataCells = row.querySelectorAll("ul.nested li");
 			dataCells.forEach((cell) => {
 				if (cell.textContent.toLowerCase().includes(searchTerm)) {
 					found = true;
 				}
 			});
 
-			const collapsibleContent = row.querySelector(".content");
-			if (collapsibleContent && collapsibleContent.textContent.toLowerCase().includes(searchTerm)) {
-				found = true;
-			}
+			protocolCollapsibleContent = row.closest(".content");
+
+			protocolContainerBtn = protocolCollapsibleContent.closest('.collapsible-container.proto-block').querySelector('.collapsible')
+			processContainerBtn = protocolContainerBtn.closest('.content').closest('.collapsible-container.process-block').querySelector('.collapsible');
 			
 			if(found === true) {
+				// expand row, protocol and process blocks
+				
+				if (processContainerBtn.classList.contains('expanded') === false) {
+					processContainerBtn.click();
+				}
+
+				// if protocol block is not expanded, expand
+				if (protocolContainerBtn.classList.contains('expanded') === false) {
+					protocolContainerBtn.click();
+				}
+
 				row.style.display = "table-row";
-			}
-			else {
+			}	else {
+				if ((processContainerBtn.classList.contains('expanded') === true) && (processContainerBtn.closest('.process-block').querySelector('div.content .proto-block .content.expanded') === null)) {
+					processContainerBtn.click();
+				}
+
+				// if protocol block is expanded, collapse
+				if (protocolContainerBtn.classList.contains('expanded') === true) {
+					protocolContainerBtn.click();
+				}
+
 				row.style.display = "none";
 			}
 		});
@@ -435,9 +483,9 @@
 
 	function scrollFunction() {
 	  if (document.body.scrollTop > 20 || document.documentElement.scrollTop > 20) {
-		goTopButton.style.display = "block";
+			goTopButton.style.display = "block";
 	  } else {
-		goTopButton.style.display = "none";
+			goTopButton.style.display = "none";
 	  }
 	}
 
@@ -453,10 +501,10 @@
 		  const headers = Array.from(tableHeader.querySelectorAll('th'));
 
 		  const nbiData = {};
-		  headers.forEach((header, index) => {
-			const key = header.textContent.trim();
-			const value = dataCells[index].textContent.trim();
-			nbiData[key] = value;
+			  headers.forEach((header, index) => {
+				const key = header.textContent.trim();
+				const value = dataCells[index].textContent.trim();
+				nbiData[key] = value;
 		  });
 
 		  const fieldMap = {};
@@ -493,7 +541,7 @@
 		
 		else if (protocolText === 'dns') {
 			copiedText += '## DNS\n\n';
-			copiedText += `*   \`${fieldMap['NBI']['query_name']}\``;
+			copiedText += `*   \`${fieldMap['NBI']['Domain']}\``;
 		}
 		
 		// ftp, smtp, tftp, pop, irc, raw and unknown protocols come in connections.

@@ -322,7 +322,8 @@ def hexdump_table(data, length=16):
 def collect_nbi(sport, hexdump_lines, proto, is_ssl_encrypted,
         diverterCallbacks):
     nbi = {}
-    nbi['hexdump'] = hexdump_lines[0]
+    # Show upto 16 lines of hex dump
+    nbi['Data Hexdump'] = hexdump_lines[:16]
 
     # Report diverter everytime we capture an NBI
     # Using an empty string for application_layer_protocol in Raw Listener so

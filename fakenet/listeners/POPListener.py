@@ -137,8 +137,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             handler(cmd, params)
                             # Collect NBIs
                             nbi = {
-                                'command': cmd,
-                                'params': params
+                                'Command': cmd,
+                                'Params': params
                                 }
                             self.collect_nbi(nbi)
 

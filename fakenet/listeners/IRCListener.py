@@ -165,8 +165,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         # Collect NBIs
         params = None if params == '' else params
         nbi = {
-            "command": cmd + ' (Unknown command)',
-            "params": params
+            "Command": cmd + ' (Unknown command)',
+            "Params": params
             }
         self.collect_nbi(nbi)
 
@@ -182,8 +182,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         # Collect NBIs
         params = None if params == '' else params
         nbi = {
-            "command": cmd,
-            "params": params
+            "Command": cmd,
+            "Params": params
             }
         self.collect_nbi(nbi)
 
@@ -198,10 +198,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
             # Collect NBIs
             nbi = {
-                "command": cmd,
-                "user": user,
-                "mode": mode,
-                "realname": realname
+                "Command": cmd,
+                "User": user,
+                "Mode": mode,
+                "Real name": realname
                 }
             self.collect_nbi(nbi)
 
@@ -211,8 +211,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         # Collect NBIs
         params = None if params == '' else params
         nbi = {
-            "command": cmd,
-            "params": params
+            "Command": cmd,
+            "Params": params
             }
         self.collect_nbi(nbi)
 
@@ -246,9 +246,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
             # Collect NBIs
             nbi = {
-                "command": cmd,
-                "channel_names": channel_names,
-                "channel_keys": channel_keys
+                "Command": cmd,
+                "Channel Names": channel_names,
+                "Channel Keys": channel_keys
                 }
             self.collect_nbi(nbi)
 
@@ -270,9 +270,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
             # Collect NBIs
             nbi = {
-                "command": cmd,
-                "target": target,
-                "message": message
+                "Command": cmd,
+                "Target": target,
+                "Message": message
                 }
             self.collect_nbi(nbi)
 
@@ -280,8 +280,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def irc_NOTICE(self, cmd, params):
         # Collect NBIs
         nbi = {
-            "command": cmd,
-            "params": params
+            "Command": cmd,
+            "Params": params
             }
         self.collect_nbi(nbi)
         pass
@@ -289,8 +289,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def irc_PART(self, cmd, params):
         # Collect NBIs
         nbi = {
-            "command": cmd,
-            "params": params
+            "Command": cmd,
+            "Params": params
             }
         self.collect_nbi(nbi)
         pass
