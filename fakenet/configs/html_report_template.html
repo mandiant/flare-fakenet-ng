@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FAKENET-NG</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <!-- CSS for the report-->
+  <style>
+  /* Following the nord theme for the User Interface */
+  :root {
+    --background-light: #2e3440;
+    --cell-background-light: #4c566a;
+  }
+
+  body {
+    background-color: var(--background-light);
+    color: #d8dee9;
+    font-family: "Courier New", monospace;
+  }
+
+  .table-container {
+    background-color: var(--cell-background-light);
+    overflow: scroll;
+  }
+
+  table {
+    color: #2e3440;
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  th, td {
+    background-color: #d8dee9;
+    font-weight: bold;
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid #d8dee9;
+    min-width: 230px;
+    word-wrap: break-word;
+  }
+
+  tr:nth-child(even) td {
+    background-color: #eceff4;
+  }
+
+  table tr th:nth-child(4){
+       width: 10%;
+  }
+
+  tr[data-selectable] td,
+  tr[data-selectable] th {
+    cursor: pointer;
+  }
+
+  tr:hover td {
+    background-color: #8FBCBB;
+  }
+
+  .search-container {
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .search-input {
+    padding: 8px;
+    border: 1px solid #d8dee9;
+    border-radius: 5px;
+    width: 50%; /* Adjust the width as needed */
+    font-size: 14px;
+    color: #2e3440;
+    background-color: #eceff4;
+    margin-left: 10px; /* Add left margin */
+    margin-right: 10px; /* Add right margin */
+    transition: width 0.3s; /* Add smooth transition for width change */
+  }
+
+  .search-input:focus {
+    outline: none;
+    box-shadow: 0 0 4px #81a1c1;
+    width: 70%
+  }
+
+  .button-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px; /* Add top margin */
+  }
+
+  .copy-button,
+  .copy-selected-button,
+  .disclaimer-button,
+  .copy-filtered-data {
+    padding: 8px 16px;
+    font-size: 14px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: 10px 5px;
+    background-color: #5e81ac;
+    color: #eceff4;
+  }
+
+
+  .copy-button:hover,
+  .copy-selected-button:hover,
+  .disclaimer-button:hover,
+  .copy-filtered-data:hover {
+    background-color: #88c0d0;
+  }
+
+  .disclaimer-button {
+    background-color: #5e81ac;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 8px 16px;
+    font-size: 14px;
+    margin-right: 10px;
+  }
+
+  .disclaimer-popup {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    align-items: center;
+    justify-content: center;
+  }
+
+  .popup-content {
+    background-color: #2e3440; /* Adjust background color to match nord theme */
+    width: 50%;
+    padding: 20px;
+    border-radius: 5px;
+    position: relative;
+    color: #eceff4;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2); /* Add shadow for depth */
+  }
+
+  .popup-header {
+    font-size: 48px;
+    color: #BF616A;
+    font-weight: bold;
+    margin-bottom: 15px;
+    text-align: center;
+  }
+  .popup-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 36px;
+    cursor: pointer;
+  }
+
+  .collapsible {
+    background-color: #4c566a;
+    color: #eceff4;
+    cursor: pointer;
+    padding: 18px;
+    width: 100%;
+    border: none;
+    text-align: left;
+    outline: none;
+    font-size: 16px;
+    transition: background-color 0.4s;
+    overflow: hidden;
+  }
+
+  .collapsible.expanded {
+    background-color: #A3BE8C;
+    transition: background-color 0.1s;
+  }
+
+  .active,
+  .collapsible:hover {
+    background-color: #5e81ac;
+  }
+
+  .collapsible.expanded:hover {
+    background-color: #A3BE8C;
+  }
+
+  .content {
+    padding: 0 18px;
+    display: none;
+    overflow: hidden;
+    background-color: #2e3440;
+  }
+
+  .main-header-text,
+  h1,
+  h2 {
+    text-align: center;
+    color: #eceff4;
+    font-size: 64px;
+  }
+
+  .go-top-button {
+    display: none;
+    position: fixed;
+    bottom: 20px; 
+    right: 30px; 
+    border: none; 
+    outline: none; 
+    background-color: #3498db;
+    cursor: pointer; 
+    padding: 10px 15px;
+    border-radius: 5px;
+    font-size: 16px;
+    color: white;
+    transition: background-color 0.3s; 
+  }
+
+  .go-top-button:hover {
+    background-color: #2980b9;
+  }
+
+  .nested {
+    margin-left: 20px;
+    padding: 0;
+    list-style: none;
+    font-weight: normal;
+  }
+
+  tr[data-selectable] {
+    cursor: pointer;
+  }
+
+  tr[data-selectable]:hover {
+    background-color: #5e81ac;
+  }
+
+  input[type="checkbox"] {
+    cursor: pointer;
+  }
+  .content {
+    display: none;
+  }
+
+  .content.expanded {
+    display: block;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .collapsible-checkbox {
+    margin-right: 10px;
+  }
+
+  .checkbox-width {
+    width: 5%;
+  }
+
+  .popup {
+    display: none;
+  }
+  </style>
+</head>
+<body>
+  <div class="main-header-text">
+    <h1>FAKENET-NG</h1>
+    <h2>Network-Based Indicators</h2>
+  </div>
+  
+  <div class="search-container">
+    <i class="fa fa-search"></i><input type="text" class="search-input" id="searchInput" placeholder="Type to search...">
+</div>
+
+<div class="button-container">
+    <button class="copy-button" id="copyButton" onclick="copyAllTables()" title="Copy All NBIs Data">Copy All NBIs</button>
+    <button class="copy-selected-button" onclick="copySelectedNbis()" title="Copy Selected NBIs Data">Copy Selected NBIs</button>
+    <button class="copy-filtered-data" onclick="copyFilteredNbis()" title="Copy filtered Data">Copy Filtered NBIs</button>
+  <button class="disclaimer-button" title="Disclaimer">Disclaimer</button>
+</div>
+
+<div class="copyContainer">
+    <div class="disclaimer-popup">
+        <div class="popup-content">
+            <span class="popup-close">&times;</span>
+            <div class="popup-header">Disclaimer</div>
+            <ol>
+        <li>FakeNet can dynamically deduce the network request protocol by leveraging multiple data points. However, the protocol identification process may not always be accurate, especially when encountering custom protocols. To ensure reliable protocol identification, users are recommended to utilize PCAP files as the definitive source.</li>
+        <li>During lengthy analysis sessions, there is a possibility of port reuse. Users are encouraged to consider the potential for port reuse when interpreting results. When in doubt, referring to PCAP files is recommended for a comprehensive understanding of network activity.</li>
+        <li>FakeNet does not capture the process ID (PID) and process name of remote processes when operating in MultiHost mode. Placeholder values are used for PID (Index) and process names (Remote Process) in such cases.</li>
+        <li>ICMP packets are not logged in the User Interface. To analyze ICMP interactions, refer to the generated PCAP files containing detailed network traffic information.</li>
+        <li>FakeNet's DNS listener resolves domain names to 192.0.2.123 by default and it is not be confused with a legitimate NBI</li>
+      </ol>
+        </div>
+    </div>
+</div>
+
+<div class="popup">Copied!</div>
+
+  
+  {% for process, process_info in nbis.items() %}
+  <div class="collapsible-container process-block">
+  <label class="checkbox-label">
+        <input type="checkbox" class="collapsible-checkbox">
+        <button class="collapsible">Process ID: {{ process[0]|e }}, Process Name: {{ process[1]|e }}</button>
+    </label>
+    <div class="content">
+      {% for proto, nbis_list in process_info.items() %}
+        {% if proto != 'process_name' %}
+        <div class="collapsible-container proto-block">
+          <label class="checkbox-label">
+            <input type="checkbox" class="collapsible-checkbox">
+            <button class="collapsible">{{ proto.upper()|e }}</button>
+          </label>
+          <div class="content">
+            <ul class="nested">
+              <div class="table-container">
+                <table>
+                  <col span="1" class="checkbox-width">
+                  <tr>
+                    <th>Select</th>
+                    <th>NBI</th>
+                    <th>Additional Information</th>
+                    <th>Actions</th>
+                  </tr>
+                  {% for nbi_info in nbis_list %}
+                  <tr data-selectable>
+                    <td><input type="checkbox" name="nbi-checkbox" class="nbi-checkbox"></td>
+                    <td>
+                      <ul class="nested">
+                        {% for key, value in nbi_info['nbi'].items() %}
+                          {% if key == 'Data Hexdump' %}
+                            <li><b>{{ key|e }} (showing first 256 bytes)</b>:
+                              {% for line in value %}
+                                <p>{{ line|e }}<p/>
+                              {% endfor %} 
+                            </li>
+                          {% else %}
+                            <li><b>{{ key|e }}</b>: {{ value|e }}</li>
+                          {% endif %}
+                        {% endfor %}
+                      </ul>
+                    </td>
+                    <td>
+                      <ul class="nested">
+                        <li><b>Transport Layer Protocol</b>: {{ nbi_info['transport_layer_proto']|e }}</li>
+                        <li><b>Destination IP</b>: {{ nbi_info['dst_ip']|e }}</li>
+                        <li><b>Destination port</b>: {{ nbi_info['dport']|e }}</li>
+                        <li><b>SSL encrypted</b>: {{ nbi_info['is_ssl_encrypted']|e }}</li>
+                        <li><b>Network mode</b>: {{ nbi_info['network_mode']|e }}</li>
+                      </ul>
+                    </td>
+                    <td><button class="copy-button" onclick="copyNbiData(this.closest('tr'))" title="Copy Individual NBI Data">Copy</button></td>
+                  </tr>
+                  {% endfor %}
+                </table>
+              </div>
+            </ul>
+         </div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  </div>
+  {% endfor %}
+
+ <div class="go-top-button" title="Go to Top" onclick="topFunction()"><i class="fa fa-arrow-up"></i></div>
+ <!--JavaScript for UI-->
+ <script>
+  const collapsibleContainers = document.querySelectorAll('.collapsible-container');
+  collapsibleContainers.forEach(container => {
+    const checkbox = container.querySelector('.collapsible-checkbox');
+    const collapsibleButton = container.querySelector('.collapsible');
+    const content = container.querySelector('.content');
+
+    collapsibleButton.addEventListener('click', () => {
+      content.classList.toggle('expanded');
+      collapsibleButton.classList.toggle('expanded');
+    });
+
+    checkbox.addEventListener('change', () => {
+      const nestedCheckboxes = content.querySelectorAll('.nbi-checkbox');
+      nestedCheckboxes.forEach(nestedCheckbox => {
+        nestedCheckbox.checked = checkbox.checked;
+      });
+    });
+  });
+
+  const tableRows = document.querySelectorAll(".table-container table tr");
+  const tableHeader = document.querySelector(".table-container table tr:first-child");
+  const searchButton = document.getElementById("searchButton");
+  const searchInput = document.getElementById("searchInput");
+
+  searchInput.addEventListener("input", () => {
+    performSearch();
+  });
+
+  const collapsibleCheckboxes = document.querySelectorAll(".collapsible-checkbox");
+  collapsibleCheckboxes.forEach((checkbox) => {
+    checkbox.addEventListener("click", handleCollapsibleCheckboxClick);
+  });
+
+  function handleCollapsibleCheckboxClick(event) {
+    const parentContainer = event.target.closest(".collapsible-container");
+    const nestedCheckboxes = parentContainer.querySelectorAll("tr[data-selectable] input[type='checkbox']");
+    const isChecked = event.target.checked;
+
+    nestedCheckboxes.forEach((nestedCheckbox) => {
+      nestedCheckbox.checked = isChecked;
+    });
+  }
+
+  function performSearch() {
+    const searchTerm = searchInput.value.toLowerCase();
+    let dataCells = null;
+    let protocolContainer =  null;
+    let found = false;
+    let expandedContainers = null;
+
+    if (searchTerm.length === 0) {
+      expandedContainers = document.querySelectorAll('button.collapsible.expanded');
+      expandedContainers.forEach((btn) => {
+          btn.click();
+      });
+
+      // Unhide rows
+      hiddenRows = document.querySelectorAll("tr[style*='display: none;']");
+      hiddenRows.forEach((row) => {
+          row.style.display = "table-row";
+      });
+      return;
+    }
+
+    selectableRows.forEach((row, index) => {
+      // searching NBIs
+      found = false;
+      dataCells = row.querySelectorAll("ul.nested li");
+      dataCells.forEach((cell) => {
+        if (cell.textContent.toLowerCase().includes(searchTerm)) {
+          found = true;
+        }
+      });
+
+      protocolCollapsibleContent = row.closest(".content");
+
+      protocolContainerBtn = protocolCollapsibleContent.closest('.collapsible-container.proto-block').querySelector('.collapsible')
+      processContainerBtn = protocolContainerBtn.closest('.content').closest('.collapsible-container.process-block').querySelector('.collapsible');
+      
+      if(found === true) {
+        // expand row, protocol and process blocks
+        
+        if (processContainerBtn.classList.contains('expanded') === false) {
+          processContainerBtn.click();
+        }
+
+        // if protocol block is not expanded, expand
+        if (protocolContainerBtn.classList.contains('expanded') === false) {
+          protocolContainerBtn.click();
+        }
+
+        row.style.display = "table-row";
+      } else {
+        if ((processContainerBtn.classList.contains('expanded') === true) && (processContainerBtn.closest('.process-block').querySelector('div.content .proto-block .content.expanded') === null)) {
+          processContainerBtn.click();
+        }
+
+        // if protocol block is expanded, collapse
+        if (protocolContainerBtn.classList.contains('expanded') === true) {
+          protocolContainerBtn.click();
+        }
+
+        row.style.display = "none";
+      }
+    });
+  }
+
+  let goTopButton = document.querySelector(".go-top-button");
+  window.onscroll = function() { scrollFunction() };
+
+  function scrollFunction() {
+    if (document.body.scrollTop > 20 || document.documentElement.scrollTop > 20) {
+      goTopButton.style.display = "block";
+    } else {
+      goTopButton.style.display = "none";
+    }
+  }
+
+  function topFunction() {
+    document.body.scrollTop = 0; // For Safari
+    document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
+  }
+
+  function copyNbiData(row) {
+    const protocolCell = findProtocolCell(row);
+    
+    const dataCells = Array.from(row.querySelectorAll('td'));
+      const headers = Array.from(tableHeader.querySelectorAll('th'));
+
+      const nbiData = {};
+        headers.forEach((header, index) => {
+        const key = header.textContent.trim();
+        const value = dataCells[index].textContent.trim();
+        nbiData[key] = value;
+      });
+
+      const fieldMap = {};
+
+      Object.keys(nbiData).forEach(key => {
+      const lines = nbiData[key].split('\n');
+      const keyMap = {};
+
+      lines.forEach(line => {
+        const parts = line.split(':');
+        if (parts.length > 1) {
+          const subKey = parts.shift().trim();
+          const subValue = parts.join(':').trim();
+          
+          if (subKey && subValue) {
+            keyMap[subKey] = subValue;
+          }
+        }
+      });
+
+      fieldMap[key] = keyMap;
+      });
+      
+      let copiedText = '';
+
+    if (protocolCell) {
+    const protocolText = protocolCell.textContent.trim().toLowerCase();
+
+    if (protocolText === 'http') {
+
+      copiedText += '## URL\n\n';
+      copiedText += `*   HTTP Headers`;
+    }
+    
+    else if (protocolText === 'dns') {
+      copiedText += '## DNS\n\n';
+      copiedText += `*   \`${fieldMap['NBI']['Domain']}\``;
+    }
+    
+    // ftp, smtp, tftp, pop, irc, raw and unknown protocols come in connections.
+    else {
+      copiedText += '## Connections\n\n';
+      copiedText += `*   \`${protocolText}[:]//${fieldMap['Additional Information']['Destination IP']}:${fieldMap['Additional Information']['Destination port']}\``;
+    }
+    
+    Object.entries(fieldMap).forEach(([key, value]) => {
+      if (key !== 'Select' && key !== 'Actions') {
+         Object.entries(value).forEach(([key1, value1]) => {
+          copiedText += `\n    * ${key1}: \`${value1}\``;
+         })
+      }
+      });
+      copyToClipboard(copiedText);
+    }
+    return copiedText;
+  }
+
+
+  function findProtocolCell(row) {
+    let parent = row.parentNode;
+    while (parent) {
+    const protocolCell = parent.querySelector('.collapsible');
+    if (protocolCell) {
+      return protocolCell;
+    }
+    parent = parent.parentNode;
+    }
+    return null;
+  }
+
+  function copySelectedNbis() {
+    const checkboxes = document.querySelectorAll('input[name="nbi-checkbox"]:checked');
+    const selectedData = [];
+    const categoricalSelectedData = [["## Connections"], ["## DNS"], ["## URL"]]; 
+
+    checkboxes.forEach((checkbox) => {
+    const row = checkbox.closest('tr');
+    const copiedText = copyNbiData(row);
+    
+    if (copiedText.startsWith("## Connections")) {
+      categoricalSelectedData[0].push(copiedText.substring(copiedText.indexOf('\n\n') + 2));
+    } else if (copiedText.startsWith("## DNS")) {
+      categoricalSelectedData[1].push(copiedText.substring(copiedText.indexOf('\n\n') + 2));
+    } else if (copiedText.startsWith("## URL")) {
+      categoricalSelectedData[2].push(copiedText.substring(copiedText.indexOf('\n\n') + 2));
+    }
+    
+    selectedData.push(copiedText);
+    });
+    
+    const copiedText = categoricalSelectedData
+    .map((sectionData) => sectionData.join('\n\n'))
+    .filter((sectionText) => sectionText.length > 0)
+    .join('\n\n\n');
+    
+    copyToClipboard(copiedText);
+  }
+
+  function copyAllTables() {
+    const tables = document.querySelectorAll("table");
+    const categoricalSelectedData = [["## Connections"], ["## DNS"], ["## URL"]];
+
+    tables.forEach((table) => {
+    const rows = table.querySelectorAll("tr");
+    rows.forEach((row) => {
+      const cells = row.querySelectorAll("td");
+      if (cells.length > 0) {
+      const copiedText = copyNbiData(row);
+      if (copiedText.startsWith("## Connections")) {
+        categoricalSelectedData[0].push(copiedText.substring(copiedText.indexOf('\n\n') + 2));
+      } else if (copiedText.startsWith("## DNS")) {
+        categoricalSelectedData[1].push(copiedText.substring(copiedText.indexOf('\n\n') + 2));
+      } else if (copiedText.startsWith("## URL")) {
+        categoricalSelectedData[2].push(copiedText.substring(copiedText.indexOf('\n\n') + 2));
+      }
+      }
+    });
+    });
+
+    const copiedText = categoricalSelectedData
+    .map((sectionData) => sectionData.join('\n\n'))
+    .filter((sectionText) => sectionText.length > 0)
+    .join('\n\n\n');
+
+    copyToClipboard(copiedText);
+  }
+
+  function copyFilteredNbis() {
+  const tables = document.querySelectorAll("table");
+    const categoricalSelectedData = [["## Connections"], ["## DNS"], ["## URL"]];
+
+    tables.forEach((table) => {
+    const rows = table.querySelectorAll("tr");
+    rows.forEach((row) => {
+      const cells = row.querySelectorAll("td");
+      if (cells.length > 0 && row.style.display !== "none") {
+      const copiedText = copyNbiData(row);
+      if (copiedText.startsWith("## Connections")) {
+        categoricalSelectedData[0].push(copiedText.substring(copiedText.indexOf('\n\n') + 2));
+      } else if (copiedText.startsWith("## DNS")) {
+        categoricalSelectedData[1].push(copiedText.substring(copiedText.indexOf('\n\n') + 2));
+      } else if (copiedText.startsWith("## URL")) {
+        categoricalSelectedData[2].push(copiedText.substring(copiedText.indexOf('\n\n') + 2));
+      }
+      }
+    });
+    });
+
+    const copiedText = categoricalSelectedData
+    .map((sectionData) => sectionData.join('\n\n'))
+    .filter((sectionText) => sectionText.length > 0)
+    .join('\n\n\n');
+
+    copyToClipboard(copiedText);
+  }
+
+
+  function copyToClipboard(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+  }
+
+  function toggleCheckbox(event) {
+    if (event.target.tagName === 'INPUT') {
+    return;
+    }
+
+    const checkbox = event.currentTarget.querySelector('input[type="checkbox"]');
+    checkbox.checked = !checkbox.checked;
+  }
+
+  const selectableRows = document.querySelectorAll('tr[data-selectable]');
+  selectableRows.forEach(row => {
+    row.addEventListener('click', toggleCheckbox);
+  });
+
+  const disclaimerButton = document.querySelector('.disclaimer-button');
+  const disclaimerPopup = document.querySelector('.disclaimer-popup');
+  const popupClose = document.querySelector('.popup-close');
+
+  disclaimerButton.addEventListener('click', () => {
+    disclaimerPopup.style.display = 'flex';
+  });
+
+  popupClose.addEventListener('click', () => {
+    disclaimerPopup.style.display = 'none';
+  });
+  </script>
+</body>
+</html>

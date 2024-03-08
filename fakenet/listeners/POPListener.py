@@ -101,6 +101,9 @@ class POPListener(object):
             self.server.shutdown()
             self.server.server_close()
 
+    def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
+        self.server.diverterListenerCallbacks = diverterListenerCallbacks
+
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
@@ -129,8 +132,15 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             else:
                                 cmd, params = line, b''
 
-                            handler = getattr(self, 'pop_%s' % (cmd.decode("utf-8").upper()), self.pop_DEFAULT)
+                            cmd = cmd.decode("utf-8").upper()
+                            handler = getattr(self, 'pop_%s' % (cmd), self.pop_DEFAULT)
                             handler(cmd, params)
+                            # Collect NBIs
+                            nbi = {
+                                'Command': cmd,
+                                'Params': params
+                                }
+                            self.collect_nbi(nbi)
 
         except socket.timeout:
             self.server.logger.warning('Connection timeout')
@@ -236,6 +246,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def pop_QUIT(self, cmd, params):
 
         self.request.sendall(b"+OK FakeNet POP3 server signing off\r\n")
+
+    def collect_nbi(self, nbi):
+        # Report diverter everytime we capture an NBI.
+        self.server.diverterListenerCallbacks.logNbi(self.client_address[1],
+                nbi, 'TCP', 'POP', self.server.config.get('usessl'))
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):

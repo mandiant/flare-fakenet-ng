@@ -16,6 +16,7 @@ requirements = [
     "pyftpdlib",
     "cryptography",
     "pyopenssl",
+    "jinja2",
 ]
 
 if platform.system() == 'Windows':

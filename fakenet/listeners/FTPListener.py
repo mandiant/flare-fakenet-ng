@@ -158,6 +158,11 @@ class FakeFTPHandler(FTPHandler, object):
         if not self.authorizer.has_user(self.username):
             self.authorizer.add_user(self.username, line, self.ftproot_path, 'elradfmwM')
 
+        # Collect NBIs
+        nbi = {"Command": "PASS", "Username": self.username, "Password": line}
+        collect_nbi(self.remote_port, nbi, self.server.config.get('usessl'),
+                    self.server.diverterListenerCallbacks)
+
         return super(FakeFTPHandler, self).ftp_PASS(line)
 
 class TLS_FakeFTPHandler(TLS_FTPHandler, object):
@@ -168,11 +173,22 @@ class TLS_FakeFTPHandler(TLS_FTPHandler, object):
         if not self.authorizer.has_user(self.username):
             self.authorizer.add_user(self.username, line, self.ftproot_path, 'elradfmwM')
 
+        # Collect NBIs
+        nbi = {"Command": "PASS", "Username": self.username, "Password": line}
+        collect_nbi(self.remote_port, nbi, self.server.config.get('usessl'),
+                    self.server.diverterListenerCallbacks)
+
         return super(TLS_FakeFTPHandler, self).ftp_PASS(line)
 
 class FakeFS(AbstractedFS):
 
     def open(self, filename, mode):
+
+        # Collect NBIs
+        nbi = {"Command": "RETR", "Filename": filename, "Mode": mode}
+        collect_nbi(self.cmd_channel.remote_port, nbi,
+                    self.cmd_channel.server.config.get('usessl'),
+                    self.cmd_channel.server.diverterListenerCallbacks)
 
         # If virtual filename does not exist return a default file based on extention
         if not self.lexists(filename):
@@ -186,6 +202,12 @@ class FakeFS(AbstractedFS):
 
     def chdir(self, path):
 
+        # Collect NBIs
+        nbi = {"Command": "CWD", "Path": path}
+        collect_nbi(self.cmd_channel.remote_port, nbi,
+                    self.cmd_channel.server.config.get('usessl'),
+                    self.cmd_channel.server.diverterListenerCallbacks)
+
         # If virtual directory does not exist change to the current directory
         if not self.lexists(path):
             path = '.'
@@ -194,10 +216,28 @@ class FakeFS(AbstractedFS):
 
     def remove(self, path):
 
+        # Collect NBIs
+        actual_ftp_path = self.fs2ftp(path)
+        if actual_ftp_path.startswith('/'):
+            actual_ftp_path = actual_ftp_path[1:] # remove leading '/'
+        nbi = {"Command": "DELETE", "Filename": actual_ftp_path}
+        collect_nbi(self.cmd_channel.remote_port, nbi,
+                    self.cmd_channel.server.config.get('usessl'),
+                    self.cmd_channel.server.diverterListenerCallbacks)
+
         # Don't remove anything
         pass
 
     def rmdir(self, path):
+
+        # Collect NBIs
+        actual_ftp_path = self.fs2ftp(path)
+        if actual_ftp_path.startswith('/'):
+            actual_ftp_path = actual_ftp_path[1:] # remove leading '/'
+        nbi = {"Command": "RMD", "Directory": actual_ftp_path}
+        collect_nbi(self.cmd_channel.remote_port, nbi,
+                    self.cmd_channel.server.config.get('usessl'),
+                    self.cmd_channel.server.diverterListenerCallbacks)
 
         # Don't remove anything
         pass
@@ -299,6 +339,7 @@ class FTPListener(object):
 
 
         self.server = ThreadedFTPServer((self.local_ip, int(self.config['port'])), self.handler)
+        self.server.config = self.config
 
         # Override pyftpdlib logger name
         logging.getLogger('pyftpdlib').name = self.name
@@ -316,6 +357,14 @@ class FTPListener(object):
     def genBanner(self):
         bannerfactory = BannerFactory.BannerFactory()
         return bannerfactory.genBanner(self.config, BANNERS)
+
+    def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
+        self.server.diverterListenerCallbacks = diverterListenerCallbacks
+
+def collect_nbi(sport, nbi, is_ssl_encrypted, diverterCallbacks):
+
+    # Report diverter everytime we capture an NBI
+    diverterCallbacks.logNbi(sport, nbi, 'TCP', 'FTP', is_ssl_encrypted)
 
 ###############################################################################
 # Testing code
