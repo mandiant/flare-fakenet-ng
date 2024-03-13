@@ -338,7 +338,7 @@ def main():
  | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
  |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                        Version 3.0 (alpha)
+                        Version 3.2
   _____________________________________________________________
                    Developed by FLARE Team
     Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.

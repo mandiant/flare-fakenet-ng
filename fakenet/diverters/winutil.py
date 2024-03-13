@@ -361,9 +361,10 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             # (Host-Only)
             if self.check_ipaddresses_interface(adapter) and adapter.DhcpEnabled:
 
-                (ip_address, netmask) = next(
-                    self.get_ipaddresses_netmask(adapter))
-                gw_address = ip_address[:ip_address.rfind('.')] + '.254'
+                (ip_address, netmask) = next(self.get_ipaddresses_netmask(adapter))
+                # set the gateway ip address to be that of the virtual network adapter
+                # https://docs.vmware.com/en/VMware-Workstation-Pro/17/com.vmware.ws.using.doc/GUID-FB6C0A06-CD5A-4E80-A405-B3A2B7D7236C.html
+                gw_address = ip_address[:ip_address.rfind('.')] + '.1'
 
                 interface_name = self.get_adapter_friendlyname(adapter.Index)
 

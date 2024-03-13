@@ -7,7 +7,7 @@
 
            D   O   C   U   M   E   N   T   A   T   I   O   N
 
-FakeNet-NG 3.0 (alpha) is a next generation dynamic network analysis tool for malware
+FakeNet-NG 3.2 is a next generation dynamic network analysis tool for malware
 analysts and penetration testers. It is open source and designed for the latest
 versions of Windows (and Linux, for certain modes of operation). FakeNet-NG is
 based on the excellent Fakenet tool developed by Andrew Honig and Michael
@@ -116,7 +116,7 @@ parameter to get simple help:
      | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
      |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                             Version  3.0 (alpha)
+                             Version  3.2
       _____________________________________________________________
                        Developed by FLARE Team
         Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
@@ -171,7 +171,7 @@ and an HTTP connection:
      | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
      |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                             Version  3.0 (alpha)
+                             Version  3.2
       _____________________________________________________________
                        Developed by FLARE Team
         Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
