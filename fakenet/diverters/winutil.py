@@ -363,7 +363,8 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
                 (ip_address, netmask) = next(
                     self.get_ipaddresses_netmask(adapter))
-                gw_address = ip_address[:ip_address.rfind('.')] + '.254'
+                # set the gateway ip address to be that of the virtual network adapter
+                gw_address = ip_address[:ip_address.rfind('.')] + '.1'
 
                 interface_name = self.get_adapter_friendlyname(adapter.Index)
 
