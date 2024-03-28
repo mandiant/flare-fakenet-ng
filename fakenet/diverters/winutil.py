@@ -363,7 +363,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
                 (ip_address, netmask) = next(self.get_ipaddresses_netmask(adapter))
                 # set the gateway ip address to be that of the virtual network adapter
-                # https://docs.vmware.com/en/VMware-Workstation-Pro/17/com.vmware.ws.using.doc/GUID-FB6C0A06-CD5A-4E80-A405-B3A2B7D7236C.html
+                # https://docs.vmware.com/en/VMware-Workstation-Pro/17/com.vmware.ws.using.doc/GUID-9831F49E-1A83-4881-BB8A-D4573F2C6D91.html
                 gw_address = ip_address[:ip_address.rfind('.')] + '.1'
 
                 interface_name = self.get_adapter_friendlyname(adapter.Index)

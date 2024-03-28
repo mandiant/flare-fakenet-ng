@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+# Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
 
 import os
 import platform

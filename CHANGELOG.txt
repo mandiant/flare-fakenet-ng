@@ -1,6 +1,9 @@
 Version 3.2
 -----------
 * Use .1 for default gateway instead of .254 because this is the default Virtual Adapter address for VMWare and VirtualBox.
+* Update documentation to use new year
+* Update documentation links to current working links
+* Update documentation to use Mandiant instead of FireEye
 
 Version 3.0 (alpha)
 -----------

@@ -13,13 +13,13 @@ malware analysis on Windows XP.
 ## Windows
 
 Peter Kacherginsky [implemented
-FakeNet-NG](https://www.fireeye.com/blog/threat-research/2016/08/fakenet-ng_next_gen.html)
+FakeNet-NG](https://www.mandiant.com/resources/blog/fakenet-ng-next-gen)
 targeting modern versions of Windows.
 
 ## Linux and Core
 
 Michael Bailey [implemented FakeNet-NG on
-Linux](https://www.fireeye.com/blog/threat-research/2017/07/linux-support-for-fakenet-ng.html),
+Linux](https://www.mandiant.com/resources/blog/introducing-linux-support-fakenet-ng-flares-next-generation-dynamic-network-analysis-tool),
 and later refactored FakeNet-NG to use this as the unified packet processing
 logic for both Windows and Linux.
 
@@ -32,4 +32,4 @@ Haigh, Michael Bailey, and Peter Kacherginsky conceptualized the Proxy Listener
 and Hidden Listener mechanisms for introducing both of these content-based
 protocol detection features to FakeNet-NG. Matthew Haigh then [implemented
 Content-Based Protocol
-Detection](https://www.fireeye.com/blog/threat-research/2017/10/fakenet-content-based-protocol-detection.html).
+Detection](https://www.mandiant.com/content/fireeye-www/en_US/blog/threat-research/2017/10/fakenet-content-based-protocol-detection.html).

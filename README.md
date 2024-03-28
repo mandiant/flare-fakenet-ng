@@ -119,7 +119,7 @@ parameter to get simple help:
                              Version  3.2
       _____________________________________________________________
                        Developed by FLARE Team
-        Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+        Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
       _____________________________________________________________
     Usage: python -m fakenet.fakenet [options]:
 
@@ -174,7 +174,7 @@ and an HTTP connection:
                              Version  3.2
       _____________________________________________________________
                        Developed by FLARE Team
-        Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
+        Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
       _____________________________________________________________
 
     07/06/16 10:20:52 PM [           FakeNet] Loaded configuration file: configs/default.ini

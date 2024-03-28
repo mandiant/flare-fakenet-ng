@@ -24,19 +24,19 @@ Analysis](https://nostarch.com/malware).
 ## History
 FakeNet-NG was initially released August 3, 2016 by Peter Kacherginsky with
 support for Windows: [FakeNet-NG: Next Generation Dynamic Network Analysis
-Tool](https://www.fireeye.com/blog/threat-research/2016/08/fakenet-ng_next_gen.html).
+Tool](https://www.mandiant.com/resources/blog/fakenet-ng-next-gen).
 
 On July 5, 2017 FakeNet-NG was updated by Michael Bailey to add support for
 Linux: [Introducing Linux Support for FakeNet-NG: FLARE's Next Generation
 Dynamic Network Analysis
-Tool](https://www.fireeye.com/blog/threat-research/2017/07/linux-support-for-fakenet-ng.html).
+Tool](https://www.mandiant.com/resources/blog/introducing-linux-support-fakenet-ng-flares-next-generation-dynamic-network-analysis-tool).
 
 The next significant FakeNet-NG release was by Matthew Haigh on October 23,
 2017 to introduce a proxy listener to sample, identify, and route traffic to
 the most appropriate listener: [New FakeNet-NG Feature: Content-Based Protocol
-Detection](https://www.fireeye.com/blog/threat-research/2017/10/fakenet-content-based-protocol-detection.html).
+Detection](https://www.mandiant.com/content/fireeye-www/en_US/blog/threat-research/2017/10/fakenet-content-based-protocol-detection.html).
 
-FireEye's [flare-fakenet-ng](https://github.com/fireeye/flare-fakenet-ng)
+Mandiant's [flare-fakenet-ng](https://github.com/mandiant/flare-fakenet-ng)
 repository contains `README.md` which documents usage and configuration; and
 `docs/internals.md` which describes Diverter internals for Linux.
 
@@ -157,7 +157,7 @@ The Configuration Logic for parsing and validating the configuration file is
 spread throughout the Application, Diverter, and Listeners.
 
 The configuration file is a
-[ConfigParser](https://docs.python.org/2/library/configparser.html)-compatible
+[ConfigParser](https://docs.python.org/3/library/configparser.html)-compatible
 file at an operator-specified location detailing how FakeNet-NG is to behave.
 
 Proposed: it may be beneficial to better encapsulate and centralize the
