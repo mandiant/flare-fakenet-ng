@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+# Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
 
 #!/usr/bin/env python
 #
@@ -349,10 +349,10 @@ def main():
  | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
  |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                        Version 3.0 (alpha)
+                        Version 3.1
   _____________________________________________________________
                    Developed by FLARE Team
-    Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
+    Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
   _____________________________________________________________
                                                """)
 

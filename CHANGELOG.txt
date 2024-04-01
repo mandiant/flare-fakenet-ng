@@ -1,3 +1,7 @@
+Version 3.1
+-----------
+* HTML and text NBI after-reporting courtesy of @3V3RYONE and @tinajohnson
+
 Version 3.0 (alpha)
 -----------
 * Migrate diverters, listeners and other components to Python 3
