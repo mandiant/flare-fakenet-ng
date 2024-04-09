@@ -16,6 +16,7 @@ from . import fnconfig
 from .debuglevels import *
 from collections import namedtuple
 from collections import OrderedDict
+from pathlib import Path
 
 
 class DivertParms(object):
@@ -1959,7 +1960,13 @@ class DiverterBase(fnconfig.Config):
         to the main working directory of flare-fakenet-ng. Called by stop() method
         of diverter.
         """
-        template_file = os.path.join("fakenet", "configs", "html_report_template.html")
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            # Inside a Pyinstaller bundle
+            fakenet_dir_path = os.getcwd()
+        else:
+            fakenet_dir_path = os.fspath(Path(__file__).parents[1])
+
+        template_file = os.path.join(fakenet_dir_path, "configs", "html_report_template.html")
         template_loader = jinja2.FileSystemLoader(searchpath=os.path.dirname(template_file))
         template_env = jinja2.Environment(loader=template_loader)
         template = template_env.get_template(os.path.basename(template_file))
