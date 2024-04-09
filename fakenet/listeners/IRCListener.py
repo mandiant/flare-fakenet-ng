@@ -114,6 +114,9 @@ class IRCListener(object):
         bannerfactory = BannerFactory.BannerFactory()
         return bannerfactory.genBanner(self.config, BANNERS)
 
+    def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
+        self.server.diverterListenerCallbacks = diverterListenerCallbacks
+
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
@@ -156,8 +159,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             self.server.logger.error('Error: %s', e)
 
     def irc_DEFAULT(self, cmd, params):
-        self.server.logger.info('Client issued an unknown command %s %s', cmd, params)      
-        self.irc_send_server("421", "%s :Unknown command" % cmd)          
+        self.server.logger.info('Client issued an unknown command %s %s', cmd, params)
+        self.irc_send_server("421", "%s :Unknown command" % cmd)
+
+        # Collect NBIs
+        params = None if params == '' else params
+        nbi = {
+            "Command": cmd + ' (Unknown command)',
+            "Params": params
+            }
+        self.collect_nbi(nbi)
 
     def irc_NICK(self, cmd, params):
 
@@ -168,6 +179,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         self.irc_send_server("001", "%s :%s" % (self.nick, banner))
         self.irc_send_server("376", "%s :End of /MOTD command." % self.nick)
 
+        # Collect NBIs
+        params = None if params == '' else params
+        nbi = {
+            "Command": cmd,
+            "Params": params
+            }
+        self.collect_nbi(nbi)
+
     def irc_USER(self, cmd, params):
         if params.count(' ') == 3:
 
@@ -177,8 +196,25 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             self.realname = realname
             self.request.sendall(b'')
 
+            # Collect NBIs
+            nbi = {
+                "Command": cmd,
+                "User": user,
+                "Mode": mode,
+                "Real name": realname
+                }
+            self.collect_nbi(nbi)
+
     def irc_PING(self, cmd, params):
         self.request.sendall((":%s PONG :%s" % (self.server.servername, self.server.servername)).encode())
+
+        # Collect NBIs
+        params = None if params == '' else params
+        nbi = {
+            "Command": cmd,
+            "Params": params
+            }
+        self.collect_nbi(nbi)
 
 
     def irc_JOIN(self, cmd, params):
@@ -208,6 +244,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             # Send a welcome message
             self.irc_send_client_custom('botmaster', 'botmaster', self.server.servername, "PRIVMSG %s %s" % (channel_name, "Welcome to the channel! %s" % self.nick))
 
+            # Collect NBIs
+            nbi = {
+                "Command": cmd,
+                "Channel Names": channel_names,
+                "Channel Keys": channel_keys
+                }
+            self.collect_nbi(nbi)
+
 
     def irc_PRIVMSG(self, cmd, params):
 
@@ -224,11 +268,31 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             else:
                 self.irc_send_client_custom(target, target, self.server.servername, "PRIVMSG %s %s" % (self.nick, message))
 
+            # Collect NBIs
+            nbi = {
+                "Command": cmd,
+                "Target": target,
+                "Message": message
+                }
+            self.collect_nbi(nbi)
+
 
     def irc_NOTICE(self, cmd, params):
+        # Collect NBIs
+        nbi = {
+            "Command": cmd,
+            "Params": params
+            }
+        self.collect_nbi(nbi)
         pass
 
     def irc_PART(self, cmd, params):
+        # Collect NBIs
+        nbi = {
+            "Command": cmd,
+            "Params": params
+            }
+        self.collect_nbi(nbi)
         pass
 
     def irc_send_server(self, code, message):
@@ -239,6 +303,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
     def irc_send_client_custom(self, nick, user, servername, message):
         self.request.sendall((":%s!%s@%s %s\r\n" % (nick, user, servername, message)).encode())
+
+    def collect_nbi(self, nbi):
+        # Report diverter everytime we capture an NBI
+        # We are not handling SSL encrypted requests, so pass
+        # is_ssl_encrypted = 'No'
+        self.server.diverterListenerCallbacks.logNbi(self.client_address[1],
+                                                     nbi, 'TCP', 'IRC', 'No')
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     # Avoid [Errno 98] Address already in use due to TIME_WAIT status on TCP

@@ -115,6 +115,9 @@ class TFTPListener(object):
             self.server.shutdown()
             self.server.server_close()
 
+    def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
+        self.server.diverterListenerCallbacks = diverterListenerCallbacks
+
 class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
@@ -132,6 +135,13 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 self.server.logger.info('Received request to download %s', filename)
                 self.handle_rrq(socket, filename.decode('utf-8'))
 
+                # Collect NBIs
+                indicator_filename = filename
+                if isinstance(filename, bytes):
+                    indicator_filename = filename.decode('utf-8')
+                nbi = {"Command": "RRQ", "Filename": indicator_filename}
+                self.collect_nbi(nbi)
+
             elif opcode == OPCODE_WRQ:
 
                 filename, mode = self.parse_rrq_wrq_packet(data)
@@ -139,10 +149,24 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
                 self.handle_wrq(socket, filename)
 
+                # Collect NBIs
+                indicator_filename = filename
+                if isinstance(filename, bytes):
+                    indicator_filename = filename.decode('utf-8')
+                nbi = {"Command": "WRQ", "Filename": indicator_filename}
+                self.collect_nbi(nbi)
+
             elif opcode == OPCODE_ACK:
 
                 block_num = struct.unpack('!H', data[2:4])[0]
                 self.server.logger.debug('Received ACK for block %d', block_num)
+
+                # Collect NBIs
+                nbi = {
+                    "Command": "ACK",
+                    "Block Number": block_num
+                    }
+                self.collect_nbi(nbi)
 
             elif opcode == OPCODE_DATA:
 
@@ -151,13 +175,30 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
             elif opcode == OPCODE_ERROR:
 
                     error_num = struct.unpack('!H', data[2:4])[0]
-                    error_msg = data[4:]
+                    error_msg = data.decode('utf-8')[4:]
 
                     self.server.logger.info('Received error message %d:%s', error_num, error_msg)
 
+                    # Collect NBIs
+                    nbi = {
+                        "Command": "ERROR",
+                        "Error Number": error_num,
+                        "Error Message": error_msg
+                        }
+                    self.collect_nbi(nbi)
+
             else:
 
-                self.server.logger.error('Unknown opcode: %d', struct.unpack('!H', data[:2])[0])
+                unknown_opcode = struct.unpack('!H', data[:2])[0]
+                self.server.logger.error('Unknown opcode: %d', unknown_opcode)
+
+                # Collect NBIs
+                nbi = {
+                    "Command": "Unknown command",
+                    "Opcode": str(unknown_opcode),
+                    "Data": data.decode("utf-8")[4:]
+                    }
+                self.collect_nbi(nbi)
 
         except Exception as e:
             self.server.logger.error('Error: %s', e)
@@ -176,12 +217,30 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 f.write(data[4:])
                 f.close()
 
+                # Collect NBIs
+                indicator_data = data
+                indicator_filename = self.server.filename_path
+                if isinstance(data, bytes):
+                    indicator_data = data.decode('utf-8')
+                if isinstance(self.server.filename_path, bytes):
+                    indicator_filename = self.server.filename_path.decode('utf-8')
+
                 # Send ACK packet for the given block number
                 ack_packet = OPCODE_ACK + data[2:4]
                 socket.sendto(ack_packet, self.client_address)
 
             else:
+                # Collect NBIs
+                indicator_data = data
+                indicator_filename = None
+                if isinstance(data, bytes):
+                    indicator_data = data.decode('utf-8')
+
                 self.server.logger.error('Received DATA packet but don\'t know where to store it.')
+
+            nbi = {"Command": "DATA", "Data": indicator_data[4:], "Filename":
+                    indicator_filename}
+            self.collect_nbi(nbi)
 
     def handle_rrq(self, socket, filename):
 
@@ -232,6 +291,11 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
         filename, mode, _ = data[2:].split(b"\x00", 2)
         return (filename, mode)
+
+    def collect_nbi(self, nbi):
+        # Report diverter everytime we capture an NBI
+        self.server.diverterListenerCallbacks.logNbi(self.client_address[1],
+                nbi, 'UDP', 'TFTP', 'No')
 
 class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
     pass

@@ -246,6 +246,9 @@ class HTTPListener(object):
             self.server.shutdown()
             self.server.server_close()
 
+    def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
+        self.server.diverterListenerCallbacks = diverterListenerCallbacks
+
 
 class ThreadedHTTPServer(http.server.HTTPServer):
 
@@ -284,6 +287,9 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         for line in str(self.headers).split("\n"):
             self.server.logger.info(INDENT + line)
 
+        # collect nbi
+        self.collect_nbi(self.requestline, self.headers)
+
         # Prepare response
         if not self.doCustomResponse('HEAD'):
             self.send_response(200)
@@ -295,6 +301,9 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         self.server.logger.info(INDENT + self.requestline)
         for line in str(self.headers).split("\n"):
             self.server.logger.info(INDENT + line)
+
+        # collect nbi
+        self.collect_nbi(self.requestline, self.headers)
 
         # Prepare response
         if not self.doCustomResponse('GET'):
@@ -321,6 +330,9 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             self.server.logger.info(INDENT + line)
         for line in post_body.split(b"\n"):
             self.server.logger.info(INDENT.encode('utf-8') + line)
+
+        # collect nbi
+        self.collect_nbi(self.requestline, self.headers, post_body)
 
         # Store HTTP Posts
         if self.server.config.get('dumphttpposts') and self.server.config['dumphttpposts'].lower() == 'yes':
@@ -350,6 +362,24 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
 
             self.wfile.write(response)
+    
+    def collect_nbi(self, requestline, headers, post_data=None):
+        nbi = {}
+        method, uri, version = requestline.split(" ")
+        nbi["Method"] = method
+        nbi["URI"] = uri
+        nbi["Version"] = version
+
+        for line in str(headers).rstrip().split("\n"):
+            key, _, value = line.partition(":")
+            nbi[key] = value.lstrip()
+
+        if post_data:
+            nbi["Request Body"] = post_data
+
+        # report diverter everytime we capture an NBI
+        self.server.diverterListenerCallbacks.logNbi(self.client_address[1],
+                nbi, 'TCP', 'HTTP', self.server.config.get('usessl'))
 
     def get_response(self, path):
         response = "<html><head><title>FakeNet</title><body><h1>FakeNet</h1></body></html>"
