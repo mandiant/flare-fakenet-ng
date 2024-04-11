@@ -6,7 +6,7 @@
 # analysts and penetration testers.
 #
 # Original developer: Peter Kacherginsky
-# Current developer: FireEye FLARE Team (FakeNet@fireeye.com)
+# Current developer: Mandiant FLARE Team (FakeNet@mandiant.com)
 
 import logging
 import logging.handlers
@@ -349,7 +349,7 @@ def main():
  | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
  |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                        Version 3.1
+                        Version 3.2
   _____________________________________________________________
                    Developed by FLARE Team
     Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.

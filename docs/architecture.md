@@ -12,11 +12,11 @@ directly (if they are not hidden behind the ProxyListener) or through the
 ProxyListener. This architecture is in contrast to tools like PyNetSim (can't
 find an authoritative hyperlink to cite this reference) that effectively
 integrate all services into a bus. The benefit of this additional complexity in
-FakeNet-NG’s architecture is that it can incorporate Listeners based on generic
+FakeNet-NG's architecture is that it can incorporate Listeners based on generic
 code that expects to directly bind to ports and manage its own sockets. The
 FakeNet-NG architecture is diagrammed subsequently.
 
-![FakeNet-NG Architecture](https://github.com/fireeye/flare-fakenet-ng/raw/master/docs/fakenet_architecture.png "FakeNet-NG Architecture")
+![FakeNet-NG Architecture](https://github.com/mandiant/flare-fakenet-ng/blob/master/docs/fakenet_architecture.png "FakeNet-NG Architecture")
 
 # Diverters
 
