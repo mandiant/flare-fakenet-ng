@@ -77,29 +77,29 @@ Finally if you would like to avoid installing FakeNet-NG and just want to run it
 as-is (e.g. for development), then you would need to obtain the source code and
 install dependencies as follows:
 
-1) Install 64-bit or 32-bit Python 3.7.x for the 64-bit or 32-bit versions
-   of Windows respectively.
+1) Install 64-bit or 32-bit Python 3.10 for the 64-bit or 32-bit versions
+   of Windows respectively from Python's official [website](https://python.org).
 
 2) Install Python dependencies:
 
-    pip install pydivert dnslib dpkt pyopenssl pyftpdlib netifaces
+    	pip install pydivert dnslib dpkt pyopenssl pyftpdlib netifaces jinja2
 
    *NOTE*: pydivert will also download and install WinDivert library and
    driver in the `%PYTHONHOME%\DLLs` directory. FakeNet-NG bundles those
    files so they are not necessary for normal use.
 
-2b) Optionally, you can install the following module used for testing:
+   Optionally, you can install the following module used for testing:
 
-    pip install requests
+    	pip install requests
 
 3) Download the FakeNet-NG source code:
 
-    git clone https://github.com/mandiant/flare-fakenet-ng
+    	git clone https://github.com/mandiant/flare-fakenet-ng
 
-Execute FakeNet-NG by running it with a Python interpreter in a privileged
+4) Execute FakeNet-NG by running it with a Python interpreter in a privileged
 shell:
 
-    python -m fakenet.fakenet
+    	python -m fakenet.fakenet
 
 Usage
 =====
