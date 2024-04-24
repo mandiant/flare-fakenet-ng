@@ -1040,9 +1040,16 @@ class DiverterBase(fnconfig.Config):
             sys.exit(1)
 
         if self.is_set('dumppackets'):
-            self.pcap_filename = '%s_%s.pcap' % (self.getconfigval(
+            if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+                output_dir = os.path.dirname(sys.executable)
+            else:
+                output_dir = os.path.dirname(__file__)
+
+            pcap_filename = '%s_%s.pcap' % (self.getconfigval(
                 'dumppacketsfileprefix', 'packets'),
                 time.strftime('%Y%m%d_%H%M%S'))
+
+            self.pcap_filename = os.path.join(output_dir, pcap_filename)
             self.logger.info('Capturing traffic to %s', self.pcap_filename)
             self.pcap = dpkt.pcap.Writer(open(self.pcap_filename, 'wb'),
                                          linktype=dpkt.pcap.DLT_RAW)
@@ -1956,7 +1963,7 @@ class DiverterBase(fnconfig.Config):
         """
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
             # Inside a Pyinstaller bundle
-            fakenet_dir_path = os.getcwd()
+            fakenet_dir_path = os.path.dirname(sys.executable)
         else:
             fakenet_dir_path = os.fspath(Path(__file__).parents[1])
 
@@ -1967,11 +1974,12 @@ class DiverterBase(fnconfig.Config):
         
         timestamp = time.strftime('%Y%m%d_%H%M%S')
         output_filename = f"report_{timestamp}.html"
+        output_file_path = os.path.join(fakenet_dir_path, output_filename)
 
-        with open(output_filename, "w") as output_file:
+        with open(output_file_path, "w") as output_file:
             output_file.write(template.render(nbis=self.nbis))
         
-        self.logger.info(f"Generated new HTML report: {output_filename}")
+        self.logger.info(f"Generated new HTML report: {output_file_path}")
     
     
     
