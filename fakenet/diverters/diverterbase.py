@@ -1040,9 +1040,16 @@ class DiverterBase(fnconfig.Config):
             sys.exit(1)
 
         if self.is_set('dumppackets'):
-            self.pcap_filename = '%s_%s.pcap' % (self.getconfigval(
+            if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+                output_dir = os.path.dirname(sys.executable)
+            else:
+                output_dir = os.path.dirname(__file__)
+
+            pcap_filename = '%s_%s.pcap' % (self.getconfigval(
                 'dumppacketsfileprefix', 'packets'),
                 time.strftime('%Y%m%d_%H%M%S'))
+
+            self.pcap_filename = os.path.join(output_dir, pcap_filename)
             self.logger.info('Capturing traffic to %s', self.pcap_filename)
             self.pcap = dpkt.pcap.Writer(open(self.pcap_filename, 'wb'),
                                          linktype=dpkt.pcap.DLT_RAW)
