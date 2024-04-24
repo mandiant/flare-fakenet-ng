@@ -211,8 +211,12 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
             if hasattr(self.server, 'filename_path') and self.server.filename_path:
 
                 safe_file = self.server.tftp_file_prefix + "_" + urllib.parse.quote(self.server.filename_path, '')
-                output_file = ListenerBase.safe_join(os.getcwd(),
-                                                          safe_file)
+                
+                if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+                    output_dir = os.path.dirname(sys.executable)
+                else:
+                    output_dir = os.path.dirname(__file__)
+                output_file = ListenerBase.safe_join(output_dir, safe_file)
                 f = open(output_file, 'ab')
                 f.write(data[4:])
                 f.close()
