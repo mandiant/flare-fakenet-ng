@@ -1967,11 +1967,12 @@ class DiverterBase(fnconfig.Config):
         
         timestamp = time.strftime('%Y%m%d_%H%M%S')
         output_filename = f"report_{timestamp}.html"
+        output_file_path = os.path.join(fakenet_dir_path, output_filename)
 
-        with open(output_filename, "w") as output_file:
+        with open(output_file_path, "w") as output_file:
             output_file.write(template.render(nbis=self.nbis))
         
-        self.logger.info(f"Generated new HTML report: {output_filename}")
+        self.logger.info(f"Generated new HTML report: {output_file_path}")
     
     
     
