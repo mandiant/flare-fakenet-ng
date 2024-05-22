@@ -211,7 +211,7 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
             if hasattr(self.server, 'filename_path') and self.server.filename_path:
 
                 safe_file = self.server.tftp_file_prefix + "_" + urllib.parse.quote(self.server.filename_path, '')
-                output_file = ListenerBase.safe_join(os.getcwd(),
+                output_file = ListenerBase.safe_join(os.path.dirname(sys.executable),
                                                           safe_file)
                 f = open(output_file, 'ab')
                 f.write(data[4:])
