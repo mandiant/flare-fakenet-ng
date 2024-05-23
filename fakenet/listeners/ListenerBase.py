@@ -34,7 +34,7 @@ def abs_config_path(path):
         return abspath
 
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        relpath = os.path.join(os.getcwd(), path)
+        relpath = os.path.join(os.path.dirname(sys.executable), path)
     else:
 
         # Try to locate the location relative to application path
