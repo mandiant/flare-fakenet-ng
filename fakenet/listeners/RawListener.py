@@ -5,7 +5,7 @@ from configparser import ConfigParser
 
 import os
 import sys
-import imp
+import importlib
 import base64
 
 import threading
