@@ -1825,9 +1825,8 @@ class DiverterBase(fnconfig.Config):
             is_ssl_encrypted):
         """Collects the NBIs from all listeners into a dictionary.
 
-        All listeners (currently only HTTPListener) use this
-        method to notify the diverter about any NBI captured
-        within their scope.
+        All listeners use this method to notify the diverter about any NBI
+        captured within their scope.
 
         Args:
             sport: int port bound by listener
