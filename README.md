@@ -82,13 +82,13 @@ install dependencies as follows:
 
 2) Install Python dependencies:
 
-    pip install pydivert dnslib dpkt pyopenssl pyftpdlib netifaces
+    pip install pydivert dnslib dpkt pyopenssl pyftpdlib netifaces jinja2
 
    *NOTE*: pydivert will also download and install WinDivert library and
    driver in the `%PYTHONHOME%\DLLs` directory. FakeNet-NG bundles those
    files so they are not necessary for normal use.
 
-2b) Optionally, you can install the following module used for testing:
+   Optionally, you can install the following module used for testing:
 
     pip install requests
 

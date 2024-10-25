@@ -1202,7 +1202,18 @@ class DiverterBase(fnconfig.Config):
                 pc = PidCommDest(pid, comm, pkt.proto, pkt.dst_ip0, pkt.dport0)
                 if pc.isDistinct(self.last_conn, self.ip_addrs[pkt.ipver]):
                     self.last_conn = pc
-                    self.logger.info('%s' % (str(pc)))
+                    # As a user may not wish to see any logs from a blacklisted
+                    # process, messages are logged with level DEBUG. Executing
+                    # FakeNet in the verbose mode will print these logs
+                    is_process_blacklisted, _, _ = self.isProcessBlackListed(
+                                                        pkt.proto,
+                                                        process_name=comm,
+                                                        dport=pkt.dport0
+                                                    )
+                    if is_process_blacklisted:
+                        self.logger.debug('%s' % (str(pc)))
+                    else:
+                        self.logger.info('%s' % (str(pc)))
 
             # 2: Call layer 3 (network) callbacks
             for cb in callbacks3:
@@ -1971,7 +1982,45 @@ class DiverterBase(fnconfig.Config):
             output_file.write(template.render(nbis=self.nbis))
         
         self.logger.info(f"Generated new HTML report: {output_filename}")
-    
+
+    def isProcessBlackListed(self, proto, sport=None, process_name=None, dport=None):
+        """Checks if a process is blacklisted.
+        """
+        pid = None
+
+        if self.single_host_mode:
+            if process_name is None or dport is None:
+                if sport is not None:
+                    if (proto, sport) in self.proxy_sport_to_orig_sport_map:
+                        orig_sport = self.proxy_sport_to_orig_sport_map[(proto, sport)]
+                    else:
+                        orig_sport = sport
+
+                    session = self.sessions.get(orig_sport)
+                    if session is None:
+                        return False, process_name, pid
+
+                    pid = session.pid
+                    process_name = session.comm
+                    dport = session.dport0
+                else:
+                    return False, process_name, pid
+
+            # Check process blacklist
+            if process_name in self.blacklist_processes:
+                self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
+                            'in the process blacklist.') % (proto,
+                            process_name))
+                return True, process_name, pid
+
+            # Check per-listener blacklisted process list
+            elif self.listener_ports.isProcessBlackListHit(
+                    proto, dport, process_name):
+                self.pdebug(DIGN, ('Ignoring %s request packet from ' +
+                            'process %s in the listener process ' +
+                            'blacklist.') % (proto, process_name))
+                return True, process_name, pid
+        return False, process_name, pid
     
     
 class DiverterListenerCallbacks():
@@ -2010,3 +2059,7 @@ class DiverterListenerCallbacks():
         self.__diverter.mapProxySportToOrigSport(proto, orig_sport, proxy_sport,
                                                  is_ssl_encrypted)
 
+    def isProcessBlackListed(self, proto, sport):
+        """Check if the process is blacklisted.
+        """
+        return self.__diverter.isProcessBlackListed(proto, sport)
