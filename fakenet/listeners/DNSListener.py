@@ -216,7 +216,7 @@ class DNSHandler():
 
                     fake_record = self.server.config.get('responsetxt', 'FAKENET')
 
-                    self.log_message(logging.DEBUG, is_process_blacklisted, 'Responding with \'%s\'', 
+                    self.log_message(logging.DEBUG, is_process_blacklisted, 'Responding with \'%s\'',
                                              fake_record)
                     response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
 

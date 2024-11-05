@@ -1985,21 +1985,20 @@ class DiverterBase(fnconfig.Config):
 
     def isProcessBlackListed(self, proto, sport=None, process_name=None, dport=None):
         """Checks if a process is blacklisted.
+        Expected arguments are either:
+        - process_name and dport, or
+        - sport
         """
         pid = None
 
-        if self.single_host_mode:
+        if self.single_host_mode and proto is not None:
             if process_name is None or dport is None:
-                if sport is not None:
-                    if (proto, sport) in self.proxy_sport_to_orig_sport_map:
-                        orig_sport = self.proxy_sport_to_orig_sport_map[(proto, sport)]
-                    else:
-                        orig_sport = sport
+                if sport is None:
+                    return False, process_name, pid
 
-                    session = self.sessions.get(orig_sport)
-                    if session is None:
-                        return False, process_name, pid
-
+                orig_sport = self.proxy_sport_to_orig_sport_map.get((proto, sport), sport)
+                session = self.sessions.get(orig_sport)
+                if session:
                     pid = session.pid
                     process_name = session.comm
                     dport = session.dport0
@@ -2014,7 +2013,7 @@ class DiverterBase(fnconfig.Config):
                 return True, process_name, pid
 
             # Check per-listener blacklisted process list
-            elif self.listener_ports.isProcessBlackListHit(
+            if self.listener_ports.isProcessBlackListHit(
                     proto, dport, process_name):
                 self.pdebug(DIGN, ('Ignoring %s request packet from ' +
                             'process %s in the listener process ' +
@@ -2062,4 +2061,4 @@ class DiverterListenerCallbacks():
     def isProcessBlackListed(self, proto, sport):
         """Check if the process is blacklisted.
         """
-        return self.__diverter.isProcessBlackListed(proto, sport)
+        return self.__diverter.isProcessBlackListed(proto, sport=sport)
