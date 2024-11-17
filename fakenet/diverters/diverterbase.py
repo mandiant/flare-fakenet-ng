@@ -1966,7 +1966,7 @@ class DiverterBase(fnconfig.Config):
         """
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
             # Inside a Pyinstaller bundle
-            fakenet_dir_path = os.getcwd()
+            fakenet_dir_path = os.path.dirname(sys.executable)
         else:
             fakenet_dir_path = os.fspath(Path(__file__).parents[1])
 

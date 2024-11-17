@@ -64,7 +64,7 @@ class Fakenet(object):
     def parse_config(self, config_filename):
         # Handling Pyinstaller bundle scenario: https://pyinstaller.org/en/stable/runtime-information.html
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            dir_path = os.getcwd()
+            dir_path = os.path.dirname(sys.executable)
         else:
             dir_path = os.path.dirname(__file__)
 
