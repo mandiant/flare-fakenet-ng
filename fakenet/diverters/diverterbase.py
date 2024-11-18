@@ -1054,6 +1054,8 @@ class DiverterBase(fnconfig.Config):
                 self.getconfigval('processblacklist').split(',')]
             self.logger.debug('Blacklisted processes: %s', ', '.join(
                 [str(p) for p in self.blacklist_processes]))
+            if self.logger.level == logging.INFO:
+                self.logger.info('Hiding logs from blacklisted processes')
 
         # Only redirect whitelisted processes
         if self.is_configured('processwhitelist'):

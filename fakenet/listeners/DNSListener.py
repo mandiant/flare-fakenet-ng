@@ -49,6 +49,8 @@ class DNSListener(object):
         self.logger.debug('Initialized with config:')
         for key, value in config.items():
             self.logger.debug('  %10s: %s', key, value)
+        if self.logger.level == logging.INFO:
+            self.logger.info('Hiding logs from blacklisted processes')
 
     def start(self):
 
@@ -87,7 +89,7 @@ class DNSHandler():
 
         In a case where the DNS server is same as the local machine, the DNS
         requests from a blacklisted process will reach the DNS listener (which
-        listens on port 53 locally) neverthless. As a user may not wish to see
+        listens on port 53 locally) nevertheless. As a user may not wish to see
         logs from a blacklisted process, messages are logged with level DEBUG.
         Executing FakeNet in the verbose mode will print these logs.
         """
