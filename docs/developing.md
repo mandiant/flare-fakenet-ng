@@ -181,9 +181,9 @@ utilities (i.e. `pip`). Use an administrative command prompt where applicable
 for installing Python modules for all users.
 
 Pre-requisites:
-* Python 2.7 x86 with `pip`
-* Visual C++ for Python 2.7 development, available at:
-  <https://aka.ms/vcpython27>
+* Python 3.10.11 x86 with `pip`
+* Visual C++ for Python development, available at:
+  <https://visualstudio.microsoft.com/visual-cpp-build-tools/>
 
 Before installing `pyinstaller`, you may wish to take the following steps to
 prevent the error `ImportError: No module named PyInstaller`:

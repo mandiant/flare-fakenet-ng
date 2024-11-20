@@ -7,7 +7,7 @@
 
            D   O   C   U   M   E   N   T   A   T   I   O   N
 
-FakeNet-NG 3.2 is a next generation dynamic network analysis tool for malware
+FakeNet-NG 3.3 is a next generation dynamic network analysis tool for malware
 analysts and penetration testers. It is open source and designed for the latest
 versions of Windows (and Linux, for certain modes of operation). FakeNet-NG is
 based on the excellent Fakenet tool developed by Andrew Honig and Michael
@@ -77,7 +77,7 @@ Finally if you would like to avoid installing FakeNet-NG and just want to run it
 as-is (e.g. for development), then you would need to obtain the source code and
 install dependencies as follows:
 
-1) Install 64-bit or 32-bit Python 3.7.x for the 64-bit or 32-bit versions
+1) Install 64-bit or 32-bit Python 3.10.11 for the 64-bit or 32-bit versions
    of Windows respectively.
 
 2) Install Python dependencies:
@@ -733,6 +733,15 @@ plugins and extend existing functionality. For details, see
 
 Known Issues
 ============
+
+[WinError 87] The parameter is incorrect
+----------------------------------------
+As of this wriring, the default buffer size in pydivert is 1500. If FakeNet-NG
+encounters a packet larger than the default buffer size, you may observe this error.
+A workaround is to specify the desired buffer size in self.handle.recv(bufsize=<your_bufsize>)
+in fakenet/diverters/windows.
+See [here](https://github.com/ffalcinelli/pydivert/issues/42#issuecomment-495036124)
+
 
 Does not work on VMWare with host-only mode enabled
 ---------------------------------------------------
