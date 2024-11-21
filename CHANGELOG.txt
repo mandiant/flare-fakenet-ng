@@ -1,3 +1,10 @@
+Version 3.3
+-----------
+* Hide logging in DNS listener and Diverter for blacklisted processes
+  when not in verbose mode
+* Use binary location instead of current directory when getting config
+  files in Pyinstaller bundles
+
 Version 3.2
 -----------
 * Use .1 for default gateway instead of .254 because this is the default Virtual

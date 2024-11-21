@@ -49,6 +49,8 @@ class DNSListener(object):
         self.logger.debug('Initialized with config:')
         for key, value in config.items():
             self.logger.debug('  %10s: %s', key, value)
+        if self.logger.level == logging.INFO:
+            self.logger.info('Hiding logs from blacklisted processes')
 
     def start(self):
 
@@ -81,18 +83,38 @@ class DNSListener(object):
 
 
 class DNSHandler():
+    def log_message(self, log_level, is_process_blacklisted, message, *args):
+        """The primary objective of this method is to control the log messages
+        generated for requests from blacklisted processes.
+
+        In a case where the DNS server is same as the local machine, the DNS
+        requests from a blacklisted process will reach the DNS listener (which
+        listens on port 53 locally) nevertheless. As a user may not wish to see
+        logs from a blacklisted process, messages are logged with level DEBUG.
+        Executing FakeNet in the verbose mode will print these logs.
+        """
+        if is_process_blacklisted:
+            self.server.logger.log(logging.DEBUG, message, *args)
+        else:
+            self.server.logger.log(log_level, message, *args)
            
-    def parse(self,data):
+    def parse(self, data):
         response = ""
-    
+        proto = 'TCP' if self.server.socket_type == socket.SOCK_STREAM else 'UDP'
+        is_process_blacklisted, process_name, pid = self.server \
+                                                         .diverterListenerCallbacks \
+                                                         .isProcessBlackListed(
+                                                              proto,
+                                                              sport=self.client_address[1])
+
         try:
             # Parse data as DNS        
             d = DNSRecord.parse(data)
 
         except Exception as e:
-            self.server.logger.error('Error: Invalid DNS Request')
+            self.log_message(logging.ERROR, is_process_blacklisted, 'Error: Invalid DNS Request')
             for line in hexdump_table(data):
-                self.server.logger.warning(INDENT + line)
+                self.log_message(logging.WARNING, is_process_blacklisted, INDENT + line)
 
         else:                 
             # Only Process DNS Queries
@@ -110,7 +132,14 @@ class DNSHandler():
                 self.qname = qname
                 self.qtype = qtype
 
-                self.server.logger.info('Received %s request for domain \'%s\'.', qtype, qname)
+                if process_name is None or pid is None:
+                    self.log_message(logging.INFO, is_process_blacklisted,
+                                      'Received %s request for domain \'%s\'.',
+                                      qtype, qname)
+                else:
+                    self.log_message(logging.INFO, is_process_blacklisted,
+                                     'Received %s request for domain \'%s\' from %s (%s)',
+                                     qtype, qname, process_name, pid)
 
                 # Create a custom response to the query
                 response = DNSRecord(DNSHeader(id=d.header.id, bitmap=d.header.bitmap, qr=1, aa=1, ra=1), q=d.q)
@@ -165,11 +194,11 @@ class DNSHandler():
                         fake_record = socket.gethostbyname(socket.gethostname())
 
                     if self.server.nxdomains > 0:
-                        self.server.logger.info('Ignoring query. NXDomains: %d',
+                        self.log_message(logging.INFO, is_process_blacklisted, 'Ignoring query. NXDomains: %d',
                                 self.server.nxdomains)
                         self.server.nxdomains -= 1
                     else:
-                        self.server.logger.debug('Responding with \'%s\'',
+                        self.log_message(logging.DEBUG, is_process_blacklisted, 'Responding with \'%s\'',
                                                  fake_record)
                         response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
 
@@ -180,7 +209,7 @@ class DNSHandler():
                     # dnslib doesn't like trailing dots
                     if fake_record[-1] == ".": fake_record = fake_record[:-1]
 
-                    self.server.logger.debug('Responding with \'%s\'',
+                    self.log_message(logging.DEBUG, is_process_blacklisted, 'Responding with \'%s\'',
                                              fake_record)
                     response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
 
@@ -189,7 +218,7 @@ class DNSHandler():
 
                     fake_record = self.server.config.get('responsetxt', 'FAKENET')
 
-                    self.server.logger.debug('Responding with \'%s\'', 
+                    self.log_message(logging.DEBUG, is_process_blacklisted, 'Responding with \'%s\'',
                                              fake_record)
                     response.add_answer(RR(qname, getattr(QTYPE,qtype), rdata=RDMAP[qtype](fake_record)))
 

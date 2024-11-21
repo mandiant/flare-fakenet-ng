@@ -1054,6 +1054,8 @@ class DiverterBase(fnconfig.Config):
                 self.getconfigval('processblacklist').split(',')]
             self.logger.debug('Blacklisted processes: %s', ', '.join(
                 [str(p) for p in self.blacklist_processes]))
+            if self.logger.level == logging.INFO:
+                self.logger.info('Hiding logs from blacklisted processes')
 
         # Only redirect whitelisted processes
         if self.is_configured('processwhitelist'):
@@ -1202,7 +1204,18 @@ class DiverterBase(fnconfig.Config):
                 pc = PidCommDest(pid, comm, pkt.proto, pkt.dst_ip0, pkt.dport0)
                 if pc.isDistinct(self.last_conn, self.ip_addrs[pkt.ipver]):
                     self.last_conn = pc
-                    self.logger.info('%s' % (str(pc)))
+                    # As a user may not wish to see any logs from a blacklisted
+                    # process, messages are logged with level DEBUG. Executing
+                    # FakeNet in the verbose mode will print these logs
+                    is_process_blacklisted, _, _ = self.isProcessBlackListed(
+                                                        pkt.proto,
+                                                        process_name=comm,
+                                                        dport=pkt.dport0
+                                                    )
+                    if is_process_blacklisted:
+                        self.logger.debug('%s' % (str(pc)))
+                    else:
+                        self.logger.info('%s' % (str(pc)))
 
             # 2: Call layer 3 (network) callbacks
             for cb in callbacks3:
@@ -1825,9 +1838,8 @@ class DiverterBase(fnconfig.Config):
             is_ssl_encrypted):
         """Collects the NBIs from all listeners into a dictionary.
 
-        All listeners (currently only HTTPListener) use this
-        method to notify the diverter about any NBI captured
-        within their scope.
+        All listeners use this method to notify the diverter about any NBI
+        captured within their scope.
 
         Args:
             sport: int port bound by listener
@@ -1956,7 +1968,7 @@ class DiverterBase(fnconfig.Config):
         """
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
             # Inside a Pyinstaller bundle
-            fakenet_dir_path = os.getcwd()
+            fakenet_dir_path = os.path.dirname(sys.executable)
         else:
             fakenet_dir_path = os.fspath(Path(__file__).parents[1])
 
@@ -1972,7 +1984,44 @@ class DiverterBase(fnconfig.Config):
             output_file.write(template.render(nbis=self.nbis))
         
         self.logger.info(f"Generated new HTML report: {output_filename}")
-    
+
+    def isProcessBlackListed(self, proto, sport=None, process_name=None, dport=None):
+        """Checks if a process is blacklisted.
+        Expected arguments are either:
+        - process_name and dport, or
+        - sport
+        """
+        pid = None
+
+        if self.single_host_mode and proto is not None:
+            if process_name is None or dport is None:
+                if sport is None:
+                    return False, process_name, pid
+
+                orig_sport = self.proxy_sport_to_orig_sport_map.get((proto, sport), sport)
+                session = self.sessions.get(orig_sport)
+                if session:
+                    pid = session.pid
+                    process_name = session.comm
+                    dport = session.dport0
+                else:
+                    return False, process_name, pid
+
+            # Check process blacklist
+            if process_name in self.blacklist_processes:
+                self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
+                            'in the process blacklist.') % (proto,
+                            process_name))
+                return True, process_name, pid
+
+            # Check per-listener blacklisted process list
+            if self.listener_ports.isProcessBlackListHit(
+                    proto, dport, process_name):
+                self.pdebug(DIGN, ('Ignoring %s request packet from ' +
+                            'process %s in the listener process ' +
+                            'blacklist.') % (proto, process_name))
+                return True, process_name, pid
+        return False, process_name, pid
     
     
 class DiverterListenerCallbacks():
@@ -2011,3 +2060,7 @@ class DiverterListenerCallbacks():
         self.__diverter.mapProxySportToOrigSport(proto, orig_sport, proxy_sport,
                                                  is_ssl_encrypted)
 
+    def isProcessBlackListed(self, proto, sport):
+        """Check if the process is blacklisted.
+        """
+        return self.__diverter.isProcessBlackListed(proto, sport=sport)
