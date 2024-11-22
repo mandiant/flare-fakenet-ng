@@ -245,7 +245,7 @@ fakenet1.4.3\
     |   +-- CustomProviderExample.py
     |   +-- sample_custom_response.ini
     |   +-- sample_raw_response.txt
-    |   +-- sample_raw_tcp_response.txt
+    |   +-- html_report_template.html
     |
     +-- defaultFiles\
     |   +-- FakeNet.gif
