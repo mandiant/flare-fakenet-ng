@@ -388,7 +388,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
             self.logger.debug(('Failed to open %s to enumerate netfilter '
                                'netlink queues, caller may proceed as if '
                                'none are in use: %s') %
-                              (procfs_path, e.message))
+                              (procfs_path, e))
 
         return qnos
 
