@@ -122,7 +122,7 @@ class ThreadedTCPClientSocket(threading.Thread):
             return new_sport
 
         except Exception as e:
-            self.logger.debug('Listener socket exception while attempting connection %s' % e.message)
+            self.logger.debug('Listener socket exception while attempting connection %s' % str(e))
 
         return None
 
@@ -143,7 +143,7 @@ class ThreadedTCPClientSocket(threading.Thread):
                         self.sock.close()
                         sys.exit(1)
         except Exception as e:
-            self.logger.debug('Listener socket exception %s' % e.message)
+            self.logger.debug('Listener socket exception %s' % str(e))
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
@@ -210,7 +210,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             self.server.logger.debug('%s', '-'*80,)
 
         except Exception as e:
-            self.server.logger.warning('recv() error: %s' % e.message)
+            self.server.logger.warning('recv() error: %s' % str(e))
         
         # Is the pkt ssl encrypted?
         # Using a str here instead of bool to match the format returned by
