@@ -100,6 +100,15 @@ class IRCListener(object):
         self.server.config = self.config
         self.server.servername = self.config.get('servername', 'localhost')
 
+        if self.server.servername.startswith('!'):
+            self.server.servername = self.server.servername[1:]
+            if self.server.servername.lower() == "random":
+                self.server.servername = self.randomizeHostname()
+            elif self.server.servername.lower() == "gethostname":
+                self.server.servername = socket.gethostname()
+            else:
+                raise ValueError('ServerName config invalid escape: !%s' % (servername))
+
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
         self.server_thread.start()
@@ -170,6 +179,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             }
         self.collect_nbi(nbi)
 
+    def irc_WHOIS(self, cmd, params):
+        output = f"{self.nick} {self.user} {self.server.servername} * {self.realname}"
+        self.irc_send_server("311", output)
+        self.server.logger.info("Client has issued WHOIS command: " + output)
+        self.irc_send_server("318", "%s :End of /WHOIS list" % self.nick)
+    
     def irc_NICK(self, cmd, params):
 
         self.nick = params
