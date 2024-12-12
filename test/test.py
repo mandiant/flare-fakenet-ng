@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2022 Mandiant, Inc. All rights reserved.
+# Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
 
 import os
 import re
@@ -20,10 +20,12 @@ import platform
 import requests
 import netifaces
 import subprocess
+import ssl
 import irc.client
 import configparser
 from collections import OrderedDict
 from icmplib import ping
+from requests.adapters import HTTPAdapter
 
 logger = logging.getLogger('FakeNetTests')
 logging.basicConfig(format='%(message)s', level=logging.INFO)
@@ -593,9 +595,20 @@ class FakeNetTester(object):
         return irc_tester.test_irc()
 
     def _test_http(self, hostname, port=None, scheme=None, uri=None,
-                   teststring=None):
+                   teststring=None, verify=False):
         """Test HTTP Listener"""
+
+        # https://stackoverflow.com/a/50215614
+        # HACK to force requests to use Windows Certificate store
+        class SSLContextAdapter(HTTPAdapter):
+            def init_poolmanager(self, *args, **kwargs):
+                ctx = ssl.create_default_context()
+                ctx.load_default_certs()
+                kwargs['ssl_context'] = ctx
+                return super(SSLContextAdapter, self).init_poolmanager(*args, **kwargs)
+
         retval = False
+        sess = requests.Session()
 
         scheme = scheme if scheme else 'http'
         uri = uri.lstrip('/') if uri else 'asdf.html'
@@ -606,8 +619,12 @@ class FakeNetTester(object):
         else:
             url = '%s://%s/%s' % (scheme, hostname, uri)
 
+        if (scheme == "https") and verify and sys.platform.startswith('win32'):
+            adapter = SSLContextAdapter()
+            sess.mount(url, adapter)
+
         try:
-            r = requests.get(url, timeout=3)
+            r = sess.get(url, timeout=3, verify=verify)
 
             if r.status_code != 200:
                 raise FakeNetTestException('Status code %d' % (r.status_code))
@@ -618,6 +635,12 @@ class FakeNetTester(object):
             retval = True
 
         except requests.exceptions.Timeout as e:
+            pass
+
+        except requests.exceptions.SSLError as e:
+            pass
+
+        except ValueError as e:
             pass
 
         except FakeNetTestException as e:
@@ -769,14 +792,9 @@ class FakeNetTester(object):
 
         t['DNS listener test'] = (self._test_ns, (domain_dne, dns_expected), True)
         t['HTTP listener test'] = (self._test_http, (arbitrary,), True)
-        # Enable HTTPS when we have either added Server Name Indication and Dynamic CA or have modified `_test_http` to
-        # Ignore certificate issues. Here is the error that arises otherwise.
-        #   Starting new HTTPS connection (1): 8.8.8.8
-        #   Test HTTP listener test with SSL: Uncaught exception of type <class 'requests.exceptions.SSLError'>: [Errno 1] _ssl.c:510: error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed
-        #   Starting new HTTPS connection (1): 8.8.8.8
-        #   Test HTTP listener test with SSL: Uncaught exception of type <class 'requests.exceptions.SSLError'>: [Errno 1] _ssl.c:510: error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed
-        #   [!!!] FAILED: HTTP listener test with SSL
-        # t['HTTP listener test with SSL'] = (self._test_http, (arbitrary, None, 'https'), True)
+        t['HTTPS listener IP test, no verify'] = (self._test_http, (arbitrary, None, 'https', None, None, False), True)
+        t['HTTPS listener IP test'] = (self._test_http, (arbitrary, None, 'https', None, None, True), False)
+        t['HTTPS listener hostname test'] = (self._test_http, ('evil.com', None, 'https', 'test.html', None, True), True)
         t['HTTP custom test by URI'] = (self._test_http, (arbitrary, None, None, '/test.txt', 'Wraps this'), True)
         t['HTTP custom test by hostname'] = (self._test_http, ('some.random.c2.com', None, None, None, 'success'), True)
         t['HTTP custom test by both URI and hostname'] = (self._test_http, ('both_host.com', None, None, '/and_uri.txt', 'Ahoy'), True)
@@ -925,7 +943,7 @@ class FakeNetTestSettings:
                 (self.fakenet, self.stopflag, self.logpath, self.configpath))
 
 def is_ip(s):
-    pat = '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'
+    pat = r'^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'
     return bool(re.match(pat, s))
 
 def main():
