@@ -145,10 +145,10 @@ class LinuxDiverterNfqueue(object):
             self._bound = True
         except OSError as e:
             self.logger.error('Failed to start queue for %s: %s' %
-                              (str(self), e.message))
+                              (str(self), e))
         except RuntimeWarning as e:
             self.logger.error('Failed to start queue for %s: %s' %
-                              (str(self), e.message))
+                              (str(self), e))
 
         if not self._bound:
             return False
@@ -166,7 +166,7 @@ class LinuxDiverterNfqueue(object):
             self._thread.start()
             self._started = True
         except RuntimeError as e:
-            self.logger.error('Failed to start queue thread: %s' % (e.message))
+            self.logger.error('Failed to start queue thread: %s' % (e))
 
         return self._started
 
@@ -251,7 +251,7 @@ class ProcfsReader(object):
                             retval = cb_retval
                             break
         except IOError as e:
-            self.logger.error('Failed accessing %s: %s' % (path, e.message))
+            self.logger.error('Failed accessing %s: %s' % (path, e))
             # All or nothing
             retval = [] if multi else None
 
@@ -313,7 +313,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
             ret = p.wait()
         except OSError as e:
             self.logger.error('Error executing iptables-save: %s' %
-                              (e.message))
+                              (e))
 
         return ret
 
@@ -328,7 +328,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
             ret = p.wait()
         except OSError as e:
             self.logger.error('Error executing iptables-restore: %s' %
-                              (e.message))
+                              (e))
 
         return ret
 
@@ -351,7 +351,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
                     self.logger.error('Received return code %d from %s' +
                                       (ret, cmd))
         except OSError as e:
-            self.logger.error('Error executing %s: %s' % (cmd, e.message))
+            self.logger.error('Error executing %s: %s' % (cmd, e))
 
         return rets
 
@@ -388,7 +388,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
             self.logger.debug(('Failed to open %s to enumerate netfilter '
                                'netlink queues, caller may proceed as if '
                                'none are in use: %s') %
-                              (procfs_path, e.message))
+                              (procfs_path, e))
 
         return qnos
 
@@ -445,7 +445,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
                         ifaces.append(fields[0].strip())
         except IOError as e:
             self.logger.error('Failed to open %s to enumerate interfaces: %s' %
-                              (procfs_path, e.message))
+                              (procfs_path, e))
 
         return ifaces
 
@@ -472,7 +472,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         except IOError as e:
             self.logger.error(('Failed to open %s to save DNS ' +
                               'configuration: %s') % (resolvconf_path,
-                              e.message))
+                              e))
 
         if self.old_dns:
             try:
@@ -484,7 +484,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
             except IOError as e:
                 self.logger.error(('Failed to open %s to modify DNS ' +
                                   'configuration: %s') % (resolvconf_path,
-                                  e.message))
+                                  e))
 
     def linux_restore_local_dns(self):
         resolvconf_path = '/etc/resolv.conf'
@@ -496,7 +496,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
             except IOError as e:
                 self.logger.error(('Failed to open %s to restore DNS ' +
                                   'configuration: %s') % (resolvconf_path,
-                                  e.message))
+                                  e))
 
     def linux_find_processes(self, names):
         """But what if a blacklisted process spawns after we call
@@ -618,7 +618,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
                                         (line.strip()))
         except IOError as e:
             self.logger.error('No such protocol/IP ver (%s) or error: %s' %
-                              (procfs_path, e.message))
+                              (procfs_path, e))
 
         return inode
 
@@ -701,7 +701,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
                 comm = f.read().strip()
         except IOError as e:
             self.pdebug(DPROCFS, 'Failed to open %s: %s' %
-                        (procfs_path, e.message))
+                        (procfs_path, e))
         return comm
 
     def linux_get_pid_comm_by_endpoint(self, ipver, proto_name, ip, port):
