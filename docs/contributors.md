@@ -41,3 +41,13 @@ mentor Tina Johnson (@tinajohnson) to add HTML- and text-based reporting of
 network-based indicators (NBIs) to FakeNet-NG, requiring significant work
 throughout the codebase to facilitate the necessary communication and tracking
 between components.
+
+## Server Name Indication
+
+Nhan Huynh (@htnhan) added support for Server Name Indication to FakeNet-NG
+for the Windows platform by implementing dynamic generation of server
+certificates.
+
+## Maintenance
+
+Tina Johnson (@tinajohnson) and Michael Bailey (@strictlymike)

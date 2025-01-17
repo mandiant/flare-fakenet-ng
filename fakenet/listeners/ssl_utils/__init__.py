@@ -38,8 +38,8 @@ class SSLWrapper(object):
             self.ca_cn = self._load_cert(self.ca_cert).get_subject().CN
         else:
             self.ca_cert, self.ca_key = self.create_cert(self.CN)
-        if ( not self.config.get('networkmode', None) == 'multihost' and 
-             not self.config.get('static_ca') == 'Yes'): 
+        if ( not self.config.get('networkmode', None) == 'multihost' and
+             not self.config.get('static_ca') == 'Yes'):
             self.logger.debug('adding root cert: %s', self.ca_cert)
             self._add_root_ca(self.ca_cert)
 
@@ -49,8 +49,7 @@ class SSLWrapper(object):
             ctx.options |= ssl.OP_NO_TLSv1
             ctx.options |= ssl.OP_NO_TLSv1_1
         except AttributeError as e:
-            self.logger.error('Exception calling ssl.SSLContext: %s' %
-                              (e.message))
+            self.logger.error('Exception calling ssl.SSLContext', exc_info=e)
         else:
             ctx.sni_callback = self.sni_callback
             ctx.load_cert_chain(certfile=self.ca_cert, keyfile=self.ca_key)
@@ -157,18 +156,18 @@ class SSLWrapper(object):
                 data = cert_file_input.read()
             ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, data)
         except crypto.Error as e:
-            self.logger.error("Failed to load certficate: %s" % e.message)
+            self.logger.error("Failed to load certficate", exc_info=e)
         return ca_cert
-    
+
     def _load_private_key(self, keypath):
         try:
             with open(keypath, 'rb') as key_file_input:
                 data = key_file_input.read()
-            self.privkey = crypto.load_privatekey(crypto.FILETYPE_PEM, data)
-        except:
+            privkey = crypto.load_privatekey(crypto.FILETYPE_PEM, data)
+        except Exception:
             traceback.print_exc()
-            self.privkey = None
-        return self.privkey
+            privkey = None
+        return privkey
 
     def _run_win_certutil(self, argv):
         rc = True
@@ -188,7 +187,7 @@ class SSLWrapper(object):
     def _remove_root_ca(self, cn):
         argv = ['certutil', '-delstore', 'Root', cn]
         return self._run_win_certutil(argv)
-    
+
     def __del__(self):
         if (not self.config.get('networkmode', None) == 'multihost' and 
                 not self.config.get('static_ca') == 'Yes'): 
@@ -213,5 +212,3 @@ class SSLWrapper(object):
             abspath = os.path.join(os.fspath(Path(__file__).parents[2]), path)
 
         return abspath
-    
-

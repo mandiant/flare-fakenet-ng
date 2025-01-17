@@ -7,7 +7,7 @@
 
            D   O   C   U   M   E   N   T   A   T   I   O   N
 
-FakeNet-NG 3.3 is a next generation dynamic network analysis tool for malware
+FakeNet-NG 3.4 is a next generation dynamic network analysis tool for malware
 analysts and penetration testers. It is open source and designed for the latest
 versions of Windows (and Linux, for certain modes of operation). FakeNet-NG is
 based on the excellent Fakenet tool developed by Andrew Honig and Michael

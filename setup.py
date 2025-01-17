@@ -26,7 +26,7 @@ elif platform.system().lower().startswith('linux'):
 
 setup(
     name='FakeNet NG',
-    version='3.3',
+    version='3.4',
     description="",
     long_description="",
     author="Mandiant FLARE Team with credit to Peter Kacherginsky as the original developer",

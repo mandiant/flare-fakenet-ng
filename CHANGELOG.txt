@@ -1,3 +1,11 @@
+Version 3.4
+-----------
+* Add support for SNI on Windows - dynamically generate a certificate based
+  on client request using Server Name Indicator on Windows platform
+* Sign the new certificate with either a static CA certificate, or
+  with a newly generated CA
+* Add config options to specify a path to static CA certificate
+
 Version 3.3
 -----------
 * Hide logging in DNS listener and Diverter for blacklisted processes

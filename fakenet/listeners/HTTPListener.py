@@ -49,6 +49,7 @@ def qualify_file_path(filename, fallbackdir):
     return path
 
 def load_source(modname, filename):
+    # Reference: https://docs.python.org/3/whatsnew/3.12.html#imp
     loader = importlib.machinery.SourceFileLoader(modname, filename)
     spec = importlib.util.spec_from_file_location(modname, filename, loader=loader)
     module = importlib.util.module_from_spec(spec)
@@ -149,10 +150,6 @@ class CustomResponse(object):
 
 
 class HTTPListener(object):
-    SSL_UTILS = os.path.join("listeners", "ssl_utils")
-    CA_CERT = os.path.join(SSL_UTILS, "server.pem")
-    CA_KEY = os.path.join(SSL_UTILS, "privkey.pem")
-    NOT_AFTER_DELTA_SECONDS = 300  * 24 * 60 * 60
 
     def taste(self, data, dport):
 
