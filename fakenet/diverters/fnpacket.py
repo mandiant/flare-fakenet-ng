@@ -208,6 +208,13 @@ class PacketCtx(object):
             return self._hdr.data.code
         return None
 
+    @property
+    def icmp_id(self):
+        if self._is_icmp and self._hdr.data.type in \
+            [dpkt.icmp.ICMP_ECHO, dpkt.icmp.ICMP_ECHOREPLY]:
+            return self._hdr.icmp.data.id
+        return None
+
     def fmtL3Csums(self):
         s = 'IP csum N/A'
         if self._is_ip:
