@@ -253,6 +253,7 @@ The "General" subsuite tests:
 * `HostBlackList`
 * `BlackListPortsTCP` - Redirection Blacklisting
 * `BlackListPortsUDP` - Redirection Blacklisting
+* `BlackListIDsICMP` - Redirection Blacklisting
 * Only in `SingleHost` mode:
     * `<Listener>.ProcessBlacklist` configured - Redirection Blacklisting
     * `<Listener>.ProcessWhitelist` configured - Redirection Blacklisting

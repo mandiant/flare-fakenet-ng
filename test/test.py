@@ -539,8 +539,8 @@ class FakeNetTester(object):
 
         return retval
 
-    def _test_icmp(self, host):
-        r = ping(host, count=1)
+    def _test_icmp(self, host, id):
+        r = ping(host, count=1, id=id)
         return r.is_alive
 
     def _test_ns(self, hostname, expected):
@@ -719,6 +719,7 @@ class FakeNetTester(object):
         blacklistedhost = self.settings.blacklistedhost
         blacklistedtcp = self.settings.blacklistedtcp
         blacklistedudp = self.settings.blacklistedudp
+        blacklistedicmp = self.settings.blacklistedicmp
         localhost = self.settings.localhost
         dns_expected = self.settings.dns_expected
         hidden_tcp = self.settings.hidden_tcp
@@ -763,9 +764,9 @@ class FakeNetTester(object):
         whatever = b'whatever2'  # Ensures matching test/expected for UDP dynamic
         t['UDP custom test dynamic'] = (self._test_sk, (udp, ext_ip, 1003, whatever, b''.join([chr(c+1).encode("utf-8") for c in whatever])), True)
 
-        t['ICMP external IP'] = (self._test_icmp, (ext_ip,), True)
-        t['ICMP arbitrary host'] = (self._test_icmp, (arbitrary,), True)
-        t['ICMP domainname'] = (self._test_icmp, (domain_dne,), True)
+        t['ICMP external IP'] = (self._test_icmp, (ext_ip, 1000), True)
+        t['ICMP arbitrary host'] = (self._test_icmp, (arbitrary, 1000), True)
+        t['ICMP domainname'] = (self._test_icmp, (domain_dne, 1000), True)
 
         t['DNS listener test'] = (self._test_ns, (domain_dne, dns_expected), True)
         t['HTTP listener test'] = (self._test_http, (arbitrary,), True)
@@ -800,6 +801,7 @@ class FakeNetTester(object):
         t['TCP blacklisted host @ unbound'] = (self._test_sk, (tcp, blacklistedhost, 9999), False)
         t['TCP arbitrary @ blacklisted unbound'] = (self._test_sk, (tcp, arbitrary, blacklistedtcp), False)
         t['UDP arbitrary @ blacklisted unbound'] = (self._test_sk, (udp, arbitrary, blacklistedudp), False)
+        t['ICMP arbitrary @ blacklisted'] = (self._test_icmp, (arbitrary, blacklistedicmp), False)
 
         if self.settings.singlehost:
             t['Listener process blacklist'] = (self._test_http, (arbitrary, self.settings.listener_proc_black), False)
@@ -897,6 +899,7 @@ class FakeNetTestSettings:
         self.blacklistedhost = '6.6.6.6'
         self.blacklistedtcp = 139
         self.blacklistedudp = 67
+        self.blacklistedicmp = 1234
         self.hidden_tcp =  12345
         self.no_service = 10
         self.listener_proc_black = 8080 # HTTP listener with process blacklist
