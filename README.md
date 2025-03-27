@@ -101,9 +101,9 @@ as-is (e.g. for development), then you would need to obtain the source code and
 install dependencies as follows:
 
 1) Install 64-bit or 32-bit [Python](https://www.python.org/downloads/windows/) 3.10.11 for the 64-bit or 32-bit versions
-   of Windows respectively.
+   of Windows/Linux respectively.
 
-2) Install Python dependencies by running the following commands with admin privileges:
+2) In Windows, install Python dependencies by running the following commands with admin privileges:
 
         python -m pip install pydivert dnslib dpkt pyopenssl pyftpdlib netifaces jinja2
 
@@ -111,15 +111,28 @@ install dependencies as follows:
     driver in the `%PYTHONHOME%\DLLs` directory. FakeNet-NG bundles those
     files so they are not necessary for normal use.
 
-    Optionally, you can install the following module used for testing:
+   In Linux, install Python dependencies by running the following commands with admin privileges:
+   
+        python -m pip install --upgrade setuptools
+        
+        # build wheel for python 3.10
+        python -m pip install --force-reinstall netifaces
+        
+        # Observed "ModuleNotFoundError: No module named '_cffi_backend'" error while testing
+        # This will get the required version of cffi packages for cryptography
+        python -m pip install --upgrade cryptography
+
+        python -m pip install netfilterqueue dnslib dpkt pyopenssl pyftpdlib netifaces jinja2
+
+   Optionally, you can install the following module used for testing:
 
         python -m pip install requests
 
-3) Download the FakeNet-NG source code:
+4) Download the FakeNet-NG source code:
 
         git clone https://github.com/mandiant/flare-fakenet-ng
 
-4) In Linux, free port 53 for DNS listener:
+5) In Linux, free port 53 for DNS listener:
 
         sudo systemctl stop systemd-resolved
     Execute FakeNet-NG by running it with a Python interpreter in a privileged
