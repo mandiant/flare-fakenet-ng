@@ -7,7 +7,7 @@
 
            D   O   C   U   M   E   N   T   A   T   I   O   N
 
-FakeNet-NG 3.3 is a next generation dynamic network analysis tool for malware
+FakeNet-NG 3.4 is a next generation dynamic network analysis tool for malware
 analysts and penetration testers. It is open source and designed for the latest
 versions of Windows (and Linux, for certain modes of operation). FakeNet-NG is
 based on the excellent Fakenet tool developed by Andrew Honig and Michael
@@ -44,31 +44,54 @@ analysis machine.
 
 Installing module
 -----------------
-Installation on Linux requires the following dependencies:
- * Python pip package manager (e.g. python-pip for Ubuntu).
- * Python development files (e.g. python-dev for Ubuntu).
- * OpenSSL development files (e.g. libssl-dev for Ubuntu).
- * libffi development files (e.g. libffi-dev for Ubuntu).
- * libnetfilterqueue development files (e.g. libnetfilter-queue-dev for
-   Ubuntu).
+1) Install Python 3.10.11 and latest pip for Windows/Linux OS.
 
-Install these dependencies using the following command:
+2) On Windows, download and install [Visual C++ build tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
+    
+    Installation on Linux requires the following dependencies:
+    * Python pip package manager (e.g. python-pip for Ubuntu).
+    * Python development files (e.g. python-dev for Ubuntu).
+    * OpenSSL development files (e.g. libssl-dev for Ubuntu).
+    * libffi development files (e.g. libffi-dev for Ubuntu).
+    * libnetfilterqueue development files (e.g. libnetfilter-queue-dev for
+    Ubuntu).
 
-    sudo apt-get install build-essential python-dev libnetfilter-queue-dev
+    Install these dependencies using the following command:
 
-Install FakeNet-NG as a Python module using pip:
+        sudo apt-get install build-essential python3.10-dev libnetfilter-queue-dev
 
-    pip install https://github.com/mandiant/flare-fakenet-ng/zipball/master
+3) Install FakeNet-NG as a Python module using pip:
 
-Or by obtaining the latest source code and installing it manually:
+        python -m pip install https://github.com/mandiant/flare-fakenet-ng/zipball/master
 
-    git clone https://github.com/mandiant/flare-fakenet-ng/
+    Or by obtaining the latest source code and installing it manually:
 
-Change directory to the downloaded flare-fakenet-ng and run:
+        git clone https://github.com/mandiant/flare-fakenet-ng/
 
-    python setup.py install
+4) Install Python dependencies by running the following commands with admin privileges:
+    
+    In Linux (tested in Ubuntu 24.04.2 LTS), run the following commands before running setup.py:
 
-Execute FakeNet-NG by running 'fakenet' in any directory.
+        python -m pip install --upgrade setuptools
+        
+        # build wheel for python 3.10
+        python -m pip install --force-reinstall netifaces
+        
+        # Observed "ModuleNotFoundError: No module named '_cffi_backend'" error while testing
+        # This will get the required version of cffi packages for cryptography
+        python -m pip install --upgrade cryptography
+
+    If installing manually, change directory to the downloaded flare-fakenet-ng and run
+    the following with admin privileges:
+
+        python setup.py install
+
+5) In Linux, free port 53 for DNS listener:
+
+        sudo systemctl stop systemd-resolved
+
+    Execute FakeNet-NG by running 'fakenet' from any directory in a privileged shell.
+
 
 No installation
 ---------------
@@ -77,29 +100,32 @@ Finally if you would like to avoid installing FakeNet-NG and just want to run it
 as-is (e.g. for development), then you would need to obtain the source code and
 install dependencies as follows:
 
-1) Install 64-bit or 32-bit Python 3.10.11 for the 64-bit or 32-bit versions
+1) Install 64-bit or 32-bit [Python](https://www.python.org/downloads/windows/) 3.10.11 for the 64-bit or 32-bit versions
    of Windows respectively.
 
-2) Install Python dependencies:
+2) Install Python dependencies by running the following commands with admin privileges:
 
-    pip install pydivert dnslib dpkt pyopenssl pyftpdlib netifaces jinja2
+        python -m pip install pydivert dnslib dpkt pyopenssl pyftpdlib netifaces jinja2
 
-   *NOTE*: pydivert will also download and install WinDivert library and
-   driver in the `%PYTHONHOME%\DLLs` directory. FakeNet-NG bundles those
-   files so they are not necessary for normal use.
+    *NOTE*: pydivert will also download and install WinDivert library and
+    driver in the `%PYTHONHOME%\DLLs` directory. FakeNet-NG bundles those
+    files so they are not necessary for normal use.
 
-   Optionally, you can install the following module used for testing:
+    Optionally, you can install the following module used for testing:
 
-    pip install requests
+        python -m pip install requests
 
 3) Download the FakeNet-NG source code:
 
-    git clone https://github.com/mandiant/flare-fakenet-ng
+        git clone https://github.com/mandiant/flare-fakenet-ng
 
-Execute FakeNet-NG by running it with a Python interpreter in a privileged
-shell:
+4) In Linux, free port 53 for DNS listener:
 
-    python -m fakenet.fakenet
+        sudo systemctl stop systemd-resolved
+    Execute FakeNet-NG by running it with a Python interpreter in a privileged
+    shell:
+
+        python -m fakenet.fakenet
 
 Usage
 =====
@@ -116,7 +142,7 @@ parameter to get simple help:
      | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
      |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                             Version  3.2
+                             Version  3.4
       _____________________________________________________________
                        Developed by FLARE Team
         Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
@@ -171,7 +197,7 @@ and an HTTP connection:
      | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
      |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                             Version  3.2
+                             Version  3.4
       _____________________________________________________________
                        Developed by FLARE Team
         Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.

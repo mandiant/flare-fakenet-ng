@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
+# Copyright 2025 Google LLC
 
 #!/usr/bin/env python
 #
@@ -233,7 +233,7 @@ class Fakenet(object):
                 self.logger.error("%s" % e)
 
             else:
-
+                listener_config['networkmode'] = self.diverter_config['networkmode']
                 listener_provider_instance = listener_provider(
                         listener_config, listener_name, self.logging_level)
 
@@ -349,7 +349,7 @@ def main():
  | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
  |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                        Version 3.3
+                        Version 3.4
   _____________________________________________________________
                    Developed by FLARE Team
     Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.

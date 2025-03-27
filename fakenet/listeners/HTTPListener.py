@@ -1,11 +1,12 @@
-# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+# Copyright 2025 Google LLC
 
 import logging
 from configparser import ConfigParser
 
 import os
 import sys
-import imp
+import importlib.util
+import importlib.machinery
 
 import threading
 import socketserver
@@ -19,6 +20,7 @@ import mimetypes
 
 import time
 
+from .ssl_utils import SSLWrapper
 from . import *
 
 MIME_FILE_RESPONSE = {
@@ -45,6 +47,17 @@ def qualify_file_path(filename, fallbackdir):
             raise RuntimeError('Cannot find %s' % (filename))
 
     return path
+
+def load_source(modname, filename):
+    # Reference: https://docs.python.org/3/whatsnew/3.12.html#imp
+    loader = importlib.machinery.SourceFileLoader(modname, filename)
+    spec = importlib.util.spec_from_file_location(modname, filename, loader=loader)
+    module = importlib.util.module_from_spec(spec)
+    # The module is always executed and not cached in sys.modules.
+    # Uncomment the following line to cache the module.
+    # sys.modules[module.__name__] = module
+    loader.exec_module(module)
+    return module
 
 
 class CustomResponse(object):
@@ -83,7 +96,7 @@ class CustomResponse(object):
         self.handler = None
         pymod_path = qualify_file_path(conf.get('httpdynamic'), configroot)
         if pymod_path:
-            pymod = imp.load_source('cr_' + self.name, pymod_path)
+            pymod = load_source('cr_' + self.name, pymod_path)
             funcname = 'HandleHttp'
             funcname_legacy = 'HandleRequest'
             if hasattr(pymod, funcname):
@@ -168,11 +181,13 @@ class HTTPListener(object):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
+
         self.config = config
         self.name = name
         self.local_ip = config.get('ipaddr')
         self.server = None
         self.port = self.config.get('port', 80)
+        self.sslwrapper = None
 
         self.logger.debug('Initialized with config:')
         for key, value in config.items():
@@ -185,29 +200,29 @@ class HTTPListener(object):
             self.logger.error('Could not locate webroot directory: %s', path)
             sys.exit(1)
 
-
     def start(self):
         self.logger.debug('Starting...')
-        self.server = ThreadedHTTPServer((self.local_ip, int(self.config.get('port'))), ThreadedHTTPRequestHandler)
+
+        self.server = ThreadedHTTPServer((self.local_ip,
+            int(self.config.get('port'))), ThreadedHTTPRequestHandler)
         self.server.logger = self.logger
         self.server.config = self.config
         self.server.webroot_path = self.webroot_path
         self.server.extensions_map = self.extensions_map
 
         if self.config.get('usessl') == 'Yes':
-            self.logger.debug('Using SSL socket.')
-
-            keyfile_path = 'listeners/ssl_utils/privkey.pem'
-            keyfile_path = ListenerBase.abs_config_path(keyfile_path)
-            if keyfile_path is None:
-                raise RuntimeError('Could not locate %s' % (keyfile_path))
-
-            certfile_path = 'listeners/ssl_utils/server.pem'
-            certfile_path = ListenerBase.abs_config_path(certfile_path)
-            if certfile_path is None:
-                raise RuntimeError('Could not locate %s' % (certfile_path))
-
-            self.server.socket = ssl.wrap_socket(self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers='RSA')
+            self.logger.debug("HTTP Listener starting with SSL")
+            config = {
+                'cert_dir': self.config.get('cert_dir', 'configs/temp_certs'),
+                'networkmode': self.config.get('networkmode', None),
+                'static_ca': self.config.get('static_ca', 'No'),
+                'ca_cert': self.config.get('ca_cert'),
+                'ca_key': self.config.get('ca_key')
+            }
+            self.sslwrapper = SSLWrapper(config)
+            self.server.sslwrapper = self.sslwrapper
+            self.server.socket = self.server.sslwrapper.wrap_socket(
+                self.server.socket)
 
         self.server.custom_responses = []
         custom = self.config.get('custom')

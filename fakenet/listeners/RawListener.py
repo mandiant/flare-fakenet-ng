@@ -1,11 +1,12 @@
-# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+# Copyright 2025 Google LLC
 
 import logging
 from configparser import ConfigParser
 
 import os
 import sys
-import imp
+import importlib.util
+import importlib.machinery
 import base64
 
 import threading
@@ -28,6 +29,16 @@ def qualify_file_path(filename, fallbackdir):
             raise RuntimeError('Cannot find %s' % (filename))
 
     return path
+
+def load_source(modname, filename):
+    loader = importlib.machinery.SourceFileLoader(modname, filename)
+    spec = importlib.util.spec_from_file_location(modname, filename, loader=loader)
+    module = importlib.util.module_from_spec(spec)
+    # The module is always executed and not cached in sys.modules.
+    # Uncomment the following line to cache the module.
+    # sys.modules[module.__name__] = module
+    loader.exec_module(module)
+    return module
 
 
 class RawCustomResponse(object):
@@ -72,7 +83,7 @@ class RawCustomResponse(object):
 
         pymodpath = qualify_file_path(conf.get(spec_dyn), configroot)
         if pymodpath:
-            pymod = imp.load_source('cr_raw_' + self.name, pymodpath)
+            pymod = load_source('cr_raw_' + self.name, pymodpath)
             funcname = 'Handle%s' % (proto.capitalize())
             if not hasattr(pymod, funcname):
                 raise ValueError('Loaded %s module %s has no function %s' %

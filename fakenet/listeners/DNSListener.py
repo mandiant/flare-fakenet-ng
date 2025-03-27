@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+# Copyright 2025 Google LLC
 
 import logging
 
@@ -19,7 +19,7 @@ class DNSListener(object):
 
     def taste(self, data, dport):
 
-        confidence = 1 if dport is 53 else 0
+        confidence = 1 if dport == 53 else 0
 
         try:
             d = DNSRecord.parse(data)
