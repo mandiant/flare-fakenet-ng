@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
+# Copyright 2025 Google LLC
 
 import logging
 from configparser import ConfigParser
@@ -215,7 +215,7 @@ class HTTPListener(object):
             config = {
                 'cert_dir': self.config.get('cert_dir', 'configs/temp_certs'),
                 'networkmode': self.config.get('networkmode', None),
-                'static_ca': self.config.get('static_ca', "No"),
+                'static_ca': self.config.get('static_ca', 'No'),
                 'ca_cert': self.config.get('ca_cert'),
                 'ca_key': self.config.get('ca_key')
             }

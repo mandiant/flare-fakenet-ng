@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+# Copyright 2025 Google LLC
 
 # Debug print levels for fine-grained debug trace output control
 DNFQUEUE = (1 << 0)     # netfilterqueue

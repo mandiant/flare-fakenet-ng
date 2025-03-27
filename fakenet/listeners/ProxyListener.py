@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2023 Mandiant, Inc. All rights reserved.
+# Copyright 2025 Google LLC
 
 import socket
 import socketserver
@@ -56,7 +56,7 @@ class ProxyListener(object):
                 config = {
                     'cert_dir': self.config.get('cert_dir', 'configs/temp_certs'),
                     'networkmode': self.config.get('networkmode', None),
-                    'static_ca': self.config.get('static_ca', False),
+                    'static_ca': self.config.get('static_ca', 'No'),
                     'ca_cert': self.config.get('ca_cert'),
                     'ca_key': self.config.get('ca_key')
                 }
@@ -132,7 +132,7 @@ class ThreadedTCPClientSocket(threading.Thread):
             return new_sport
 
         except Exception as e:
-            self.logger.debug('Listener socket exception while attempting connection %s' % e)
+            self.logger.debug('Listener socket exception while attempting connection %s' % str(e))
 
         return None
 
@@ -153,7 +153,7 @@ class ThreadedTCPClientSocket(threading.Thread):
                         self.sock.close()
                         sys.exit(1)
         except Exception as e:
-            self.logger.debug('Listener socket exception %s' % e)
+            self.logger.debug('Listener socket exception %s' % str(e))
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
@@ -203,7 +203,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             self.server.logger.debug('%s', '-'*80,)
 
         except Exception as e:
-            self.server.logger.warning('recv() error: %s' % e)
+            self.server.logger.warning('recv() error: %s' % str(e))
         
         # Is the pkt ssl encrypted?
         # Using a str here instead of bool to match the format returned by

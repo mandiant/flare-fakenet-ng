@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
+# Copyright 2025 Google LLC
 
 import os
 import platform
@@ -9,7 +9,6 @@ except ImportError:
     from distutils.core import setup
 
 requirements = [
-    "pydivert",
     "dpkt",
     "dnslib",
     "netifaces",

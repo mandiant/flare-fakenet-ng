@@ -1,3 +1,5 @@
+# Copyright 2025 Google LLC
+
 import time
 import os
 import traceback
@@ -32,14 +34,14 @@ class SSLWrapper(object):
             os.makedirs(cert_dir)
 
         # generate and add root CA, which is used to sign for other certs:
-        if self.config.get('static_ca') == 'Yes':
+        if self.config.get('static_ca').lower() == 'yes':
             self.ca_cert = self.abs_config_path(self.config.get('ca_cert', None))
             self.ca_key = self.abs_config_path(self.config.get('ca_key', None))
             self.ca_cn = self._load_cert(self.ca_cert).get_subject().CN
         else:
             self.ca_cert, self.ca_key = self.create_cert(self.CN)
         if ( not self.config.get('networkmode', None) == 'multihost' and
-             not self.config.get('static_ca') == 'Yes'):
+             not self.config.get('static_ca').lower() == 'yes'):
             self.logger.debug('adding root cert: %s', self.ca_cert)
             self._add_root_ca(self.ca_cert)
 
@@ -49,7 +51,7 @@ class SSLWrapper(object):
             ctx.options |= ssl.OP_NO_TLSv1
             ctx.options |= ssl.OP_NO_TLSv1_1
         except AttributeError as e:
-            self.logger.error('Exception calling ssl.SSLContext', exc_info=e)
+            self.logger.error('Exception calling ssl.SSLContext: %s', str(e))
         else:
             ctx.sni_callback = self.sni_callback
             ctx.load_cert_chain(certfile=self.ca_cert, keyfile=self.ca_key)
@@ -156,7 +158,7 @@ class SSLWrapper(object):
                 data = cert_file_input.read()
             ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, data)
         except crypto.Error as e:
-            self.logger.error("Failed to load certficate", exc_info=e)
+            self.logger.error("Failed to load certficate: %s", str(e))
         return ca_cert
 
     def _load_private_key(self, keypath):
@@ -169,7 +171,7 @@ class SSLWrapper(object):
             privkey = None
         return privkey
 
-    def _run_win_certutil(self, argv):
+    def _run_process(self, argv):
         rc = True
         if sys.platform.startswith('win'):
             try:
@@ -182,15 +184,15 @@ class SSLWrapper(object):
 
     def _add_root_ca(self, ca_cert_file):
         argv = ['certutil', '-addstore', 'Root', ca_cert_file]
-        return self._run_win_certutil(argv)
+        return self._run_process(argv)
 
     def _remove_root_ca(self, cn):
         argv = ['certutil', '-delstore', 'Root', cn]
-        return self._run_win_certutil(argv)
+        return self._run_process(argv)
 
     def __del__(self):
         if (not self.config.get('networkmode', None) == 'multihost' and 
-                not self.config.get('static_ca') == 'Yes'): 
+                not self.config.get('static_ca').lower() == 'yes'): 
             self._remove_root_ca(self.ca_cn)
         shutil.rmtree(self.abs_config_path(self.config.get('cert_dir', None)), ignore_errors=True)
         return

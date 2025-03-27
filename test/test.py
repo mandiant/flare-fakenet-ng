@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
+# Copyright 2025 Google LLC
 
 import os
 import re
@@ -237,7 +237,7 @@ class FakeNetTester(object):
         if self.settings.windows:
             PROCESS_TERMINATE = 1
             p = ctypes.windll.kernel32.OpenProcess(PROCESS_TERMINATE, 0, pid)
-            retval = p != 0;
+            retval = p != 0
             if p:
                 ctypes.windll.kernel32.CloseHandle(p)
         else:
@@ -794,7 +794,11 @@ class FakeNetTester(object):
         t['HTTP listener test'] = (self._test_http, (arbitrary,), True)
         t['HTTPS listener IP test, no verify'] = (self._test_http, (arbitrary, None, 'https', None, None, False), True)
         t['HTTPS listener IP test'] = (self._test_http, (arbitrary, None, 'https', None, None, True), False)
-        t['HTTPS listener hostname test'] = (self._test_http, ('evil.com', None, 'https', 'test.html', None, True), True)
+
+        # Server Name Indication implementation works best on Windows platform
+        # See https://github.com/mandiant/flare-fakenet-ng/pull/98#issuecomment-552222568
+        if self.settings.windows:
+            t['HTTPS listener hostname test'] = (self._test_http, ('evil.com', None, 'https', 'test.html', None, True), True)
         t['HTTP custom test by URI'] = (self._test_http, (arbitrary, None, None, '/test.txt', 'Wraps this'), True)
         t['HTTP custom test by hostname'] = (self._test_http, ('some.random.c2.com', None, None, None, 'success'), True)
         t['HTTP custom test by both URI and hostname'] = (self._test_http, ('both_host.com', None, None, '/and_uri.txt', 'Ahoy'), True)

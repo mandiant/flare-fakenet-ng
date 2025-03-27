@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
+# Copyright 2025 Google LLC
 
 import os
 import abc
@@ -958,7 +958,7 @@ class DiverterBase(fnconfig.Config):
         except KeyError as e:
             self.logger.error(('Failed to build ExecuteCmd for port %d due ' +
                               'to erroneous format key: %s') %
-                              (dport, e))
+                              (dport, str(e)))
 
         return cmd
 
