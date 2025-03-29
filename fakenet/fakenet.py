@@ -136,6 +136,8 @@ class Fakenet(object):
         return listeners_config_expanded
 
     def start(self):
+    
+        fn_addr = '0.0.0.0'
 
         if self.fakenet_config.get('diverttraffic') and self.fakenet_config['diverttraffic'].lower() == 'yes':
 

@@ -263,6 +263,7 @@ class HTTPListener(object):
 
     def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
         self.server.diverterListenerCallbacks = diverterListenerCallbacks
+        
 
 
 class ThreadedHTTPServer(http.server.HTTPServer):
@@ -318,7 +319,7 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             self.server.logger.info(INDENT + line)
 
         # collect nbi
-        self.collect_nbi(self.requestline, self.headers)
+        #self.collect_nbi(self.requestline, self.headers)
 
         # Prepare response
         if not self.doCustomResponse('GET'):
@@ -393,8 +394,8 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             nbi["Request Body"] = post_data
 
         # report diverter everytime we capture an NBI
-        self.server.diverterListenerCallbacks.logNbi(self.client_address[1],
-                nbi, 'TCP', 'HTTP', self.server.config.get('usessl'))
+        #self.server.diverterListenerCallbacks.logNbi(self.client_address[1],
+        #        nbi, 'TCP', 'HTTP', self.server.config.get('usessl'))
 
     def get_response(self, path):
         response = "<html><head><title>FakeNet</title><body><h1>FakeNet</h1></body></html>"
@@ -474,7 +475,7 @@ def main():
     """
     logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
 
-    config = {'port': '8443', 'usessl': 'Yes', 'webroot': 'fakenet/defaultFiles' }
+    config = {'port': '443', 'usessl': 'Yes', 'webroot': 'fakenet/defaultFiles', 'ipaddr':'0.0.0.0'}
 
     listener = HTTPListener(config)
     listener.start()

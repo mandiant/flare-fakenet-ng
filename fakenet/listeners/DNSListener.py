@@ -80,6 +80,7 @@ class DNSListener(object):
 
     def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
         self.server.diverterListenerCallbacks = diverterListenerCallbacks
+    
 
 
 class DNSHandler():
@@ -101,12 +102,17 @@ class DNSHandler():
     def parse(self, data):
         response = ""
         proto = 'TCP' if self.server.socket_type == socket.SOCK_STREAM else 'UDP'
+        '''
         is_process_blacklisted, process_name, pid = self.server \
                                                          .diverterListenerCallbacks \
                                                          .isProcessBlackListed(
                                                               proto,
                                                               sport=self.client_address[1])
-
+        '''
+        is_process_blacklisted = None
+        process_name = None 
+        pid = None
+        
         try:
             # Parse data as DNS        
             d = DNSRecord.parse(data)
@@ -132,6 +138,7 @@ class DNSHandler():
                 self.qname = qname
                 self.qtype = qtype
 
+                
                 if process_name is None or pid is None:
                     self.log_message(logging.INFO, is_process_blacklisted,
                                       'Received %s request for domain \'%s\'.',
@@ -140,7 +147,9 @@ class DNSHandler():
                     self.log_message(logging.INFO, is_process_blacklisted,
                                      'Received %s request for domain \'%s\' from %s (%s)',
                                      qtype, qname, process_name, pid)
-
+                
+                
+                
                 # Create a custom response to the query
                 response = DNSRecord(DNSHeader(id=d.header.id, bitmap=d.header.bitmap, qr=1, aa=1, ra=1), q=d.q)
 
@@ -321,7 +330,8 @@ def hexdump_table(data, length=16):
 
 def collect_nbi(sport, nbi, proto, is_ssl_encrypted, diverterListenerCallbacks):
     # Report diverter everytime we capture an NBI
-    diverterListenerCallbacks.logNbi(sport, nbi, proto, 'DNS', is_ssl_encrypted)
+    #diverterListenerCallbacks.logNbi(sport, nbi, proto, 'DNS', is_ssl_encrypted)
+    pass
 
 
 ###############################################################################
