@@ -512,7 +512,8 @@ still want to let some traffic through to ensure normal operation of the
 machine. Consider a scenario where you are trying to analyze an application
  that still needs to connect to an external DNS server. You can utilize the
 `BlackListPortsTCP` and `BlackListPortsUDP` settings to define a list of
-ports to which traffic will be ignored and forwarded unaltered:
+ports to which traffic will be ignored and forwarded unaltered or
+`BlackListIDsICMP` (Windows only) to define a list of ICMP IDs to be filtered and ignored:
 
     BlackListPortsUDP: 53
 
