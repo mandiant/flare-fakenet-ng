@@ -376,6 +376,7 @@ Internet instead of being intercepted when `RedirectAllTraffic` is enabled.
 The following settings should control this:
 * `BlackListPortsTCP` - what TCP ports to ignore when contemplating redirection
 * `BlackListPortsUDP` - what UDP ports to ignore when contemplating redirection
+* `BlackListIDsICMP` - what ICMP IDs to ignore when contemplating redirection
 * `HostBlackList` - what IP hosts to ignore when contemplating redirection
 * `ProcessBlackList` - what processes to leave alone when contemplating
   redirection

@@ -13,7 +13,7 @@ class Config(object):
         if config_dict is not None:
             self.configure(config_dict, portlists)
 
-    def configure(self, config_dict, portlists=[], stringlists=[]):
+    def configure(self, config_dict, portlists=[], stringlists=[], idlists=[]):
         """Parse configuration.
 
         Does three things:
@@ -33,6 +33,12 @@ class Config(object):
             stringlist = self.getconfigval(entry)
             if stringlist:
                 expanded = [s.strip() for s in stringlist.split(',')]
+                self.setconfigval(entry, expanded)
+
+        for entry in idlists:
+            idlist = self.getconfigval(entry)
+            if idlist:
+                expanded = [int(c) for c in idlist.split(',')]
                 self.setconfigval(entry, expanded)
 
     def reconfigure(self, portlists=[], stringlists=[]):

@@ -299,6 +299,7 @@ class Diverter(DiverterBase, WinUtilMixin):
         ICMP packets sent back home for free, so here is some code.
         """
         if (pkt.is_icmp and
+                pkt.icmp_id not in self.blacklist_ids["ICMP"] and
                 pkt.dst_ip not in [self.loopback_ip, self.external_ip]):
             self.logger.info('Modifying ICMP packet (type %d, code %d):' %
                              (pkt.icmp_type, pkt.icmp_code))

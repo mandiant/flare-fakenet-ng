@@ -558,7 +558,8 @@ class DiverterBase(fnconfig.Config):
 
         portlists = ['BlackListPortsTCP', 'BlackListPortsUDP']
         stringlists = ['HostBlackList']
-        self.configure(diverter_config, portlists, stringlists)
+        idlists = ['BlackListIDsICMP']
+        self.configure(diverter_config, portlists, stringlists, idlists)
         self.listeners_config = dict((k.lower(), v)
                                      for k, v in listeners_config.items())
 
@@ -609,6 +610,9 @@ class DiverterBase(fnconfig.Config):
 
         # Global TCP/UDP port blacklist
         self.blacklist_ports = {'TCP': [], 'UDP': []}
+
+        # Glocal ICMP ID blacklist
+        self.blacklist_ids = {'ICMP': []}
 
         # Global process blacklist
         # TODO: Allow PIDs
@@ -1128,6 +1132,13 @@ class DiverterBase(fnconfig.Config):
                 self.logger.debug('Blacklisted UDP ports: %s', ', '.join(
                     [str(p) for p in self.getconfigval('BlackListPortsUDP')]))
 
+            # Do not redirect blacklisted ICMP IDs
+            if self.is_configured('blacklistidsicmp'):
+                self.blacklist_ids['ICMP'] = \
+                    self.getconfigval('blacklistidsicmp')
+                self.logger.debug('Blacklisted ICMP IDs: %s', ', '.join(
+                    [str(c) for c in self.getconfigval('BlackListIDsICMP')]))
+
     def write_pcap(self, pkt):
         """Writes a packet to the pcap.
 
@@ -1481,7 +1492,8 @@ class DiverterBase(fnconfig.Config):
         Returns:
             None
         """
-        if pkt.is_icmp:
+        if (pkt.is_icmp and (not self.running_on_windows or
+                pkt.icmp_id not in self.blacklist_ids["ICMP"])):
             self.logger.info('ICMP type %d code %d %s' % (
                 pkt.icmp_type, pkt.icmp_code, pkt.hdrToStr()))
 
