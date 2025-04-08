@@ -541,7 +541,7 @@ class FakeNetTester(object):
 
         return retval
 
-    def _test_icmp(self, host, id=1000):
+    def _test_icmp(self, host, id=None):
         r = ping(host, count=1, id=id)
         return r.is_alive
 
