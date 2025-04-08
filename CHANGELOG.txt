@@ -1,3 +1,7 @@
+Version 3.5
+-----------
+* Add support for blacklisting ICMP packets based on ICMP IDs in Windows
+
 Version 3.4
 -----------
 * Add support for SNI on Windows - dynamically generate a certificate based

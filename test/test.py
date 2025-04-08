@@ -823,7 +823,8 @@ class FakeNetTester(object):
         t['TCP blacklisted host @ unbound'] = (self._test_sk, (tcp, blacklistedhost, 9999), False)
         t['TCP arbitrary @ blacklisted unbound'] = (self._test_sk, (tcp, arbitrary, blacklistedtcp), False)
         t['UDP arbitrary @ blacklisted unbound'] = (self._test_sk, (udp, arbitrary, blacklistedudp), False)
-        t['ICMP arbitrary @ blacklisted'] = (self._test_icmp, (arbitrary, blacklistedicmp), False)
+        if self.settings.windows:
+            t['ICMP arbitrary @ blacklisted'] = (self._test_icmp, (arbitrary, blacklistedicmp), False)
 
         if self.settings.singlehost:
             t['Listener process blacklist'] = (self._test_http, (arbitrary, self.settings.listener_proc_black), False)
