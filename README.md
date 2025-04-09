@@ -7,7 +7,7 @@
 
            D   O   C   U   M   E   N   T   A   T   I   O   N
 
-FakeNet-NG 3.4 is a next generation dynamic network analysis tool for malware
+FakeNet-NG 3.5 is a next generation dynamic network analysis tool for malware
 analysts and penetration testers. It is open source and designed for the latest
 versions of Windows (and Linux, for certain modes of operation). FakeNet-NG is
 based on the excellent Fakenet tool developed by Andrew Honig and Michael
@@ -155,7 +155,7 @@ parameter to get simple help:
      | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
      |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                             Version  3.4
+                             Version  3.5
       _____________________________________________________________
                        Developed by FLARE Team
         Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
@@ -210,7 +210,7 @@ and an HTTP connection:
      | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
      |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                             Version  3.4
+                             Version  3.5
       _____________________________________________________________
                        Developed by FLARE Team
         Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
@@ -512,7 +512,8 @@ still want to let some traffic through to ensure normal operation of the
 machine. Consider a scenario where you are trying to analyze an application
  that still needs to connect to an external DNS server. You can utilize the
 `BlackListPortsTCP` and `BlackListPortsUDP` settings to define a list of
-ports to which traffic will be ignored and forwarded unaltered:
+ports to which traffic will be ignored and forwarded unaltered or
+`BlackListIDsICMP` (Windows only) to define a list of ICMP IDs to be filtered and ignored:
 
     BlackListPortsUDP: 53
 

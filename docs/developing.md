@@ -246,6 +246,8 @@ fakenet1.4.3\
     |   +-- sample_custom_response.ini
     |   +-- sample_raw_response.txt
     |   +-- html_report_template.html
+    |   +-- fakenet_ca.crt
+    |   +-- fakenet_ca.key
     |
     +-- defaultFiles\
     |   +-- FakeNet.gif
@@ -260,7 +262,7 @@ fakenet1.4.3\
     |
     +-- listeners\
         +-- ssl_utils
-    		+-- __init__.pyc
+    		+-- __init__.py
     		+-- privkey.pem
     		+-- server.pem
     		+-- ssl_detector.py
