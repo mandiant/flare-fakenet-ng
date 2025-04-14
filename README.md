@@ -422,7 +422,7 @@ observed by FakeNet-NG (redirected or forwarded) to a PCAP file. It is possible
 to decrypt SSL traffic between an intercepted application and one of the
 listeners with SSL support. Use the instructions at the following page:
 
-    https://wiki.wireshark.org/SSL
+    https://wiki.wireshark.org/TLS
 
 The keys `privkey.pem` and `server.pem` used by FakeNet-NG's servers are in the
 application's root directory.
