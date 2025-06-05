@@ -23,6 +23,7 @@ EXT_FILE_RESPONSE = {
     '.pdf' : 'FakeNet.pdf',
     '.xml' : 'FakeNet.html',
     '.txt' : 'FakeNet.txt',
+    '.zip' : 'FakeNet.zip',
 }
 
 OPCODE_RRQ   = b"\x00\x01"
