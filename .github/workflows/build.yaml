@@ -1,0 +1,69 @@
+name: Release FakeNet
+# Build FakeNet binary following the instructions in https://github.com/mandiant/flare-fakenet-ng/blob/master/docs/developing.md#building-a-stand-alone-executable-release-binary-for-windows
+
+on:
+  # On every push to the master branch for easy testing before a release
+  push:
+    branches: [ master ]
+  # On every pull request for easy testing before merging
+  pull_request:
+    branches: [ master ]
+  # When a release is published or edited to add the release ZIP to it
+  release:
+    types: [published]
+  # Manual trigger for testing
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2022
+    env:
+      ReleaseDir: fakenet_release
+      ZipName: fakenet.zip
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3
+      - name: Install Python 3.10
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6
+        with:
+          python-version: '3.10'
+      - name: Install build requirements
+        run: py -3.10 -m pip install --upgrade pip certifi pyinstaller pydivert==2.0.9
+      - name: Install FakeNet
+        run: py -3.10 -m pip install .
+      - name: Build executable using PyInstaller
+        run: py -3.10 -m PyInstaller fakenet.spec
+      - name: Create release
+        run: |
+          # Create release directory and copy required files to it
+          New-Item -ItemType Directory -Path $env:ReleaseDir
+          Copy-Item "dist\fakenet.exe" -Destination "$env:ReleaseDir\fakenet.exe"
+          @("LICENSE.txt", "CHANGELOG.txt", "README.md") | ForEach-Object { Copy-Item $_ -Destination $env:ReleaseDir }
+          New-Item -ItemType Directory -Path "$env:ReleaseDir\docs"
+          @("contributors.md", "CustomResponse.md") | ForEach-Object { Copy-Item "docs\$_" -Destination "$env:ReleaseDir\docs\$_" }
+          @("configs", "defaultFiles", "listeners\ssl_utils") | ForEach-Object { Copy-Item "fakenet\$_" -Destination "$env:ReleaseDir\$_" -Recurse }
+          # Remove unwanted copied directory
+          Remove-Item -Recurse -Force "$env:ReleaseDir\listeners\ssl_utils\__pycache__"
+
+          # Log the content of the release directory
+          Get-ChildItem $env:ReleaseDir -Recurse
+
+          # Create the release ZIP
+          Compress-Archive -Path "$($env:ReleaseDir)\*" -DestinationPath $env:ZipName
+      - name: Upload release to artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fakenet_release
+          path: ${{ env.ZipName }}
+          if-no-files-found: error
+      - name: Add ZIP to release
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@81c65b7cd4de9b2570615ce3aad67a41de5b1a13 # v2.11.2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN}}
+          file: ${{ env.ZipName }}
+          asset_name: fakenet-${{ github.ref_name }}.zip
+          tag: ${{ github.ref }}
