@@ -180,109 +180,37 @@ that you install and are using a 32-bit version of Python and its associated
 utilities (i.e. `pip`). Use an administrative command prompt where applicable
 for installing Python modules for all users.
 
-Pre-requisites:
-* Python 3.10.11 x86 with `pip`
-* Visual C++ for Python development, available at:
-  <https://visualstudio.microsoft.com/visual-cpp-build-tools/>
+0. Pre-requisites:
+   - Python 3.10 x86 with `pip`
+   - [Visual C++ for Python development](https://visualstudio.microsoft.com/visual-cpp-build-tools)
 
-Before installing `pyinstaller`, you may wish to take the following steps to
-prevent the error `ImportError: No module named PyInstaller`:
+1. Install the build requirements:
+   ```
+   py -3.10 -m pip install --upgrade pip certifi pyinstaller pydivert==2.0.9
+   ```
+2. Install FakeNet-NG to acquire most modules:
+   ```
+   py -3.10 -m pip install .
+   ```
+3. Build executable using PyInstaller:
+   ```
+   py -3.10 -m PyInstaller fakenet.spec
+   ```
 
-```
-python -m pip install --upgrade pip
-pip install certifi
-```
+The stand-alone executable `fakenet.exe` will be in the `dist/` directory.
+Note the stand-alone executable depends on the files in the following directories to be able to execute:
+- [`configs`](https://github.com/mandiant/flare-fakenet-ng/tree/master/fakenet/configs)
+- [`defaultFiles`](https://github.com/mandiant/flare-fakenet-ng/tree/master/fakenet/defaultFiles)
+- [`listeners\ssl_utils`](https://github.com/mandiant/flare-fakenet-ng/tree/master/fakenet/listeners/ssl_utils)
 
-Install FakeNet-NG to acquire most modules:
+See the latest releases and the [_Release FakeNet_ GH action](https://github.com/Ana06/flare-fakenet-ng/actions/workflows/build.yaml) for more information on the required file structure.
 
-```
-python setup.py install
-```
-
-Obtain PyDivert 2.0.9, the only version known to work with FakeNet-NG releases
-prepared with PyInstaller:
-
-```
-pip install pydivert==2.0.9
-```
-
-Install `pyinstaller`:
-
-```
-pip install pyinstaller
-```
-
-Finally, generate the executable file with PyInstaller:
-
-```
-pyinstaller fakenet.spec
-```
-
-The stand-alone executable `fakenet.exe` will be available in the `dist/`
-directory.
-
-Building a Release Distribution for Windows
--------------------------------------------
-
-The stand-alone executable depends on several files to be able to execute. To
-provide a full release distribution, create a release directory named
-`fakenet<ver>` (e.g. `fakenet1.4.3`) and copy the following directory and file
-structure:
-
-```
-fakenet1.4.3\
-    +-- LICENSE.txt
-    +-- CHANGELOG.txt
-    +-- fakenet.exe
-    +-- README.md
-    |
-    +-- docs\
-    |   +-- contributors.md
-    |   +-- CustomResponse.md
-    |
-    +-- configs\
-    |   +-- default.ini
-    |   +-- CustomProviderExample.py
-    |   +-- sample_custom_response.ini
-    |   +-- sample_raw_response.txt
-    |   +-- html_report_template.html
-    |   +-- fakenet_ca.crt
-    |   +-- fakenet_ca.key
-    |
-    +-- defaultFiles\
-    |   +-- FakeNet.gif
-    |   +-- FakeNet.html
-    |   +-- FakeNet.ico
-    |   +-- FakeNet.jpg
-    |   +-- FakeNetMini.exe
-    |   +-- FakeNet.pdf
-    |   +-- FakeNet.png
-    |   +-- FakeNet.txt
-    |   +-- ncsi.txt
-    |
-    +-- listeners\
-        +-- ssl_utils
-    		+-- __init__.py
-    		+-- privkey.pem
-    		+-- server.pem
-    		+-- ssl_detector.py
-```
-
-Mandiant only:
-* Create a zip file of the release distribution named `fakenet<ver>.zip`, where
-  `<ver>` is the dot-decimal version number. For example: `fakenet1.4.3.zip`.
-* The top-level directory in the zip file should be `fakenet<ver>` e.g.
-  `fakenet1.4.3`.
-* Test the distribution before adding it to the appropriate release tag.
-
-Tagging a Release (Mandiant only)
+Creating a Release (Mandiant only)
 --------------------------------
 
-1. Visit <https://github.com/mandiant/flare-fakenet-ng/releases>
-2. Click `Draft a new release`
-3. Tag version: `v<ver>`, e.g. `v1.4.3`
-4. Release title: `FakeNet-NG <ver>`, e.g. `FakeNet-NG 1.4.3`
-5. Description: copy the changes from `CHANGELOG.txt` through to the previous
-   version
-6. Binaries: Attach the release distribution zip file described above
+1. [Create a new release](https://github.com/mandiant/flare-fakenet-ng/releases/new)
+   - Tag: `v<ver>`, e.g. `v1.4.3`
+   - Release Title: `FakeNet-NG <ver>`, e.g. `FakeNet-NG 1.4.3`
+   - Release notes: Copy the changes from [`CHANGELOG.txt`](https://github.com/mandiant/flare-fakenet-ng/blob/master/CHANGELOG.txt) through to the previous version
+2. Wait for the [_Release FakeNet_ GH action](https://github.com/Ana06/flare-fakenet-ng/actions/workflows/build.yaml) to finish and verify the ZIP has been correctly uploaded to the release
 
