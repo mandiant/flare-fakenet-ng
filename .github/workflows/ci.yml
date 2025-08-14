@@ -1,0 +1,18 @@
+name: Lint
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  lint:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3
+      - name: Install dependencies
+        run: pip install black==25.*
+      - name: Run black
+        run: black --line-length=120 --check --diff .

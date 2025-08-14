@@ -27,10 +27,8 @@ class LinuxPacketCtx(fnpacket.PacketCtx):
 
 class Diverter(DiverterBase, LinUtilMixin):
 
-    def __init__(self, diverter_config, listeners_config, ip_addrs,
-                 logging_level=logging.INFO):
-        super(Diverter, self).__init__(diverter_config, listeners_config,
-                                       ip_addrs, logging_level)
+    def __init__(self, diverter_config, listeners_config, ip_addrs, logging_level=logging.INFO):
+        super(Diverter, self).__init__(diverter_config, listeners_config, ip_addrs, logging_level)
 
         self.init_linux_mixin()
         self.init_diverter_linux()
@@ -38,7 +36,7 @@ class Diverter(DiverterBase, LinUtilMixin):
     def init_diverter_linux(self):
         """Linux-specific Diverter initialization."""
 
-        self.logger.debug('Running in %s mode' % (self.network_mode))
+        self.logger.debug("Running in %s mode" % (self.network_mode))
 
         self.nfqueues = list()
 
@@ -93,22 +91,23 @@ class Diverter(DiverterBase, LinUtilMixin):
 
     def startCallback(self):
         if not self.check_privileged():
-            self.logger.critical('The Linux Diverter requires ' +
-                                 'administrative privileges')
+            self.logger.critical("The Linux Diverter requires " + "administrative privileges")
             sys.exit(1)
 
         ret = self.linux_capture_iptables()
         if ret != 0:
             sys.exit(1)
 
-        if self.is_set('linuxflushiptables'):
+        if self.is_set("linuxflushiptables"):
             self.linux_flush_iptables()
         else:
-            self.logger.warning('LinuxFlushIptables is disabled, this may ' +
-                                'result in unanticipated behavior depending ' +
-                                'upon what rules are already present')
+            self.logger.warning(
+                "LinuxFlushIptables is disabled, this may "
+                + "result in unanticipated behavior depending "
+                + "upon what rules are already present"
+            )
 
-        hookspec = namedtuple('hookspec', ['chain', 'table', 'callback'])
+        hookspec = namedtuple("hookspec", ["chain", "table", "callback"])
 
         callbacks = list()
 
@@ -117,76 +116,73 @@ class Diverter(DiverterBase, LinUtilMixin):
         # Choices for an explanation of how to avoid breaking the Linux NAT
         # implementation.
         if not self.single_host_mode:
-            callbacks.append(hookspec('PREROUTING', 'raw',
-                                      self.handle_nonlocal))
+            callbacks.append(hookspec("PREROUTING", "raw", self.handle_nonlocal))
 
-        callbacks.append(hookspec('INPUT', 'mangle', self.handle_incoming))
-        callbacks.append(hookspec('OUTPUT', 'raw', self.handle_outgoing))
+        callbacks.append(hookspec("INPUT", "mangle", self.handle_incoming))
+        callbacks.append(hookspec("OUTPUT", "raw", self.handle_outgoing))
 
         nhooks = len(callbacks)
 
-        self.pdebug(DNFQUEUE, ('Discovering the next %d available NFQUEUE ' +
-                    'numbers') % (nhooks))
+        self.pdebug(DNFQUEUE, ("Discovering the next %d available NFQUEUE " + "numbers") % (nhooks))
         qnos = self.linux_get_next_nfqueue_numbers(nhooks)
         if len(qnos) != nhooks:
-            self.logger.critical('Could not procure a sufficient number of ' +
-                                 'netfilter queue numbers')
+            self.logger.critical("Could not procure a sufficient number of " + "netfilter queue numbers")
             sys.exit(1)
 
         fn_iface = None
-        if ((not self.single_host_mode) and
-                self.is_configured('linuxrestrictinterface') and not
-                self.is_clear('linuxrestrictinterface')):
-            self.pdebug(DMISC, 'Processing LinuxRestrictInterface config %s' %
-                        self.getconfigval('linuxrestrictinterface'))
-            fn_iface = self.getconfigval('linuxrestrictinterface')
+        if (
+            (not self.single_host_mode)
+            and self.is_configured("linuxrestrictinterface")
+            and not self.is_clear("linuxrestrictinterface")
+        ):
+            self.pdebug(
+                DMISC, "Processing LinuxRestrictInterface config %s" % self.getconfigval("linuxrestrictinterface")
+            )
+            fn_iface = self.getconfigval("linuxrestrictinterface")
 
-        self.pdebug(DNFQUEUE, 'Next available NFQUEUE numbers: ' + str(qnos))
+        self.pdebug(DNFQUEUE, "Next available NFQUEUE numbers: " + str(qnos))
 
-        self.pdebug(DNFQUEUE, 'Enumerating queue numbers and hook ' +
-                    'specifications to create NFQUEUE objects')
+        self.pdebug(DNFQUEUE, "Enumerating queue numbers and hook " + "specifications to create NFQUEUE objects")
 
         self.nfqueues = list()
         for qno, hk in zip(qnos, callbacks):
-            self.pdebug(DNFQUEUE, ('Creating NFQUEUE object for chain %s / ' +
-                        'table %s / queue # %d => %s') % (hk.chain, hk.table,
-                        qno, str(hk.callback)))
-            q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback,
-                                     fn_iface)
+            self.pdebug(
+                DNFQUEUE,
+                ("Creating NFQUEUE object for chain %s / " + "table %s / queue # %d => %s")
+                % (hk.chain, hk.table, qno, str(hk.callback)),
+            )
+            q = LinuxDiverterNfqueue(qno, hk.chain, hk.table, hk.callback, fn_iface)
             self.nfqueues.append(q)
             ok = q.start()
             if not ok:
-                self.logger.critical('Failed to start NFQUEUE for %s'
-                                     % (str(q)))
+                self.logger.critical("Failed to start NFQUEUE for %s" % (str(q)))
 
                 self.stop()
                 sys.exit(1)
 
         if self.single_host_mode:
 
-            if self.is_set('fixgateway'):
+            if self.is_set("fixgateway"):
                 if not self.linux_get_default_gw():
                     self.linux_set_default_gw()
 
-            if self.is_set('modifylocaldns'):
+            if self.is_set("modifylocaldns"):
                 self.linux_modifylocaldns_ephemeral()
 
-            if self.is_configured('linuxflushdnscommand'):
-                cmd = self.getconfigval('linuxflushdnscommand')
+            if self.is_configured("linuxflushdnscommand"):
+                cmd = self.getconfigval("linuxflushdnscommand")
                 ret = subprocess.call(cmd.split())
                 if ret != 0:
-                    self.logger.error('Failed to flush DNS cache. Local '
-                                      'machine may use cached DNS results.')
+                    self.logger.error("Failed to flush DNS cache. Local " "machine may use cached DNS results.")
 
             ok, rule = self.linux_redir_icmp(fn_iface)
             if not ok:
-                self.logger.critical('Failed to redirect ICMP')
+                self.logger.critical("Failed to redirect ICMP")
                 self.stop()
                 sys.exit(1)
             self.rules_added.append(rule)
 
-        self.pdebug(DMISC, 'Processing interface redirection on ' +
-                    'interface: %s' % (fn_iface))
+        self.pdebug(DMISC, "Processing interface redirection on " + "interface: %s" % (fn_iface))
         ok, rules = self.linux_iptables_redir_iface(fn_iface)
 
         # Irrespective of whether this failed, we want to add any
@@ -195,35 +191,34 @@ class Diverter(DiverterBase, LinUtilMixin):
         self.rules_added += rules
 
         if not ok:
-            self.logger.critical('Failed to process interface redirection')
+            self.logger.critical("Failed to process interface redirection")
             self.stop()
             sys.exit(1)
 
         return True
 
     def stopCallback(self):
-        self.pdebug(DNFQUEUE, 'Notifying NFQUEUE objects of imminent stop')
+        self.pdebug(DNFQUEUE, "Notifying NFQUEUE objects of imminent stop")
         for q in self.nfqueues:
             q.stop_nonblocking()
 
-        self.pdebug(DIPTBLS, 'Removing iptables rules not associated with any '
-                    'NFQUEUE object')
+        self.pdebug(DIPTBLS, "Removing iptables rules not associated with any " "NFQUEUE object")
         self.linux_remove_iptables_rules(self.rules_added)
 
         for q in self.nfqueues:
-            self.pdebug(DNFQUEUE, 'Stopping NFQUEUE for %s' % (str(q)))
+            self.pdebug(DNFQUEUE, "Stopping NFQUEUE for %s" % (str(q)))
             q.stop()
 
         if self.pcap:
-            self.pdebug(DPCAP, 'Closing pcap file %s' % (self.pcap_filename))
+            self.pdebug(DPCAP, "Closing pcap file %s" % (self.pcap_filename))
             self.pcap.close()  # Only after all queues are stopped
 
-        self.logger.info('Stopped Linux Diverter')
+        self.logger.info("Stopped Linux Diverter")
 
-        if self.single_host_mode and self.is_set('modifylocaldns'):
+        if self.single_host_mode and self.is_set("modifylocaldns"):
             self.linux_restore_local_dns()
 
-        if self.is_set('linuxflushiptables'):
+        if self.is_set("linuxflushiptables"):
             self.linux_restore_iptables()
 
         return True
@@ -235,7 +230,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         hard-coded IP addresses in MultiHost mode.
         """
         try:
-            pkt = LinuxPacketCtx('handle_nonlocal', nfqpkt)
+            pkt = LinuxPacketCtx("handle_nonlocal", nfqpkt)
             self.handle_pkt(pkt, self.nonlocal_net_cbs, [])
             if pkt.mangled:
                 nfqpkt.set_payload(pkt.octets)
@@ -246,7 +241,7 @@ class Diverter(DiverterBase, LinUtilMixin):
         # I can print out the stack trace before I lose access to this valuable
         # debugging information.
         except Exception:
-            self.logger.error('Exception: %s' % (traceback.format_exc()))
+            self.logger.error("Exception: %s" % (traceback.format_exc()))
             raise
 
         nfqpkt.accept()
@@ -264,13 +259,12 @@ class Diverter(DiverterBase, LinUtilMixin):
         No return value.
         """
         try:
-            pkt = LinuxPacketCtx('handle_incoming', nfqpkt)
-            self.handle_pkt(pkt, self.incoming_net_cbs,
-                            self.incoming_trans_cbs)
+            pkt = LinuxPacketCtx("handle_incoming", nfqpkt)
+            self.handle_pkt(pkt, self.incoming_net_cbs, self.incoming_trans_cbs)
             if pkt.mangled:
                 nfqpkt.set_payload(pkt.octets)
         except Exception:
-            self.logger.error('Exception: %s' % (traceback.format_exc()))
+            self.logger.error("Exception: %s" % (traceback.format_exc()))
             raise
 
         nfqpkt.accept()
@@ -291,13 +285,12 @@ class Diverter(DiverterBase, LinUtilMixin):
         No return value.
         """
         try:
-            pkt = LinuxPacketCtx('handle_outgoing', nfqpkt)
-            self.handle_pkt(pkt, self.outgoing_net_cbs,
-                            self.outgoing_trans_cbs)
+            pkt = LinuxPacketCtx("handle_outgoing", nfqpkt)
+            self.handle_pkt(pkt, self.outgoing_net_cbs, self.outgoing_trans_cbs)
             if pkt.mangled:
                 nfqpkt.set_payload(pkt.octets)
         except Exception:
-            self.logger.error('Exception: %s' % (traceback.format_exc()))
+            self.logger.error("Exception: %s" % (traceback.format_exc()))
             raise
 
         nfqpkt.accept()
@@ -310,19 +303,17 @@ class Diverter(DiverterBase, LinUtilMixin):
         foreign destination IP address will be logged each time it is observed.
         """
         if pkt.dst_ip not in self.ip_addrs[pkt.ipver]:
-            self.pdebug(DNONLOC, 'Nonlocal %s' % pkt.hdrToStr())
-            first_sighting = (pkt.dst_ip not in self.nonlocal_ips_already_seen)
+            self.pdebug(DNONLOC, "Nonlocal %s" % pkt.hdrToStr())
+            first_sighting = pkt.dst_ip not in self.nonlocal_ips_already_seen
             if first_sighting:
                 self.nonlocal_ips_already_seen.append(pkt.dst_ip)
             # Log when a new IP is observed OR if we are not restricted to
             # logging only the first occurrence of a given nonlocal IP.
             if first_sighting or (not self.log_nonlocal_only_once):
-                self.logger.info(
-                    'Received nonlocal IPv%d datagram destined for %s' %
-                    (pkt.ipver, pkt.dst_ip))
+                self.logger.info("Received nonlocal IPv%d datagram destined for %s" % (pkt.ipver, pkt.dst_ip))
 
         return None
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     raise NotImplementedError
