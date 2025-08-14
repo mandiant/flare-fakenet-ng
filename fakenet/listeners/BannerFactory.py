@@ -5,11 +5,12 @@ import socket
 import string
 import datetime
 
+
 class Banner(object):
     """Act like a string, but actually get date/time components on the fly.
 
     Returned by BannerFactory.genBanner().
-    
+
     Allows listeners to statically set a banner in their start() procedure for
     libraries like pyftpdlib that expect to be able to use a static string
     value. When the __len__() and __repr__() methods are called, this class
@@ -36,7 +37,7 @@ class Banner(object):
 
         if self.test_pyftpdlib_handler_banner_threshold75:
             self.len_75 = len(self.str_75)
-            self.str_76 = 'a' * 76
+            self.str_76 = "a" * 76
 
         self.banner = banner
         self.insertions = insertions
@@ -58,7 +59,7 @@ class Banner(object):
 
     def __len__(self):
         """Needed for pyftpdlib.
-        
+
         If the length changes between the time when the caller obtains the
         length and the time when the caller obtains the latest generated
         string, then there is not much that could reasonably be done. It would
@@ -94,14 +95,14 @@ class Banner(object):
         banner = self.banner
         banner = banner.format(**self.insertions)
         banner = datetime.datetime.now().strftime(banner)
-        banner = banner.replace('\\n', '\n').replace('\\t', '\t')
+        banner = banner.replace("\\n", "\n").replace("\\t", "\t")
         return banner
 
 
 class BannerFactory(object):
-    def genBanner(self, config, bannerdict, defaultbannerkey='!generic'):
+    def genBanner(self, config, bannerdict, defaultbannerkey="!generic"):
         """Select and initialize a banner.
-        
+
         Supported banner escapes:
             !<key> - Use the banner whose key in bannerdict is <key>
             !random - Use a random banner from bannerdict
@@ -126,35 +127,32 @@ class BannerFactory(object):
             !gethostname - Use the real hostname
         """
 
-        banner = config.get('banner', defaultbannerkey)
-        servername = config.get('servername', 'localhost')
+        banner = config.get("banner", defaultbannerkey)
+        servername = config.get("servername", "localhost")
 
-        if servername.startswith('!'):
+        if servername.startswith("!"):
             servername = servername[1:]
-            if servername.lower() == 'random':
+            if servername.lower() == "random":
                 servername = self.randomizeHostname()
-            elif servername.lower() == 'gethostname':
+            elif servername.lower() == "gethostname":
                 servername = socket.gethostname()
             else:
-                raise ValueError('ServerName config invalid escape: !%s' %
-                        (servername))
+                raise ValueError("ServerName config invalid escape: !%s" % (servername))
 
-        if banner.startswith('!'):
+        if banner.startswith("!"):
             banner = banner[1:]
-            if banner.lower() == 'random':
+            if banner.lower() == "random":
                 banner = random.choice(list(bannerdict.keys()))
             elif banner not in bannerdict:
-                raise ValueError(
-                        'Banner config escape !%s not a valid banner key' %
-                        (banner))
+                raise ValueError("Banner config escape !%s not a valid banner key" % (banner))
 
             banner = bannerdict[banner]
 
-        insertions = {'servername': servername, 'tz': 'UTC'}
+        insertions = {"servername": servername, "tz": "UTC"}
 
         return Banner(banner, insertions)
 
     def randomizeHostname(self):
-        valid_hostname_charset = (string.ascii_letters + string.digits + '-')
+        valid_hostname_charset = string.ascii_letters + string.digits + "-"
         n = random.randint(1, 15)
-        return ''.join(random.choice(valid_hostname_charset) for _ in range(n))
+        return "".join(random.choice(valid_hostname_charset) for _ in range(n))

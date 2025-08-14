@@ -17,7 +17,7 @@ import socket
 
 from . import *
 
-INDENT = '  '
+INDENT = "  "
 
 
 def qualify_file_path(filename, fallbackdir):
@@ -26,9 +26,10 @@ def qualify_file_path(filename, fallbackdir):
         if not os.path.exists(path):
             path = os.path.join(fallbackdir, filename)
         if not os.path.exists(path):
-            raise RuntimeError('Cannot find %s' % (filename))
+            raise RuntimeError("Cannot find %s" % (filename))
 
     return path
+
 
 def load_source(modname, filename):
     loader = importlib.machinery.SourceFileLoader(modname, filename)
@@ -47,10 +48,10 @@ class RawCustomResponse(object):
         self.static = None
         self.handler = None
 
-        spec_file = '%srawfile' % (proto.lower())
-        spec_str = '%sstaticstring' % (proto.lower())
-        spec_b64 = '%sstaticbase64' % (proto.lower())
-        spec_dyn = '%sdynamic' % (proto.lower())
+        spec_file = "%srawfile" % (proto.lower())
+        spec_str = "%sstaticstring" % (proto.lower())
+        spec_b64 = "%sstaticbase64" % (proto.lower())
+        spec_dyn = "%sdynamic" % (proto.lower())
 
         response_specs = {
             spec_file,
@@ -61,14 +62,15 @@ class RawCustomResponse(object):
 
         nr_responses = len(response_specs.intersection(conf))
         if nr_responses != 1:
-            raise ValueError('Custom %s config section %s has %d of %s' %
-                             (proto.upper(), name, nr_responses,
-                              '/'.join(response_specs)))
+            raise ValueError(
+                "Custom %s config section %s has %d of %s"
+                % (proto.upper(), name, nr_responses, "/".join(response_specs))
+            )
 
         self.static = conf.get(spec_str)
 
         if self.static is not None:
-            self.static = self.static.rstrip('\r\n').encode("utf-8")
+            self.static = self.static.rstrip("\r\n").encode("utf-8")
 
         if not self.static is not None:
             b64_text = conf.get(spec_b64)
@@ -79,15 +81,14 @@ class RawCustomResponse(object):
             file_path = conf.get(spec_file)
             if file_path:
                 raw_file = qualify_file_path(file_path, configroot)
-                self.static = open(raw_file, 'rb').read()
+                self.static = open(raw_file, "rb").read()
 
         pymodpath = qualify_file_path(conf.get(spec_dyn), configroot)
         if pymodpath:
-            pymod = load_source('cr_raw_' + self.name, pymodpath)
-            funcname = 'Handle%s' % (proto.capitalize())
+            pymod = load_source("cr_raw_" + self.name, pymodpath)
+            funcname = "Handle%s" % (proto.capitalize())
             if not hasattr(pymod, funcname):
-                raise ValueError('Loaded %s module %s has no function %s' %
-                                 (spec_dyn, conf.get(spec_dyn), funcname))
+                raise ValueError("Loaded %s module %s has no function %s" % (spec_dyn, conf.get(spec_dyn), funcname))
             self.handler = getattr(pymod, funcname)
 
     def respondUdp(self, sock, data, addr):
@@ -102,69 +103,72 @@ class RawListener(object):
     def taste(self, data, dport):
         return 1
 
-    def __init__(self, 
-            config, 
-            name='RawListener', 
-            logging_level=logging.INFO, 
-            ):
+    def __init__(
+        self,
+        config,
+        name="RawListener",
+        logging_level=logging.INFO,
+    ):
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging_level)
-            
+
         self.config = config
         self.name = name
-        self.local_ip = config.get('ipaddr')
+        self.local_ip = config.get("ipaddr")
         self.server = None
-        self.port = self.config.get('port', 1337)
+        self.port = self.config.get("port", 1337)
 
-        self.logger.debug('Starting...')
+        self.logger.debug("Starting...")
 
-        self.logger.debug('Initialized with config:')
+        self.logger.debug("Initialized with config:")
         for key, value in config.items():
-            self.logger.debug('  %10s: %s', key, value)
+            self.logger.debug("  %10s: %s", key, value)
 
     def start(self):
 
         # Start listener
-        proto = self.config.get('protocol')
+        proto = self.config.get("protocol")
         if proto is not None:
-            if proto.lower() == 'tcp':
-                self.logger.debug('Starting TCP ...')
-                self.server = ThreadedTCPServer((self.local_ip, int(self.config['port'])), ThreadedTCPRequestHandler)
+            if proto.lower() == "tcp":
+                self.logger.debug("Starting TCP ...")
+                self.server = ThreadedTCPServer((self.local_ip, int(self.config["port"])), ThreadedTCPRequestHandler)
 
-            elif proto.lower() == 'udp':
-                self.logger.debug('Starting UDP ...')
-                self.server = ThreadedUDPServer((self.local_ip, int(self.config['port'])), ThreadedUDPRequestHandler)
+            elif proto.lower() == "udp":
+                self.logger.debug("Starting UDP ...")
+                self.server = ThreadedUDPServer((self.local_ip, int(self.config["port"])), ThreadedUDPRequestHandler)
 
             else:
-                self.logger.error('Unknown protocol %s', self.config['protocol'])
+                self.logger.error("Unknown protocol %s", self.config["protocol"])
                 return
         else:
-            self.logger.error('Protocol is not defined.')
+            self.logger.error("Protocol is not defined.")
             return
 
         self.server.logger = self.logger
         self.server.config = self.config
 
-        if self.config.get('usessl') == 'Yes':
-            self.logger.debug('Using SSL socket.')
+        if self.config.get("usessl") == "Yes":
+            self.logger.debug("Using SSL socket.")
 
-            keyfile_path = 'listeners/ssl_utils/privkey.pem'
+            keyfile_path = "listeners/ssl_utils/privkey.pem"
             keyfile_path = ListenerBase.abs_config_path(keyfile_path)
             if keyfile_path is None:
-                self.logger.error('Could not locate %s', keyfile_path)
+                self.logger.error("Could not locate %s", keyfile_path)
                 sys.exit(1)
 
-            certfile_path = 'listeners/ssl_utils/server.pem'
+            certfile_path = "listeners/ssl_utils/server.pem"
             certfile_path = ListenerBase.abs_config_path(certfile_path)
             if certfile_path is None:
-                self.logger.error('Could not locate %s', certfile_path)
+                self.logger.error("Could not locate %s", certfile_path)
                 sys.exit(1)
 
-            self.server.socket = ssl.wrap_socket(self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers='RSA')
+            self.server.socket = ssl.wrap_socket(
+                self.server.socket, keyfile=keyfile_path, certfile=certfile_path, server_side=True, ciphers="RSA"
+            )
 
         self.server.custom_response = None
-        custom = self.config.get('custom')
+        custom = self.config.get("custom")
 
         def checkSetting(d, name, value):
             if name not in d:
@@ -172,7 +176,7 @@ class RawListener(object):
             return d[name].lower() == value.lower()
 
         if custom:
-            configdir = self.config.get('configdir')
+            configdir = self.config.get("configdir")
             custom = qualify_file_path(custom, configdir)
             customconf = ConfigParser()
             customconf.read(custom)
@@ -180,28 +184,24 @@ class RawListener(object):
             for section in customconf.sections():
                 entries = dict(customconf.items(section))
 
-                if (('instancename' not in entries) and
-                        ('listenertype' not in entries)):
-                    msg = 'Custom Response lacks ListenerType or InstanceName'
+                if ("instancename" not in entries) and ("listenertype" not in entries):
+                    msg = "Custom Response lacks ListenerType or InstanceName"
                     raise RuntimeError(msg)
 
-                if (checkSetting(entries, 'instancename', self.name) or
-                        checkSetting(entries, 'listenertype', proto)):
+                if checkSetting(entries, "instancename", self.name) or checkSetting(entries, "listenertype", proto):
 
                     if self.server.custom_response:
-                        msg = ('Only one %s Custom Response can be configured '
-                               'at a time' % (proto))
+                        msg = "Only one %s Custom Response can be configured " "at a time" % (proto)
                         raise RuntimeError(msg)
 
-                    self.server.custom_response = (
-                        RawCustomResponse(proto, section, entries, configdir))
+                    self.server.custom_response = RawCustomResponse(proto, section, entries, configdir)
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
         self.server_thread.start()
 
     def stop(self):
-        self.logger.debug('Stopping...')
+        self.logger.debug("Stopping...")
         if self.server:
             self.server.shutdown()
             self.server.server_close()
@@ -209,13 +209,14 @@ class RawListener(object):
     def acceptDiverterListenerCallbacks(self, diverterListenerCallbacks):
         self.server.diverterListenerCallbacks = diverterListenerCallbacks
 
-class SocketWithHexdumpRecv():
+
+class SocketWithHexdumpRecv:
     def __init__(self, s, logger):
         self.s = s
         self.logger = logger
 
     def __getattr__(self, item):
-        if 'recv' == item:
+        if "recv" == item:
             return self.recv
         else:
             return getattr(self.s, item)
@@ -235,6 +236,7 @@ class SocketWithHexdumpRecv():
             self.do_hexdump(data)
         return data
 
+
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
@@ -245,7 +247,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         self.request = SocketWithHexdumpRecv(self.request, self.server.logger)
 
         # Timeout connection to prevent hanging
-        self.request.settimeout(int(self.server.config.get('timeout', 5)))
+        self.request.settimeout(int(self.server.config.get("timeout", 5)))
 
         cr = self.server.custom_response
 
@@ -255,7 +257,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             cr.handler(self.request)
         else:
             try:
-                    
+
                 while True:
                     data = self.request.recv(1024)
                     if not data:
@@ -263,10 +265,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # Collect NBIs
                     hexdump_lines = hexdump_table(data)
-                    collect_nbi(self.client_address[1], hexdump_lines,
-                                self.server.config.get('protocol'),
-                                self.server.config.get('usessl'),
-                                self.server.diverterListenerCallbacks)
+                    collect_nbi(
+                        self.client_address[1],
+                        hexdump_lines,
+                        self.server.config.get("protocol"),
+                        self.server.config.get("usessl"),
+                        self.server.diverterListenerCallbacks,
+                    )
 
                     if cr and cr.static:
                         self.request.sendall(cr.static)
@@ -274,26 +279,30 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         self.request.sendall(data)
 
             except socket.timeout:
-                self.server.logger.warning('Connection timeout')
+                self.server.logger.warning("Connection timeout")
 
             except socket.error as msg:
-                self.server.logger.error('Error: %s', msg.strerror or msg)
+                self.server.logger.error("Error: %s", msg.strerror or msg)
 
             except Exception as e:
-                self.server.logger.error('Error: %s', e)
+                self.server.logger.error("Error: %s", e)
+
 
 class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
-        (data,sock) = self.request
+        (data, sock) = self.request
 
         if data:
             # Collect NBIs
             hexdump_lines = hexdump_table(data)
-            collect_nbi(self.client_address[1], hexdump_lines,
-                        self.server.config.get('protocol'),
-                        self.server.config.get('usessl'),
-                        self.server.diverterListenerCallbacks)
+            collect_nbi(
+                self.client_address[1],
+                hexdump_lines,
+                self.server.config.get("protocol"),
+                self.server.config.get("usessl"),
+                self.server.diverterListenerCallbacks,
+            )
 
             for line in hexdump_lines:
                 self.server.logger.info(INDENT + line)
@@ -306,10 +315,11 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
                 sock.sendto(data, self.client_address)
 
             except socket.error as msg:
-                self.server.logger.error('Error: %s', msg.strerror or msg)
+                self.server.logger.error("Error: %s", msg.strerror or msg)
 
             except Exception as e:
-                self.server.logger.error('Error: %s', e)
+                self.server.logger.error("Error: %s", e)
+
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     # Avoid [Errno 98] Address already in use due to TIME_WAIT status on TCP
@@ -317,30 +327,33 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     # https://stackoverflow.com/questions/4465959/python-errno-98-address-already-in-use
     allow_reuse_address = True
 
+
 class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
     pass
+
 
 def hexdump_table(data, length=16):
 
     hexdump_lines = []
     for i in range(0, len(data), 16):
-        chunk = data[i:i+16]
-        hex_line   = ' '.join(["%02X" % b for b in chunk ] )
-        ascii_line = ''.join([chr(b) if b > 31 and b < 127 else '.' for b in chunk ] )
-        hexdump_lines.append("%04X: %-*s %s" % (i, length*3, hex_line, ascii_line ))
+        chunk = data[i : i + 16]
+        hex_line = " ".join(["%02X" % b for b in chunk])
+        ascii_line = "".join([chr(b) if b > 31 and b < 127 else "." for b in chunk])
+        hexdump_lines.append("%04X: %-*s %s" % (i, length * 3, hex_line, ascii_line))
     return hexdump_lines
 
-def collect_nbi(sport, hexdump_lines, proto, is_ssl_encrypted,
-        diverterCallbacks):
+
+def collect_nbi(sport, hexdump_lines, proto, is_ssl_encrypted, diverterCallbacks):
     nbi = {}
     # Show upto 16 lines of hex dump
-    nbi['Data Hexdump'] = hexdump_lines[:16]
+    nbi["Data Hexdump"] = hexdump_lines[:16]
 
     # Report diverter everytime we capture an NBI
     # Using an empty string for application_layer_protocol in Raw Listener so
     # that diverter can override the empty string with the
     # transport_layer_protocol
-    diverterCallbacks.logNbi(sport, nbi, proto, '', is_ssl_encrypted)
+    diverterCallbacks.logNbi(sport, nbi, proto, "", is_ssl_encrypted)
+
 
 ###############################################################################
 # Testing code
@@ -351,7 +364,7 @@ def test(config):
     print("\t[RawListener] Sending request:\n%s" % "HELO\n")
     try:
         # Connect to server and send data
-        sock.connect(('localhost', int(config.get('port', 23))))
+        sock.connect(("localhost", int(config.get("port", 23))))
         sock.sendall(b"HELO\n")
 
         # Receive data from the server and shut down
@@ -359,14 +372,16 @@ def test(config):
     finally:
         sock.close()
 
-def main():
-    logging.basicConfig(format='%(asctime)s [%(name)15s] %(message)s', datefmt='%m/%d/%y %I:%M:%S %p', level=logging.DEBUG)
 
-    config = {'port': '1337', 'usessl': 'No', 'protocol': 'tcp'}
+def main():
+    logging.basicConfig(
+        format="%(asctime)s [%(name)15s] %(message)s", datefmt="%m/%d/%y %I:%M:%S %p", level=logging.DEBUG
+    )
+
+    config = {"port": "1337", "usessl": "No", "protocol": "tcp"}
 
     listener = RawListener(config)
     listener.start()
-
 
     ###########################################################################
     # Run processing
@@ -380,9 +395,10 @@ def main():
 
     ###########################################################################
     # Run tests
-    #test(config)
+    # test(config)
 
     listener.stop()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
