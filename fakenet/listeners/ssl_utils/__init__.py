@@ -13,7 +13,6 @@ from pathlib import Path
 from OpenSSL import crypto
 
 from fakenet import listeners
-from fakenet.listeners import ListenerBase
 
 class SSLWrapper(object):
     NOT_AFTER_DELTA_SECONDS = 300  * 24 * 60 * 60
