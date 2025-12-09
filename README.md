@@ -42,6 +42,15 @@ This is the preferred method for using FakeNet-NG on Windows as it does not
 require you to install any additional modules, which is ideal for a malware
 analysis machine.
 
+*NOTE*: FakeNet-NG may be flagged as malicious by Antivirus (AV) and Endpoint Detection
+and Response (EDR) solutions (e.g., Windows Defender, Chrome's Safe Browsing).
+This is likely due to its ability to modify network traffic and simulate network
+services, in addition to the use of PyInstaller to build the release executables.
+The official release binaries are safe, and these detections should be considered false
+positives. As a reminder, FakeNet-NG is designed and highly recommended for use in
+a controlled and isolated environment, such as a Virtual Machine (VM), where it
+can safely alter the system’s network settings.
+
 Installing module
 -----------------
 1) Install Python 3.10.11 and latest pip for Windows/Linux OS.
