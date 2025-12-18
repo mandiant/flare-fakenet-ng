@@ -4,18 +4,20 @@ import logging
 import os
 import sys
 
+
 def safe_join(root, path):
-    """ 
+    """
     Joins a path to a root path, even if path starts with '/', using os.sep
-    """ 
+    """
 
     # prepending a '/' ensures '..' does not traverse past the root
     # of the path
-    if not path.startswith('/'):
-        path = '/' + path
+    if not path.startswith("/"):
+        path = "/" + path
     normpath = os.path.normpath(path)
 
     return root + normpath
+
 
 def abs_config_path(path):
     """
@@ -33,7 +35,7 @@ def abs_config_path(path):
     if os.path.exists(abspath):
         return abspath
 
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         relpath = os.path.join(os.path.dirname(sys.executable), path)
     else:
 

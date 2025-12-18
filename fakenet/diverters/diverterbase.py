@@ -38,8 +38,7 @@ class DivertParms(object):
 
     @property
     def is_loopback0(self):
-        return (self.pkt.src_ip0 == self.pkt.dst_ip0 ==
-                self.diverter.loopback_ip)
+        return self.pkt.src_ip0 == self.pkt.dst_ip0 == self.diverter.loopback_ip
 
     @property
     def is_loopback(self):
@@ -53,8 +52,7 @@ class DivertParms(object):
         Returns:
             True if dport corresponds to hidden listener, else False
         """
-        return self.diverter.listener_ports.isHidden(self.pkt.proto,
-                                                     self.pkt.dport)
+        return self.diverter.listener_ports.isHidden(self.pkt.proto, self.pkt.dport)
 
     @property
     def src_local(self):
@@ -72,8 +70,7 @@ class DivertParms(object):
         Returns:
             True if sport is bound by FakeNet-NG, else False
         """
-        return self.diverter.listener_ports.isListener(self.pkt.proto,
-                                                       self.pkt.sport)
+        return self.diverter.listener_ports.isListener(self.pkt.proto, self.pkt.sport)
 
     @property
     def dport_bound(self):
@@ -82,8 +79,7 @@ class DivertParms(object):
         Returns:
             True if dport is bound by FakeNet-NG, else False
         """
-        return self.diverter.listener_ports.isListener(self.pkt.proto,
-                                                       self.pkt.dport)
+        return self.diverter.listener_ports.isListener(self.pkt.proto, self.pkt.dport)
 
     @property
     def first_packet_new_session(self):
@@ -98,8 +94,8 @@ class DivertParms(object):
         if session is None:
             return True
 
-        return not ((session.dst_ip, session.dport) ==
-                        (self.pkt.dst_ip, self.pkt.dport))
+        return not ((session.dst_ip, session.dport) == (self.pkt.dst_ip, self.pkt.dport))
+
 
 class DiverterPerOSDelegate(object, metaclass=abc.ABCMeta):
     """Delegate class for OS-specific methods that FakeNet-NG implementors must
@@ -236,6 +232,7 @@ class ListenerMeta(object):
     group. Accessors are in ListenerPorts for querying the collection for
     listeners and their attributes.
     """
+
     def __init__(self, proto, port, hidden=False):
         self.proto = proto
         self.port = port
@@ -248,7 +245,7 @@ class ListenerMeta(object):
 
     def _splitBlackWhiteList(self, configtext):
         """Return list from comma-separated config line."""
-        return [item.strip() for item in configtext.split(',')]
+        return [item.strip() for item in configtext.split(",")]
 
     def _validateBlackWhite(self):
         """Validate that only a black or a white list of either type (host or
@@ -258,12 +255,12 @@ class ListenerMeta(object):
             Raises ListenerBlackWhiteList if invalid
         """
         msg = None
-        fmt = 'Cannot specify both %s blacklist and whitelist for port %d'
+        fmt = "Cannot specify both %s blacklist and whitelist for port %d"
         if self.proc_wl and self.proc_bl:
-            msg = fmt % ('process', self.port)
+            msg = fmt % ("process", self.port)
             self.proc_wl = self.proc_bl = None
         elif self.host_wl and self.host_bl:
-            msg = fmt % ('host', self.port)
+            msg = fmt % ("host", self.port)
             self.host_wl = self.host_bl = None
         if msg:
             raise ListenerBlackWhiteList(msg)
@@ -306,8 +303,8 @@ class ListenerPorts(object):
 
     def __init__(self):
         """Initialize dictionary of dictionaries:
-            protocol name => dict
-                portno => ListenerMeta
+        protocol name => dict
+            portno => ListenerMeta
         """
         self.protos = {}
 
@@ -320,8 +317,7 @@ class ListenerPorts(object):
             self.protos[proto] = {}
 
         if port in self.protos[proto]:
-            raise ListenerAlreadyBoundThere(
-                'Listener already bound to %s port %s' % (proto, port))
+            raise ListenerAlreadyBoundThere("Listener already bound to %s port %s" % (proto, port))
 
         self.protos[proto][port] = listener
 
@@ -394,7 +390,7 @@ class ListenerPorts(object):
         """
         if not blacklist:
             return False
-        return (thing in blacklist)
+        return thing in blacklist
 
     def isProcessWhiteListMiss(self, proto, port, proc):
         """Check if proc is OUTSIDE the process WHITElist for a port.
@@ -465,14 +461,15 @@ class ListenerPorts(object):
         return self._isBlackListHit(host, listener.host_bl)
 
 
-class PidCommDest():
+class PidCommDest:
     """Helper for recognizing connections that were already displayed."""
+
     def __init__(self, pid, comm, proto, ip, port):
         self.pid = pid
-        self.comm = comm or 'program name unknown'
-        self.proto = proto or 'unknown protocol'
-        self.ip = ip or 'unknown IP'
-        self.port = str(port) or 'port unknown/not applicable'
+        self.comm = comm or "program name unknown"
+        self.proto = proto or "unknown protocol"
+        self.ip = ip or "unknown IP"
+        self.port = str(port) or "port unknown/not applicable"
 
     def isDistinct(self, prev, bound_ips):
         """Not quite inequality.
@@ -482,13 +479,16 @@ class PidCommDest():
         occupied by an adapter local to the system to be able to suppress
         output of these near-duplicates.
         """
-        return ((not prev) or (self.pid != prev.pid) or
-                (self.comm != prev.comm) or (self.port != prev.port) or
-                ((self.ip != prev.ip) and (self.ip not in bound_ips)))
+        return (
+            (not prev)
+            or (self.pid != prev.pid)
+            or (self.comm != prev.comm)
+            or (self.port != prev.port)
+            or ((self.ip != prev.ip) and (self.ip not in bound_ips))
+        )
 
     def __str__(self):
-        return '%s (%s) requested %s %s:%s' % (self.comm, self.pid, self.proto,
-                                               self.ip, self.port)
+        return "%s (%s) requested %s %s:%s" % (self.comm, self.pid, self.proto, self.ip, self.port)
 
 
 class DiverterBase(fnconfig.Config):
@@ -499,8 +499,7 @@ class DiverterBase(fnconfig.Config):
         stopCallback()
     """
 
-    def __init__(self, diverter_config, listeners_config, ip_addrs,
-                 logging_level=logging.INFO):
+    def __init__(self, diverter_config, listeners_config, ip_addrs, logging_level=logging.INFO):
         """Initialize the DiverterBase.
 
         TODO: Replace the sys.exit() calls from this function with exceptions
@@ -535,10 +534,10 @@ class DiverterBase(fnconfig.Config):
         self.ip_addrs = ip_addrs
 
         self.pcap = None
-        self.pcap_filename = ''
+        self.pcap_filename = ""
         self.pcap_lock = None
 
-        self.logger = logging.getLogger('Diverter')
+        self.logger = logging.getLogger("Diverter")
         self.logger.setLevel(logging_level)
 
         # Network Based Indicators
@@ -546,7 +545,7 @@ class DiverterBase(fnconfig.Config):
 
         # Index remote Process IDs for MultiHost operations
         self.remote_pid_counter = 0
-        
+
         # Maps Proxy initiated source ports to original source ports
         self.proxy_sport_to_orig_sport_map = {}
 
@@ -556,16 +555,15 @@ class DiverterBase(fnconfig.Config):
         # Rate limiting for displaying pid/comm/proto/IP/port
         self.last_conn = None
 
-        portlists = ['BlackListPortsTCP', 'BlackListPortsUDP']
-        stringlists = ['HostBlackList']
-        idlists = ['BlackListIDsICMP']
+        portlists = ["BlackListPortsTCP", "BlackListPortsUDP"]
+        stringlists = ["HostBlackList"]
+        idlists = ["BlackListIDsICMP"]
         self.configure(diverter_config, portlists, stringlists, idlists)
-        self.listeners_config = dict((k.lower(), v)
-                                     for k, v in listeners_config.items())
+        self.listeners_config = dict((k.lower(), v) for k, v in listeners_config.items())
 
         # Local IP address
         self.external_ip = socket.gethostbyname(socket.gethostname())
-        self.loopback_ip = socket.gethostbyname('localhost')
+        self.loopback_ip = socket.gethostbyname("localhost")
 
         # Sessions cache
         # NOTE: A dictionary of source ports mapped to destination address,
@@ -609,10 +607,10 @@ class DiverterBase(fnconfig.Config):
         self.default_listener = dict()
 
         # Global TCP/UDP port blacklist
-        self.blacklist_ports = {'TCP': [], 'UDP': []}
+        self.blacklist_ports = {"TCP": [], "UDP": []}
 
         # Glocal ICMP ID blacklist
-        self.blacklist_ids = {'ICMP': []}
+        self.blacklist_ids = {"ICMP": []}
 
         # Global process blacklist
         # TODO: Allow PIDs
@@ -626,18 +624,20 @@ class DiverterBase(fnconfig.Config):
         # Parse diverter config
         self.parse_diverter_config()
 
-        slists = ['DebugLevel', ]
+        slists = [
+            "DebugLevel",
+        ]
         self.reconfigure(portlists=[], stringlists=slists)
 
         dbg_lvl = 0
-        if self.is_configured('DebugLevel'):
-            for label in self.getconfigval('DebugLevel'):
+        if self.is_configured("DebugLevel"):
+            for label in self.getconfigval("DebugLevel"):
                 label = label.upper()
-                if label == 'OFF':
+                if label == "OFF":
                     dbg_lvl = 0
                     break
                 if not label in DLABELS_INV:
-                    self.logger.warning('No such DebugLevel as %s' % (label))
+                    self.logger.warning("No such DebugLevel as %s" % (label))
                 else:
                     dbg_lvl |= DLABELS_INV[label]
         self.set_debug_level(dbg_lvl, DLABELS)
@@ -647,47 +647,42 @@ class DiverterBase(fnconfig.Config):
 
         # Check active interfaces
         if not self.check_active_ethernet_adapters():
-            self.logger.critical('ERROR: No active ethernet interfaces '
-                                 'detected!')
-            self.logger.critical('         Please enable a network interface.')
+            self.logger.critical("ERROR: No active ethernet interfaces " "detected!")
+            self.logger.critical("         Please enable a network interface.")
             sys.exit(1)
 
         # Check configured ip addresses
         if not self.check_ipaddresses():
-            self.logger.critical('ERROR: No interface had IP address '
-                                 'configured!')
-            self.logger.critical('         Please configure an IP address on '
-                                 'network interface.')
+            self.logger.critical("ERROR: No interface had IP address " "configured!")
+            self.logger.critical("         Please configure an IP address on " "network interface.")
             sys.exit(1)
 
         # Check configured gateways
         gw_ok = self.check_gateways()
         if not gw_ok:
-            self.logger.warning('WARNING: No gateways configured!')
-            if self.is_set('fixgateway'):
+            self.logger.warning("WARNING: No gateways configured!")
+            if self.is_set("fixgateway"):
                 gw_ok = self.fix_gateway()
                 if not gw_ok:
-                    self.logger.warning('Cannot fix gateway')
+                    self.logger.warning("Cannot fix gateway")
 
         if not gw_ok:
-            self.logger.warning('         Please configure a default ' +
-                                'gateway or route in order to intercept ' +
-                                'external traffic.')
-            self.logger.warning('         Current interception abilities ' +
-                                'are limited to local traffic.')
+            self.logger.warning(
+                "         Please configure a default " + "gateway or route in order to intercept " + "external traffic."
+            )
+            self.logger.warning("         Current interception abilities " + "are limited to local traffic.")
 
         # Check configured DNS servers
         dns_ok = self.check_dns_servers()
         if not dns_ok:
-            self.logger.warning('WARNING: No DNS servers configured!')
-            if self.is_set('fixdns'):
+            self.logger.warning("WARNING: No DNS servers configured!")
+            if self.is_set("fixdns"):
                 dns_ok = self.fix_dns()
                 if not dns_ok:
-                    self.logger.warning('Cannot fix DNS')
+                    self.logger.warning("Cannot fix DNS")
 
         if not dns_ok:
-            self.logger.warning('         Please configure a DNS server ' +
-                                'in order to allow network resolution.')
+            self.logger.warning("         Please configure a DNS server " + "in order to allow network resolution.")
 
         # OS-specific Diverters must initialize e.g. WinDivert,
         # libnetfilter_queue, pf/alf, etc.
@@ -701,11 +696,11 @@ class DiverterBase(fnconfig.Config):
         to the already-defined (and potentially some yet-to-be-defined)
         abstract methods that handle the real OS-specific stuff.
         """
-        self.logger.debug('Starting...')
+        self.logger.debug("Starting...")
         return self.startCallback()
 
     def stop(self):
-        self.logger.info('Stopping...')
+        self.logger.info("Stopping...")
         self.prettyPrintNbi()
         self.generate_html_report()
         return self.stopCallback()
@@ -766,7 +761,7 @@ class DiverterBase(fnconfig.Config):
         """
         if self.pdebug_level & lvl:
             label = self.pdebug_labels.get(lvl)
-            prefix = '[' + label + '] ' if label else '[some component] '
+            prefix = "[" + label + "] " if label else "[some component] "
             self.logger.debug(prefix + str(s))
 
     def check_privileged(self):
@@ -776,9 +771,9 @@ class DiverterBase(fnconfig.Config):
             True if superuser, else False
         """
         try:
-            privileged = (os.getuid() == 0)
+            privileged = os.getuid() == 0
         except AttributeError:
-            privileged = (ctypes.windll.shell32.IsUserAnAdmin() != 0)
+            privileged = ctypes.windll.shell32.IsUserAnAdmin() != 0
 
         return privileged
 
@@ -801,40 +796,35 @@ class DiverterBase(fnconfig.Config):
         # Populate diverter ports and process filters from the configuration
         for listener_name, listener_config in listeners_config.items():
 
-            if 'port' in listener_config:
+            if "port" in listener_config:
 
-                port = int(listener_config['port'])
+                port = int(listener_config["port"])
 
-                hidden = (listener_config.get('hidden', 'false').lower() ==
-                          'true')
+                hidden = listener_config.get("hidden", "false").lower() == "true"
 
-                if not 'protocol' in listener_config:
-                    self.logger.error('ERROR: Protocol not defined for ' +
-                                      'listener %s', listener_name)
+                if not "protocol" in listener_config:
+                    self.logger.error("ERROR: Protocol not defined for " + "listener %s", listener_name)
                     sys.exit(1)
 
-                protocol = listener_config['protocol'].upper()
+                protocol = listener_config["protocol"].upper()
 
-                if not protocol in ['TCP', 'UDP']:
-                    self.logger.error('ERROR: Invalid protocol %s for ' +
-                                      'listener %s', protocol, listener_name)
+                if not protocol in ["TCP", "UDP"]:
+                    self.logger.error("ERROR: Invalid protocol %s for " + "listener %s", protocol, listener_name)
                     sys.exit(1)
 
                 listener = ListenerMeta(protocol, port, hidden)
 
                 ###############################################################
                 # Process filtering configuration
-                if ('processwhitelist' in listener_config and
-                        'processblacklist' in listener_config):
-                    self.logger.error('ERROR: Listener can\'t have both ' +
-                                      'process whitelist and blacklist.')
+                if "processwhitelist" in listener_config and "processblacklist" in listener_config:
+                    self.logger.error("ERROR: Listener can't have both " + "process whitelist and blacklist.")
                     sys.exit(1)
 
-                elif 'processwhitelist' in listener_config:
+                elif "processwhitelist" in listener_config:
 
-                    self.logger.debug('Process whitelist:')
+                    self.logger.debug("Process whitelist:")
 
-                    whitelist = listener_config['processwhitelist']
+                    whitelist = listener_config["processwhitelist"]
                     listener.setProcessWhitelist(whitelist)
 
                     # for port in self.port_process_whitelist[protocol]:
@@ -842,10 +832,10 @@ class DiverterBase(fnconfig.Config):
                     #                       port, protocol, ', '.join(
                     #         self.port_process_whitelist[protocol][port]))
 
-                elif 'processblacklist' in listener_config:
-                    self.logger.debug('Process blacklist:')
+                elif "processblacklist" in listener_config:
+                    self.logger.debug("Process blacklist:")
 
-                    blacklist = listener_config['processblacklist']
+                    blacklist = listener_config["processblacklist"]
                     listener.setProcessBlacklist(blacklist)
 
                     # for port in self.port_process_blacklist[protocol]:
@@ -855,15 +845,13 @@ class DiverterBase(fnconfig.Config):
 
                 ###############################################################
                 # Host filtering configuration
-                if ('hostwhitelist' in listener_config and
-                        'hostblacklist' in listener_config):
-                    self.logger.error('ERROR: Listener can\'t have both ' +
-                                      'host whitelist and blacklist.')
+                if "hostwhitelist" in listener_config and "hostblacklist" in listener_config:
+                    self.logger.error("ERROR: Listener can't have both " + "host whitelist and blacklist.")
                     sys.exit(1)
 
-                elif 'hostwhitelist' in listener_config:
-                    self.logger.debug('Host whitelist:')
-                    host_whitelist = listener_config['hostwhitelist']
+                elif "hostwhitelist" in listener_config:
+                    self.logger.debug("Host whitelist:")
+                    host_whitelist = listener_config["hostwhitelist"]
                     listener.setHostWhitelist(host_whitelist)
 
                     # for port in self.port_host_whitelist[protocol]:
@@ -871,9 +859,9 @@ class DiverterBase(fnconfig.Config):
                     #                       protocol, ', '.join(
                     #         self.port_host_whitelist[protocol][port]))
 
-                elif 'hostblacklist' in listener_config:
-                    self.logger.debug('Host blacklist:')
-                    host_blacklist = listener_config['hostblacklist']
+                elif "hostblacklist" in listener_config:
+                    self.logger.debug("Host blacklist:")
+                    host_blacklist = listener_config["hostblacklist"]
                     listener.setHostBlacklist(host_blacklist)
 
                     # for port in self.port_host_blacklist[protocol]:
@@ -886,26 +874,24 @@ class DiverterBase(fnconfig.Config):
 
                 ###############################################################
                 # Execute command configuration
-                if 'executecmd' in listener_config:
-                    template = listener_config['executecmd'].strip()
+                if "executecmd" in listener_config:
+                    template = listener_config["executecmd"].strip()
 
                     # Would prefer not to get into the middle of a debug
                     # session and learn that a typo has ruined the day, so we
                     # test beforehand to make sure all the user-specified
                     # insertion strings are valid.
-                    test = self._build_cmd(template, 0, 'test', '1.2.3.4',
-                                           12345, '4.3.2.1', port)
+                    test = self._build_cmd(template, 0, "test", "1.2.3.4", 12345, "4.3.2.1", port)
                     if not test:
-                        self.logger.error(('Terminating due to incorrectly ' +
-                                          'configured ExecuteCmd for ' +
-                                          'listener %s') % (listener_name))
+                        self.logger.error(
+                            ("Terminating due to incorrectly " + "configured ExecuteCmd for " + "listener %s")
+                            % (listener_name)
+                        )
                         sys.exit(1)
 
                     listener.setExecuteCmd(template)
 
-                    self.logger.debug('Port %d (%s) ExecuteCmd: %s', port,
-                                      protocol,
-                                      template)
+                    self.logger.debug("Port %d (%s) ExecuteCmd: %s", port, protocol, template)
 
     def build_cmd(self, pkt, pid, comm):
         """Retrieve the ExecuteCmd directive if applicable and build the
@@ -923,8 +909,7 @@ class DiverterBase(fnconfig.Config):
 
         template = self.listener_ports.getExecuteCmd(pkt.proto, pkt.dport)
         if template:
-            cmd = self._build_cmd(template, pid, comm, pkt.src_ip, pkt.sport,
-                                  pkt.dst_ip, pkt.dport)
+            cmd = self._build_cmd(template, pid, comm, pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
 
         return cmd
 
@@ -958,11 +943,12 @@ class DiverterBase(fnconfig.Config):
                 src_addr=str(src_ip),
                 src_port=str(sport),
                 dst_addr=str(dst_ip),
-                dst_port=str(dport))
+                dst_port=str(dport),
+            )
         except KeyError as e:
-            self.logger.error(('Failed to build ExecuteCmd for port %d due ' +
-                              'to erroneous format key: %s') %
-                              (dport, str(e)))
+            self.logger.error(
+                ("Failed to build ExecuteCmd for port %d due " + "to erroneous format key: %s") % (dport, str(e))
+            )
 
         return cmd
 
@@ -997,15 +983,11 @@ class DiverterBase(fnconfig.Config):
         preexec = None if self.running_on_windows else ign_sigint
 
         try:
-            pid = subprocess.Popen(execute_cmd, creationflags=cflags,
-                                   shell=shl,
-                                   close_fds=cfds,
-                                   preexec_fn=preexec).pid
+            pid = subprocess.Popen(execute_cmd, creationflags=cflags, shell=shl, close_fds=cfds, preexec_fn=preexec).pid
         except Exception as e:
-            self.logger.error('Exception of type %s' % (str(type(e))))
-            self.logger.error('Error: Failed to execute command: %s',
-                              execute_cmd)
-            self.logger.error('       %s', e)
+            self.logger.error("Exception of type %s" % (str(type(e))))
+            self.logger.error("Error: Failed to execute command: %s", execute_cmd)
+            self.logger.error("       %s", e)
         else:
             return pid
 
@@ -1021,123 +1003,117 @@ class DiverterBase(fnconfig.Config):
             None
         """
         # SingleHost vs MultiHost mode
-        self.network_mode = 'SingleHost'  # Default
+        self.network_mode = "SingleHost"  # Default
         self.single_host_mode = True
-        if self.is_configured('networkmode'):
-            self.network_mode = self.getconfigval('networkmode')
-            available_modes = ['singlehost', 'multihost']
+        if self.is_configured("networkmode"):
+            self.network_mode = self.getconfigval("networkmode")
+            available_modes = ["singlehost", "multihost"]
 
             # Constrain argument values
             if self.network_mode.lower() not in available_modes:
-                self.logger.error('NetworkMode must be one of %s' %
-                                  (available_modes))
+                self.logger.error("NetworkMode must be one of %s" % (available_modes))
                 sys.exit(1)
 
             # Adjust previously assumed mode if operator specifies MultiHost
-            if self.network_mode.lower() == 'multihost':
+            if self.network_mode.lower() == "multihost":
                 self.single_host_mode = False
 
-        if (self.getconfigval('processwhitelist') and
-                self.getconfigval('processblacklist')):
-            self.logger.error('ERROR: Diverter can\'t have both process ' +
-                              'whitelist and blacklist.')
+        if self.getconfigval("processwhitelist") and self.getconfigval("processblacklist"):
+            self.logger.error("ERROR: Diverter can't have both process " + "whitelist and blacklist.")
             sys.exit(1)
 
-        if self.is_set('dumppackets'):
-            self.pcap_filename = '%s_%s.pcap' % (self.getconfigval(
-                'dumppacketsfileprefix', 'packets'),
-                time.strftime('%Y%m%d_%H%M%S'))
-            self.logger.info('Capturing traffic to %s', self.pcap_filename)
-            self.pcap = dpkt.pcap.Writer(open(self.pcap_filename, 'wb'),
-                                         linktype=dpkt.pcap.DLT_RAW)
+        if self.is_set("dumppackets"):
+            self.pcap_filename = "%s_%s.pcap" % (
+                self.getconfigval("dumppacketsfileprefix", "packets"),
+                time.strftime("%Y%m%d_%H%M%S"),
+            )
+            self.logger.info("Capturing traffic to %s", self.pcap_filename)
+            self.pcap = dpkt.pcap.Writer(open(self.pcap_filename, "wb"), linktype=dpkt.pcap.DLT_RAW)
             self.pcap_lock = threading.Lock()
 
         # Do not redirect blacklisted processes
-        if self.is_configured('processblacklist'):
-            self.blacklist_processes = [process.strip() for process in
-                self.getconfigval('processblacklist').split(',')]
-            self.logger.debug('Blacklisted processes: %s', ', '.join(
-                [str(p) for p in self.blacklist_processes]))
+        if self.is_configured("processblacklist"):
+            self.blacklist_processes = [process.strip() for process in self.getconfigval("processblacklist").split(",")]
+            self.logger.debug("Blacklisted processes: %s", ", ".join([str(p) for p in self.blacklist_processes]))
             if self.logger.level == logging.INFO:
-                self.logger.info('Hiding logs from blacklisted processes')
+                self.logger.info("Hiding logs from blacklisted processes")
 
         # Only redirect whitelisted processes
-        if self.is_configured('processwhitelist'):
-            self.whitelist_processes = [process.strip() for process in
-                self.getconfigval('processwhitelist').split(',')]
-            self.logger.debug('Whitelisted processes: %s', ', '.join(
-                [str(p) for p in self.whitelist_processes]))
+        if self.is_configured("processwhitelist"):
+            self.whitelist_processes = [process.strip() for process in self.getconfigval("processwhitelist").split(",")]
+            self.logger.debug("Whitelisted processes: %s", ", ".join([str(p) for p in self.whitelist_processes]))
 
         # Do not redirect blacklisted hosts
-        if self.is_configured('hostblacklist'):
-            self.blacklist_hosts = self.getconfigval('hostblacklist')
-            self.logger.debug('Blacklisted hosts: %s', ', '.join(
-                [str(p) for p in self.getconfigval('hostblacklist')]))
+        if self.is_configured("hostblacklist"):
+            self.blacklist_hosts = self.getconfigval("hostblacklist")
+            self.logger.debug("Blacklisted hosts: %s", ", ".join([str(p) for p in self.getconfigval("hostblacklist")]))
 
         # Redirect all traffic
-        self.default_listener = {'TCP': None, 'UDP': None}
-        if self.is_set('redirectalltraffic'):
-            if self.is_unconfigured('defaulttcplistener'):
-                self.logger.error('ERROR: No default TCP listener specified ' +
-                                  'in the configuration.')
+        self.default_listener = {"TCP": None, "UDP": None}
+        if self.is_set("redirectalltraffic"):
+            if self.is_unconfigured("defaulttcplistener"):
+                self.logger.error("ERROR: No default TCP listener specified " + "in the configuration.")
                 sys.exit(1)
 
-            elif self.is_unconfigured('defaultudplistener'):
-                self.logger.error('ERROR: No default UDP listener specified ' +
-                                  'in the configuration.')
+            elif self.is_unconfigured("defaultudplistener"):
+                self.logger.error("ERROR: No default UDP listener specified " + "in the configuration.")
                 sys.exit(1)
 
-            elif not (self.getconfigval('defaulttcplistener').lower() in
-                      self.listeners_config):
-                self.logger.error('ERROR: No configuration exists for ' +
-                                  'default TCP listener %s',
-                                  self.getconfigval('defaulttcplistener'))
+            elif not (self.getconfigval("defaulttcplistener").lower() in self.listeners_config):
+                self.logger.error(
+                    "ERROR: No configuration exists for " + "default TCP listener %s",
+                    self.getconfigval("defaulttcplistener"),
+                )
                 sys.exit(1)
 
-            elif not (self.getconfigval('defaultudplistener').lower() in
-                      self.listeners_config):
-                self.logger.error('ERROR: No configuration exists for ' +
-                                  'default UDP listener %s',
-                                  self.getconfigval('defaultudplistener'))
+            elif not (self.getconfigval("defaultudplistener").lower() in self.listeners_config):
+                self.logger.error(
+                    "ERROR: No configuration exists for " + "default UDP listener %s",
+                    self.getconfigval("defaultudplistener"),
+                )
                 sys.exit(1)
 
             else:
-                default_listener = self.getconfigval('defaulttcplistener').lower()
-                default_port = self.listeners_config[default_listener]['port']
-                self.default_listener['TCP'] = int(default_port)
-                self.logger.debug('Using default listener %s on port %d',
-                                  self.getconfigval('defaulttcplistener').lower(),
-                                  self.default_listener['TCP'])
+                default_listener = self.getconfigval("defaulttcplistener").lower()
+                default_port = self.listeners_config[default_listener]["port"]
+                self.default_listener["TCP"] = int(default_port)
+                self.logger.debug(
+                    "Using default listener %s on port %d",
+                    self.getconfigval("defaulttcplistener").lower(),
+                    self.default_listener["TCP"],
+                )
 
-                default_listener = self.getconfigval('defaultudplistener').lower()
-                default_port = self.listeners_config[default_listener]['port']
-                self.default_listener['UDP'] = int(default_port)
-                self.logger.debug('Using default listener %s on port %d',
-                                  self.getconfigval('defaultudplistener').lower(),
-                                  self.default_listener['UDP'])
+                default_listener = self.getconfigval("defaultudplistener").lower()
+                default_port = self.listeners_config[default_listener]["port"]
+                self.default_listener["UDP"] = int(default_port)
+                self.logger.debug(
+                    "Using default listener %s on port %d",
+                    self.getconfigval("defaultudplistener").lower(),
+                    self.default_listener["UDP"],
+                )
 
             # Re-marshall these into a readily usable form...
 
             # Do not redirect blacklisted TCP ports
-            if self.is_configured('blacklistportstcp'):
-                self.blacklist_ports['TCP'] = \
-                    self.getconfigval('blacklistportstcp')
-                self.logger.debug('Blacklisted TCP ports: %s', ', '.join(
-                    [str(p) for p in self.getconfigval('BlackListPortsTCP')]))
+            if self.is_configured("blacklistportstcp"):
+                self.blacklist_ports["TCP"] = self.getconfigval("blacklistportstcp")
+                self.logger.debug(
+                    "Blacklisted TCP ports: %s", ", ".join([str(p) for p in self.getconfigval("BlackListPortsTCP")])
+                )
 
             # Do not redirect blacklisted UDP ports
-            if self.is_configured('blacklistportsudp'):
-                self.blacklist_ports['UDP'] = \
-                    self.getconfigval('blacklistportsudp')
-                self.logger.debug('Blacklisted UDP ports: %s', ', '.join(
-                    [str(p) for p in self.getconfigval('BlackListPortsUDP')]))
+            if self.is_configured("blacklistportsudp"):
+                self.blacklist_ports["UDP"] = self.getconfigval("blacklistportsudp")
+                self.logger.debug(
+                    "Blacklisted UDP ports: %s", ", ".join([str(p) for p in self.getconfigval("BlackListPortsUDP")])
+                )
 
             # Do not redirect blacklisted ICMP IDs
-            if self.is_configured('blacklistidsicmp'):
-                self.blacklist_ids['ICMP'] = \
-                    self.getconfigval('blacklistidsicmp')
-                self.logger.debug('Blacklisted ICMP IDs: %s', ', '.join(
-                    [str(c) for c in self.getconfigval('BlackListIDsICMP')]))
+            if self.is_configured("blacklistidsicmp"):
+                self.blacklist_ids["ICMP"] = self.getconfigval("blacklistidsicmp")
+                self.logger.debug(
+                    "Blacklisted ICMP IDs: %s", ", ".join([str(c) for c in self.getconfigval("BlackListIDsICMP")])
+                )
 
     def write_pcap(self, pkt):
         """Writes a packet to the pcap.
@@ -1153,9 +1129,8 @@ class DiverterBase(fnconfig.Config):
         """
         if self.pcap and self.pcap_lock:
             with self.pcap_lock:
-                mangled = 'mangled' if pkt.mangled else 'initial'
-                self.pdebug(DPCAP, 'Writing %s packet %s' %
-                            (mangled, pkt.hdrToStr2()))
+                mangled = "mangled" if pkt.mangled else "initial"
+                self.pdebug(DPCAP, "Writing %s packet %s" % (mangled, pkt.hdrToStr2()))
                 self.pcap.writepkt(pkt.octets)
 
     def handle_pkt(self, pkt, callbacks3, callbacks4):
@@ -1199,9 +1174,9 @@ class DiverterBase(fnconfig.Config):
         no_further_processing = False
 
         if pkt.ipver is None:
-            self.logger.warning('%s: Failed to parse IP packet' % (pkt.label))
+            self.logger.warning("%s: Failed to parse IP packet" % (pkt.label))
         else:
-            self.pdebug(DGENPKT, '%s %s' % (pkt.label, pkt.hdrToStr()))
+            self.pdebug(DGENPKT, "%s %s" % (pkt.label, pkt.hdrToStr()))
 
             crit = DivertParms(self, pkt)
 
@@ -1219,25 +1194,23 @@ class DiverterBase(fnconfig.Config):
                     # process, messages are logged with level DEBUG. Executing
                     # FakeNet in the verbose mode will print these logs
                     is_process_blacklisted, _, _ = self.isProcessBlackListed(
-                                                        pkt.proto,
-                                                        process_name=comm,
-                                                        dport=pkt.dport0
-                                                    )
+                        pkt.proto, process_name=comm, dport=pkt.dport0
+                    )
                     if is_process_blacklisted:
-                        self.logger.debug('%s' % (str(pc)))
+                        self.logger.debug("%s" % (str(pc)))
                     else:
-                        self.logger.info('%s' % (str(pc)))
+                        self.logger.info("%s" % (str(pc)))
 
             # 2: Call layer 3 (network) callbacks
             for cb in callbacks3:
                 # These debug outputs are useful for figuring out which
                 # callback is responsible for an exception that was masked by
                 # python-netfilterqueue's global callback.
-                self.pdebug(DCB, 'Calling %s' % (cb))
+                self.pdebug(DCB, "Calling %s" % (cb))
 
                 cb(crit, pkt)
 
-                self.pdebug(DCB, '%s finished' % (cb))
+                self.pdebug(DCB, "%s finished" % (cb))
 
             if pkt.proto:
 
@@ -1246,9 +1219,8 @@ class DiverterBase(fnconfig.Config):
                     # fall where they may. This behavior now applies to all
                     # Diverters.
                     if crit.is_loopback:
-                        self.logger.debug('Ignoring loopback packet')
-                        self.logger.debug('  %s:%d -> %s:%d', pkt.src_ip,
-                                          pkt.sport, pkt.dst_ip, pkt.dport)
+                        self.logger.debug("Ignoring loopback packet")
+                        self.logger.debug("  %s:%d -> %s:%d", pkt.src_ip, pkt.sport, pkt.dst_ip, pkt.dport)
                         no_further_processing = True
 
                     # 3: Layer 4 (Transport layer) callbacks
@@ -1258,15 +1230,14 @@ class DiverterBase(fnconfig.Config):
                             # which callback is responsible for an exception
                             # that was masked by python-netfilterqueue's global
                             # callback.
-                            self.pdebug(DCB, 'Calling %s' % (cb))
+                            self.pdebug(DCB, "Calling %s" % (cb))
 
                             cb(crit, pkt, pid, comm)
 
-                            self.pdebug(DCB, '%s finished' % (cb))
+                            self.pdebug(DCB, "%s finished" % (cb))
 
             else:
-                self.pdebug(DGENPKT, '%s: Not handling protocol %s' %
-                                     (pkt.label, pkt.proto))
+                self.pdebug(DGENPKT, "%s: Not handling protocol %s" % (pkt.label, pkt.proto))
 
         # 4: Double write mangled packets to represent changes made by
         # FakeNet-NG while still allowing SSL decoding with the old packets
@@ -1284,10 +1255,10 @@ class DiverterBase(fnconfig.Config):
         Returns:
             A str containing the log line
         """
-        logline = ''
+        logline = ""
 
-        if pkt.proto == 'UDP':
-            fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
+        if pkt.proto == "UDP":
+            fmt = "| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |"
             logline = fmt.format(
                 label=pkt.label,
                 proto=pkt.proto,
@@ -1298,28 +1269,28 @@ class DiverterBase(fnconfig.Config):
                 dst=pkt.dst_ip,
                 dport=pkt.dport,
                 length=len(pkt),
-                flags='',
-                seqack='',
-                )
+                flags="",
+                seqack="",
+            )
 
-        elif pkt.proto == 'TCP':
+        elif pkt.proto == "TCP":
             tcp = pkt._hdr.data
 
-            sa = 'Seq=%d, Ack=%d' % (tcp.seq, tcp.ack)
+            sa = "Seq=%d, Ack=%d" % (tcp.seq, tcp.ack)
 
             f = []
             if (tcp.flags & dpkt.tcp.TH_RST) != 0:
-                f.append('RST')
+                f.append("RST")
             if (tcp.flags & dpkt.tcp.TH_SYN) != 0:
-                f.append('SYN')
+                f.append("SYN")
             if (tcp.flags & dpkt.tcp.TH_ACK) != 0:
-                f.append('ACK')
+                f.append("ACK")
             if (tcp.flags & dpkt.tcp.TH_FIN) != 0:
-                f.append('FIN')
+                f.append("FIN")
             if (tcp.flags & dpkt.tcp.TH_PUSH) != 0:
-                f.append('PSH')
+                f.append("PSH")
 
-            fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
+            fmt = "| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |"
             logline = fmt.format(
                 label=pkt.label,
                 proto=pkt.proto,
@@ -1330,14 +1301,14 @@ class DiverterBase(fnconfig.Config):
                 dst=pkt.dst_ip,
                 dport=pkt.dport,
                 length=len(pkt),
-                flags=','.join(f),
+                flags=",".join(f),
                 seqack=sa,
-                )
+            )
         else:
-            fmt = '| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |'
+            fmt = "| {label} {proto} | {pid:>6} | {comm:<8} | {src:>15}:{sport:<5} | {dst:>15}:{dport:<5} | {length:>5} | {flags:<11} | {seqack:<35} |"
             logline = fmt.format(
                 label=pkt.label,
-                proto='UNK',
+                proto="UNK",
                 pid=str(pid),
                 comm=str(comm),
                 src=str(pkt.src_ip),
@@ -1345,9 +1316,9 @@ class DiverterBase(fnconfig.Config):
                 dst=str(pkt.dst_ip),
                 dport=str(pkt.dport),
                 length=len(pkt),
-                flags='',
-                seqack='',
-                )
+                flags="",
+                seqack="",
+            )
         return logline
 
     def check_should_ignore(self, pkt, pid, comm):
@@ -1370,9 +1341,8 @@ class DiverterBase(fnconfig.Config):
         dst_ip = pkt.dst_ip0
         dport = pkt.dport0
 
-        if not self.is_set('redirectalltraffic'):
-            self.pdebug(DIGN, 'Ignoring %s packet %s' %
-                        (pkt.proto, pkt.hdrToStr()))
+        if not self.is_set("redirectalltraffic"):
+            self.pdebug(DIGN, "Ignoring %s packet %s" % (pkt.proto, pkt.hdrToStr()))
             return True
 
         # SingleHost mode checks
@@ -1380,41 +1350,39 @@ class DiverterBase(fnconfig.Config):
             if comm:
                 # Check process blacklist
                 if comm in self.blacklist_processes:
-                    self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
-                                'in the process blacklist.') % (pkt.proto,
-                                comm))
-                    self.pdebug(DIGN, '  %s' %
-                                (pkt.hdrToStr()))
+                    self.pdebug(
+                        DIGN, ("Ignoring %s packet from process %s " + "in the process blacklist.") % (pkt.proto, comm)
+                    )
+                    self.pdebug(DIGN, "  %s" % (pkt.hdrToStr()))
                     return True
 
                 # Check process whitelist
-                elif (len(self.whitelist_processes) and (comm not in
-                      self.whitelist_processes)):
-                    self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
-                                'not in the process whitelist.') % (pkt.proto,
-                                comm))
-                    self.pdebug(DIGN, '  %s' %
-                                (pkt.hdrToStr()))
+                elif len(self.whitelist_processes) and (comm not in self.whitelist_processes):
+                    self.pdebug(
+                        DIGN,
+                        ("Ignoring %s packet from process %s " + "not in the process whitelist.") % (pkt.proto, comm),
+                    )
+                    self.pdebug(DIGN, "  %s" % (pkt.hdrToStr()))
                     return True
 
                 # Check per-listener blacklisted process list
-                elif self.listener_ports.isProcessBlackListHit(
-                        pkt.proto, dport, comm):
-                    self.pdebug(DIGN, ('Ignoring %s request packet from ' +
-                                'process %s in the listener process ' +
-                                'blacklist.') % (pkt.proto, comm))
-                    self.pdebug(DIGN, '  %s' %
-                                (pkt.hdrToStr()))
+                elif self.listener_ports.isProcessBlackListHit(pkt.proto, dport, comm):
+                    self.pdebug(
+                        DIGN,
+                        ("Ignoring %s request packet from " + "process %s in the listener process " + "blacklist.")
+                        % (pkt.proto, comm),
+                    )
+                    self.pdebug(DIGN, "  %s" % (pkt.hdrToStr()))
                     return True
 
                 # Check per-listener whitelisted process list
-                elif self.listener_ports.isProcessWhiteListMiss(
-                        pkt.proto, dport, comm):
-                    self.pdebug(DIGN, ('Ignoring %s request packet from ' +
-                                'process %s not in the listener process ' +
-                                'whitelist.') % (pkt.proto, comm))
-                    self.pdebug(DIGN, '  %s' %
-                                (pkt.hdrToStr()))
+                elif self.listener_ports.isProcessWhiteListMiss(pkt.proto, dport, comm):
+                    self.pdebug(
+                        DIGN,
+                        ("Ignoring %s request packet from " + "process %s not in the listener process " + "whitelist.")
+                        % (pkt.proto, comm),
+                    )
+                    self.pdebug(DIGN, "  %s" % (pkt.hdrToStr()))
                     return True
 
         # MultiHost mode checks
@@ -1426,33 +1394,33 @@ class DiverterBase(fnconfig.Config):
         # Forwarding blacklisted port
         if pkt.proto:
             if set(self.blacklist_ports[pkt.proto]).intersection([sport, dport]):
-                self.pdebug(DIGN, 'Forwarding blacklisted port %s packet:' %
-                            (pkt.proto))
-                self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
+                self.pdebug(DIGN, "Forwarding blacklisted port %s packet:" % (pkt.proto))
+                self.pdebug(DIGN, "  %s" % (pkt.hdrToStr()))
                 return True
 
         # Check host blacklist
-        global_host_blacklist = self.getconfigval('hostblacklist')
+        global_host_blacklist = self.getconfigval("hostblacklist")
         if global_host_blacklist and dst_ip in global_host_blacklist:
-            self.pdebug(DIGN, ('Ignoring %s packet to %s in the host ' +
-                        'blacklist.') % (str(pkt.proto), dst_ip))
-            self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
-            self.logger.error('IGN: host blacklist match')
+            self.pdebug(DIGN, ("Ignoring %s packet to %s in the host " + "blacklist.") % (str(pkt.proto), dst_ip))
+            self.pdebug(DIGN, "  %s" % (pkt.hdrToStr()))
+            self.logger.error("IGN: host blacklist match")
             return True
 
         # Check the port host whitelist
         if self.listener_ports.isHostWhiteListMiss(pkt.proto, dport, dst_ip):
-            self.pdebug(DIGN, ('Ignoring %s request packet to %s not in ' +
-                        'the listener host whitelist.') % (pkt.proto,
-                        dst_ip))
-            self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
+            self.pdebug(
+                DIGN,
+                ("Ignoring %s request packet to %s not in " + "the listener host whitelist.") % (pkt.proto, dst_ip),
+            )
+            self.pdebug(DIGN, "  %s" % (pkt.hdrToStr()))
             return True
 
         # Check the port host blacklist
         if self.listener_ports.isHostBlackListHit(pkt.proto, dport, dst_ip):
-            self.pdebug(DIGN, ('Ignoring %s request packet to %s in the ' +
-                        'listener host blacklist.') % (pkt.proto, dst_ip))
-            self.pdebug(DIGN, '  %s' % (pkt.hdrToStr()))
+            self.pdebug(
+                DIGN, ("Ignoring %s request packet to %s in the " + "listener host blacklist.") % (pkt.proto, dst_ip)
+            )
+            self.pdebug(DIGN, "  %s" % (pkt.hdrToStr()))
             return True
 
         # Duplicated from diverters/windows.py:
@@ -1465,17 +1433,14 @@ class DiverterBase(fnconfig.Config):
         # is actually a SYN packet
         if pid == self.pid:
             if (
-                ((dst_ip in self.ip_addrs[pkt.ipver]) and
-                (not dst_ip.startswith('127.'))) and
-                ((src_ip in self.ip_addrs[pkt.ipver]) and
-                (not dst_ip.startswith('127.'))) and
-                (not self.listener_ports.intersectsWithPorts(pkt.proto, [sport, dport]))
-                ):
+                ((dst_ip in self.ip_addrs[pkt.ipver]) and (not dst_ip.startswith("127.")))
+                and ((src_ip in self.ip_addrs[pkt.ipver]) and (not dst_ip.startswith("127.")))
+                and (not self.listener_ports.intersectsWithPorts(pkt.proto, [sport, dport]))
+            ):
 
-                self.pdebug(DIGN | DFTP, 'Listener initiated %s connection' %
-                            (pkt.proto))
-                self.pdebug(DIGN | DFTP, '  %s' % (pkt.hdrToStr()))
-                self.pdebug(DIGN | DFTP, '  Blacklisting port %d' % (sport))
+                self.pdebug(DIGN | DFTP, "Listener initiated %s connection" % (pkt.proto))
+                self.pdebug(DIGN | DFTP, "  %s" % (pkt.hdrToStr()))
+                self.pdebug(DIGN | DFTP, "  Blacklisting port %d" % (sport))
                 self.blacklist_ports[pkt.proto].append(sport)
 
                 return True
@@ -1492,10 +1457,8 @@ class DiverterBase(fnconfig.Config):
         Returns:
             None
         """
-        if (pkt.is_icmp and (not self.running_on_windows or
-                pkt.icmp_id not in self.blacklist_ids["ICMP"])):
-            self.logger.info('ICMP type %d code %d %s' % (
-                pkt.icmp_type, pkt.icmp_code, pkt.hdrToStr()))
+        if pkt.is_icmp and (not self.running_on_windows or pkt.icmp_id not in self.blacklist_ids["ICMP"]):
+            self.logger.info("ICMP type %d code %d %s" % (pkt.icmp_type, pkt.icmp_code, pkt.hdrToStr()))
 
     def getOriginalDestPort(self, orig_src_ip, orig_src_port, proto):
         """Return original destination port, or None if it was not redirected.
@@ -1513,8 +1476,7 @@ class DiverterBase(fnconfig.Config):
             None, otherwise
         """
 
-        orig_src_key = fnpacket.PacketCtx.gen_endpoint_key(proto, orig_src_ip,
-                                                           orig_src_port)
+        orig_src_key = fnpacket.PacketCtx.gen_endpoint_key(proto, orig_src_ip, orig_src_port)
         with self.port_fwd_table_lock:
             return self.port_fwd_table.get(orig_src_key)
 
@@ -1540,18 +1502,17 @@ class DiverterBase(fnconfig.Config):
         if self.check_should_ignore(pkt, pid, comm):
             return
 
-        self.pdebug(DIPNAT, 'Condition 1 test')
+        self.pdebug(DIPNAT, "Condition 1 test")
         # Condition 1: If the remote IP address is foreign to this system,
         # then redirect it to a local IP address.
         if self.single_host_mode and (pkt.dst_ip not in self.ip_addrs[pkt.ipver]):
-            self.pdebug(DIPNAT, 'Condition 1 satisfied')
+            self.pdebug(DIPNAT, "Condition 1 satisfied")
             with self.ip_fwd_table_lock:
                 self.ip_fwd_table[pkt.skey] = pkt.dst_ip
 
             newdst = self.getNewDestinationIp(pkt.src_ip)
 
-            self.pdebug(DIPNAT, 'REDIRECTING %s to IP %s' %
-                        (pkt.hdrToStr(), newdst))
+            self.pdebug(DIPNAT, "REDIRECTING %s to IP %s" % (pkt.hdrToStr(), newdst))
             pkt.dst_ip = newdst
 
         else:
@@ -1566,8 +1527,7 @@ class DiverterBase(fnconfig.Config):
 
             with self.ip_fwd_table_lock:
                 if pkt.skey in self.ip_fwd_table:
-                    self.pdebug(DIPNAT, ' - DELETING ipfwd key entry: %s' %
-                                (pkt.skey))
+                    self.pdebug(DIPNAT, " - DELETING ipfwd key entry: %s" % (pkt.skey))
                     del self.ip_fwd_table[pkt.skey]
 
     def maybe_fixup_srcip(self, crit, pkt, pid, comm):
@@ -1598,14 +1558,13 @@ class DiverterBase(fnconfig.Config):
         self.pdebug(DIPNAT, "Condition 4 test: was remote endpoint IP fwd'd?")
         with self.ip_fwd_table_lock:
             if self.single_host_mode and (pkt.dkey in self.ip_fwd_table):
-                self.pdebug(DIPNAT, 'Condition 4 satisfied')
-                self.pdebug(DIPNAT, ' = FOUND ipfwd key entry: ' + pkt.dkey)
+                self.pdebug(DIPNAT, "Condition 4 satisfied")
+                self.pdebug(DIPNAT, " = FOUND ipfwd key entry: " + pkt.dkey)
                 new_srcip = self.ip_fwd_table[pkt.dkey]
-                self.pdebug(DIPNAT, 'MASQUERADING %s from IP %s' %
-                            (pkt.hdrToStr(), new_srcip))
+                self.pdebug(DIPNAT, "MASQUERADING %s from IP %s" % (pkt.hdrToStr(), new_srcip))
                 pkt.src_ip = new_srcip
             else:
-                self.pdebug(DIPNAT, ' ! NO SUCH ipfwd key entry: ' + pkt.dkey)
+                self.pdebug(DIPNAT, " ! NO SUCH ipfwd key entry: " + pkt.dkey)
 
     def maybe_redir_port(self, crit, pkt, pid, comm):
         """Conditionally send packets to the default listener for this proto.
@@ -1645,8 +1604,7 @@ class DiverterBase(fnconfig.Config):
 
         bound_ports = self.listener_ports.getPortList(pkt.proto)
         if dport_hidden_listener or self.decide_redir_port(pkt, bound_ports):
-            self.pdebug(DDPFV, 'Condition 2 satisfied: Packet destined for '
-                        'unbound port or hidden listener')
+            self.pdebug(DDPFV, "Condition 2 satisfied: Packet destined for " "unbound port or hidden listener")
 
             # Post-condition 1: General ignore conditions are not met, or this
             # is part of a conversation that is already being ignored.
@@ -1664,8 +1622,7 @@ class DiverterBase(fnconfig.Config):
 
             # Is this conversation already being ignored for DPF purposes?
             with self.ignore_table_lock:
-                if ((pkt.dkey in self.ignore_table) and
-                        (self.ignore_table[pkt.dkey] == pkt.sport)):
+                if (pkt.dkey in self.ignore_table) and (self.ignore_table[pkt.dkey] == pkt.sport):
                     # This is a reply (e.g. a TCP RST) from the
                     # non-port-forwarded server that the non-port-forwarded
                     # client was trying to talk to. Leave it alone.
@@ -1678,12 +1635,11 @@ class DiverterBase(fnconfig.Config):
 
             # Record the foreign endpoint and old destination port in the port
             # forwarding table
-            self.pdebug(DDPFV, ' + ADDING portfwd key entry: ' + pkt.skey)
+            self.pdebug(DDPFV, " + ADDING portfwd key entry: " + pkt.skey)
             with self.port_fwd_table_lock:
                 self.port_fwd_table[pkt.skey] = pkt.dport
 
-            self.pdebug(DDPF, 'Redirecting %s to go to port %d' %
-                        (pkt.hdrToStr(), default))
+            self.pdebug(DDPF, "Redirecting %s to go to port %d" % (pkt.hdrToStr(), default))
             pkt.dport = default
 
         else:
@@ -1735,21 +1691,19 @@ class DiverterBase(fnconfig.Config):
             new_sport = self.port_fwd_table.get(pkt.dkey)
 
         if new_sport:
-            self.pdebug(DDPFV, 'Condition 3 satisfied: must fix up ' +
-                        'source port')
-            self.pdebug(DDPFV, ' = FOUND portfwd key entry: ' + pkt.dkey)
-            self.pdebug(DDPF, 'MASQUERADING %s to come from port %d' %
-                              (pkt.hdrToStr(), new_sport))
+            self.pdebug(DDPFV, "Condition 3 satisfied: must fix up " + "source port")
+            self.pdebug(DDPFV, " = FOUND portfwd key entry: " + pkt.dkey)
+            self.pdebug(DDPF, "MASQUERADING %s to come from port %d" % (pkt.hdrToStr(), new_sport))
             pkt.sport = new_sport
         else:
-            self.pdebug(DDPFV, ' ! NO SUCH portfwd key entry: ' + pkt.dkey)
+            self.pdebug(DDPFV, " ! NO SUCH portfwd key entry: " + pkt.dkey)
 
         return pkt.hdr if pkt.mangled else None
 
     def delete_stale_port_fwd_key(self, skey):
         with self.port_fwd_table_lock:
             if skey in self.port_fwd_table:
-                self.pdebug(DDPFV, ' - DELETING portfwd key entry: ' + skey)
+                self.pdebug(DDPFV, " - DELETING portfwd key entry: " + skey)
                 del self.port_fwd_table[skey]
 
     def decide_redir_port(self, pkt, bound_ports):
@@ -1767,28 +1721,24 @@ class DiverterBase(fnconfig.Config):
             False otherwise
         """
         # A, B, C, D for easy manipulation; full names for readability only.
-        a = src_local = (pkt.src_ip in self.ip_addrs[pkt.ipver])
+        a = src_local = pkt.src_ip in self.ip_addrs[pkt.ipver]
         c = sport_bound = pkt.sport in (bound_ports)
         d = dport_bound = pkt.dport in (bound_ports)
 
         if self.pdebug_level & DDPFV:
             # Unused logic term not calculated except for debug output
-            b = dst_local = (pkt.dst_ip in self.ip_addrs[pkt.ipver])
+            b = dst_local = pkt.dst_ip in self.ip_addrs[pkt.ipver]
 
-            self.pdebug(DDPFV, 'src %s (%s)' %
-                        (str(pkt.src_ip), ['foreign', 'local'][a]))
-            self.pdebug(DDPFV, 'dst %s (%s)' %
-                        (str(pkt.dst_ip), ['foreign', 'local'][b]))
-            self.pdebug(DDPFV, 'sport %s (%sbound)' %
-                        (str(pkt.sport), ['un', ''][c]))
-            self.pdebug(DDPFV, 'dport %s (%sbound)' %
-                        (str(pkt.dport), ['un', ''][d]))
+            self.pdebug(DDPFV, "src %s (%s)" % (str(pkt.src_ip), ["foreign", "local"][a]))
+            self.pdebug(DDPFV, "dst %s (%s)" % (str(pkt.dst_ip), ["foreign", "local"][b]))
+            self.pdebug(DDPFV, "sport %s (%sbound)" % (str(pkt.sport), ["un", ""][c]))
+            self.pdebug(DDPFV, "dport %s (%sbound)" % (str(pkt.dport), ["un", ""][d]))
 
             # Convenience function: binary representation of a bool
             def bn(x):
-                return '1' if x else '0'  # Bool -> binary
+                return "1" if x else "0"  # Bool -> binary
 
-            self.pdebug(DDPFV, 'abcd = ' + bn(a) + bn(b) + bn(c) + bn(d))
+            self.pdebug(DDPFV, "abcd = " + bn(a) + bn(b) + bn(c) + bn(d))
 
         return (not a and not d) or (not c and not d)
 
@@ -1801,11 +1751,9 @@ class DiverterBase(fnconfig.Config):
         Returns:
             None
         """
-        session = namedtuple('session', ['dst_ip', 'dport', 'pid',
-                                         'comm', 'dport0', 'proto'])
+        session = namedtuple("session", ["dst_ip", "dport", "pid", "comm", "dport0", "proto"])
         pid, comm = self.get_pid_comm(pkt)
-        self.sessions[pkt.sport] = session(pkt.dst_ip, pkt.dport, pid,
-                                           comm, pkt._dport0, pkt.proto)
+        self.sessions[pkt.sport] = session(pkt.dst_ip, pkt.dport, pid, comm, pkt._dport0, pkt.proto)
 
     def maybeExecuteCmd(self, pkt, pid, comm):
         """Execute any ExecuteCmd associated with this port/listener.
@@ -1823,11 +1771,10 @@ class DiverterBase(fnconfig.Config):
 
         execCmd = self.build_cmd(pkt, pid, comm)
         if execCmd:
-            self.logger.info('Executing command: %s' % (execCmd))
+            self.logger.info("Executing command: %s" % (execCmd))
             self.execute_detached(execCmd)
 
-    def mapProxySportToOrigSport(self, proto, orig_sport, proxy_sport,
-            is_ssl_encrypted):
+    def mapProxySportToOrigSport(self, proto, orig_sport, proxy_sport, is_ssl_encrypted):
         """Maps Proxy initiated source ports to their original source ports.
 
         The Proxy listener uses this method to notify the diverter about the
@@ -1846,8 +1793,7 @@ class DiverterBase(fnconfig.Config):
         self.proxy_sport_to_orig_sport_map[(proto, proxy_sport)] = orig_sport
         self.is_proxied_pkt_ssl_encrypted[(proto, proxy_sport)] = is_ssl_encrypted
 
-    def logNbi(self, sport, nbi, proto, application_layer_proto,
-            is_ssl_encrypted):
+    def logNbi(self, sport, nbi, proto, application_layer_proto, is_ssl_encrypted):
         """Collects the NBIs from all listeners into a dictionary.
 
         All listeners use this method to notify the diverter about any NBI
@@ -1864,7 +1810,7 @@ class DiverterBase(fnconfig.Config):
             None
         """
         proxied_nbi = (proto, sport) in self.proxy_sport_to_orig_sport_map
-        
+
         # For proxied nbis, override the listener's is_ssl_encrypted with Proxy
         # listener's is_ssl_encrypted, and update the original sport. For
         # non-proxied nbis, use listener provided is_ssl_encrypted and sport.
@@ -1879,31 +1825,30 @@ class DiverterBase(fnconfig.Config):
 
         dst_ip, _, pid, comm, orig_dport, transport_layer_proto = self.sessions.get(orig_sport)
 
-        if application_layer_proto == '':
+        if application_layer_proto == "":
             application_layer_proto = transport_layer_proto
 
         # Normalize pid and comm for MultiHost mode
-        if pid is None and comm is None and self.network_mode.lower() == 'multihost':
+        if pid is None and comm is None and self.network_mode.lower() == "multihost":
             self.remote_pid_counter += 1
             pid = self.remote_pid_counter
-            comm = 'Remote Process'
+            comm = "Remote Process"
 
         # Craft the dictionary
         nbi_entry = {
-            'transport_layer_proto': transport_layer_proto,
-            'sport': orig_sport,
-            'dst_ip': dst_ip,
-            'dport': orig_dport,
-            'is_ssl_encrypted': is_ssl_encrypted,
-            'network_mode': self.network_mode.lower(),
-            'nbi': nbi
-            }
+            "transport_layer_proto": transport_layer_proto,
+            "sport": orig_sport,
+            "dst_ip": dst_ip,
+            "dport": orig_dport,
+            "is_ssl_encrypted": is_ssl_encrypted,
+            "network_mode": self.network_mode.lower(),
+            "nbi": nbi,
+        }
         application_layer_proto = application_layer_proto.lower()
- 
+
         # If it's a new NBI from an exisitng process or existing protocol,
         # append the nbi, else create new key
-        self.nbis.setdefault((pid, comm), {}).setdefault(application_layer_proto,
-                                                         []).append(nbi_entry)
+        self.nbis.setdefault((pid, comm), {}).setdefault(application_layer_proto, []).append(nbi_entry)
 
     def prettyPrintNbi(self):
         """Convenience method to print all NBIs in appropriate format upon
@@ -1939,34 +1884,31 @@ class DiverterBase(fnconfig.Config):
         process_counter = 0
         for process_info, values in self.nbis.items():
             process_counter += 1
-            self.logger.info(f"[{process_counter}] Process ID: "
-                    f"{process_info[0]}, Process Name: {process_info[1]}")
+            self.logger.info(f"[{process_counter}] Process ID: " f"{process_info[0]}, Process Name: {process_info[1]}")
 
             for application_layer_proto, nbi_entry in values.items():
-                self.logger.info(f"{indent*2} Protocol: "
-                                 f"{application_layer_proto}")
+                self.logger.info(f"{indent*2} Protocol: " f"{application_layer_proto}")
                 nbi_counter = 0
 
                 for attributes in nbi_entry:
                     nbi_counter += 1
-                    self.logger.info(f"{indent*3}{nbi_counter}.Transport Layer "
-                                     f"Protocol: {attributes['transport_layer_proto']}")
+                    self.logger.info(
+                        f"{indent*3}{nbi_counter}.Transport Layer " f"Protocol: {attributes['transport_layer_proto']}"
+                    )
                     self.logger.info(f"{indent*4}Source port: {attributes['sport']}")
                     self.logger.info(f"{indent*4}Destination IP: {attributes['dst_ip']}")
                     self.logger.info(f"{indent*4}Destination port: {attributes['dport']}")
-                    self.logger.info(f"{indent*4}SSL encrypted: "
-                                     f"{attributes['is_ssl_encrypted']}")
-                    self.logger.info(f"{indent*4}Network mode: "
-                                     f"{attributes['network_mode']}")
+                    self.logger.info(f"{indent*4}SSL encrypted: " f"{attributes['is_ssl_encrypted']}")
+                    self.logger.info(f"{indent*4}Network mode: " f"{attributes['network_mode']}")
 
-                    for key, v in attributes['nbi'].items():
+                    for key, v in attributes["nbi"].items():
                         if v is not None:
                             # Let's convert the NBI value to str if it's not already
                             if isinstance(v, bytes):
-                                v = v.decode('utf-8')
+                                v = v.decode("utf-8")
 
                             # Let's print maximum 40 characters for NBI values
-                            v = (v[:40]+"...") if len(v)>40 else v
+                            v = (v[:40] + "...") if len(v) > 40 else v
                         self.logger.info(f"{indent*6}-{key}: {v}")
 
                     self.logger.info("\r")
@@ -1978,7 +1920,7 @@ class DiverterBase(fnconfig.Config):
         to the main working directory of flare-fakenet-ng. Called by stop() method
         of diverter.
         """
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
             # Inside a Pyinstaller bundle
             fakenet_dir_path = os.path.dirname(sys.executable)
         else:
@@ -1988,13 +1930,13 @@ class DiverterBase(fnconfig.Config):
         template_loader = jinja2.FileSystemLoader(searchpath=os.path.dirname(template_file))
         template_env = jinja2.Environment(loader=template_loader)
         template = template_env.get_template(os.path.basename(template_file))
-        
-        timestamp = time.strftime('%Y%m%d_%H%M%S')
+
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
         output_filename = f"report_{timestamp}.html"
 
         with open(output_filename, "w") as output_file:
             output_file.write(template.render(nbis=self.nbis))
-        
+
         self.logger.info(f"Generated new HTML report: {output_filename}")
 
     def isProcessBlackListed(self, proto, sport=None, process_name=None, dport=None):
@@ -2021,26 +1963,28 @@ class DiverterBase(fnconfig.Config):
 
             # Check process blacklist
             if process_name in self.blacklist_processes:
-                self.pdebug(DIGN, ('Ignoring %s packet from process %s ' +
-                            'in the process blacklist.') % (proto,
-                            process_name))
+                self.pdebug(
+                    DIGN, ("Ignoring %s packet from process %s " + "in the process blacklist.") % (proto, process_name)
+                )
                 return True, process_name, pid
 
             # Check per-listener blacklisted process list
-            if self.listener_ports.isProcessBlackListHit(
-                    proto, dport, process_name):
-                self.pdebug(DIGN, ('Ignoring %s request packet from ' +
-                            'process %s in the listener process ' +
-                            'blacklist.') % (proto, process_name))
+            if self.listener_ports.isProcessBlackListHit(proto, dport, process_name):
+                self.pdebug(
+                    DIGN,
+                    ("Ignoring %s request packet from " + "process %s in the listener process " + "blacklist.")
+                    % (proto, process_name),
+                )
                 return True, process_name, pid
         return False, process_name, pid
-    
-    
-class DiverterListenerCallbacks():
+
+
+class DiverterListenerCallbacks:
     """A wrapper class for the diverter that provides controlled access to
     specific methods required by listeners for reporting NBIs.  This prevents
     exposing the entire diverter to the listeners.
     """
+
     def __init__(self, diverter):
         """Initialize the DiverterWrapper.
 
@@ -2049,18 +1993,15 @@ class DiverterListenerCallbacks():
         """
         self.__diverter = diverter
 
-    def logNbi(self, sport, nbi, proto, application_layer_proto,
-            is_ssl_encrypted):
+    def logNbi(self, sport, nbi, proto, application_layer_proto, is_ssl_encrypted):
         """Delegate the logging of NBIs to the diverter.
 
         This method forwards the provided NBI information to the logNbi() method
         in the underlying diverter object. Called by all listeners to log NBIs.
         """
-        self.__diverter.logNbi(sport, nbi, proto, application_layer_proto,
-                               is_ssl_encrypted)
+        self.__diverter.logNbi(sport, nbi, proto, application_layer_proto, is_ssl_encrypted)
 
-    def mapProxySportToOrigSport(self, proto, orig_sport, proxy_sport,
-            is_ssl_encrypted):
+    def mapProxySportToOrigSport(self, proto, orig_sport, proxy_sport, is_ssl_encrypted):
         """Delegate the mapping of proxy sport to original sport to the
         diverter.
 
@@ -2069,10 +2010,8 @@ class DiverterListenerCallbacks():
         Called by ProxyListener to report the mapping between proxy initiated
         source port and original source port.
         """
-        self.__diverter.mapProxySportToOrigSport(proto, orig_sport, proxy_sport,
-                                                 is_ssl_encrypted)
+        self.__diverter.mapProxySportToOrigSport(proto, orig_sport, proxy_sport, is_ssl_encrypted)
 
     def isProcessBlackListed(self, proto, sport):
-        """Check if the process is blacklisted.
-        """
+        """Check if the process is blacklisted."""
         return self.__diverter.isProcessBlackListed(proto, sport=sport)

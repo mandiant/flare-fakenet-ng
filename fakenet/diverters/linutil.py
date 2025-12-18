@@ -41,52 +41,53 @@ class IptCmdTemplateBase(object):
             will not be included in format string evaluation but is appended
             as-is to the iptables command.
         """
-        flag_iface = ''
+        flag_iface = ""
         if iface:
-            if chain in ['OUTPUT', 'POSTROUTING']:
-                flag_iface = '-o'
-            elif chain in ['INPUT', 'PREROUTING']:
-                flag_iface = '-i'
+            if chain in ["OUTPUT", "POSTROUTING"]:
+                flag_iface = "-o"
+            elif chain in ["INPUT", "PREROUTING"]:
+                flag_iface = "-i"
             else:
-                raise NotImplementedError('Unanticipated chain %s' % (chain))
+                raise NotImplementedError("Unanticipated chain %s" % (chain))
 
-        self._addcmd = 'iptables -I {chain} {flag_if} {iface} {fmt}'
-        self._addcmd = self._addcmd.format(chain=chain, flag_if=flag_iface,
-                                           iface=(iface or ''), fmt=argfmt)
-        self._remcmd = 'iptables -D {chain} {flag_if} {iface} {fmt}'
-        self._remcmd = self._remcmd.format(chain=chain, flag_if=flag_iface,
-                                           iface=(iface or ''), fmt=argfmt)
+        self._addcmd = "iptables -I {chain} {flag_if} {iface} {fmt}"
+        self._addcmd = self._addcmd.format(chain=chain, flag_if=flag_iface, iface=(iface or ""), fmt=argfmt)
+        self._remcmd = "iptables -D {chain} {flag_if} {iface} {fmt}"
+        self._remcmd = self._remcmd.format(chain=chain, flag_if=flag_iface, iface=(iface or ""), fmt=argfmt)
 
     def add(self):
         if not self._addcmd:
-            raise ValueError('Iptables rule addition command not initialized')
+            raise ValueError("Iptables rule addition command not initialized")
         return subprocess.call(self._addcmd.split())
 
     def remove(self):
         if not self._remcmd:
-            raise ValueError('Iptables rule removal command not initialized')
+            raise ValueError("Iptables rule removal command not initialized")
         return subprocess.call(self._remcmd.split())
 
 
 class IptCmdTemplateNfq(IptCmdTemplateBase):
     """For constructing and executing NFQUEUE iptables rules"""
+
     def __init__(self, chain, qno, table, iface=None):
-        fmt = '-t {} -j NFQUEUE --queue-num {}'.format(table, qno)
+        fmt = "-t {} -j NFQUEUE --queue-num {}".format(table, qno)
         self._iptables_format(chain, iface, fmt)
 
 
 class IptCmdTemplateRedir(IptCmdTemplateBase):
     """For constructing and executing REDIRECT iptables rules"""
+
     def __init__(self, iface=None):
-        fmt = '-t nat -j REDIRECT'
-        self._iptables_format('PREROUTING', iface, fmt)
+        fmt = "-t nat -j REDIRECT"
+        self._iptables_format("PREROUTING", iface, fmt)
 
 
 class IptCmdTemplateIcmpRedir(IptCmdTemplateBase):
     """For constructing and executing ICMP REDIRECT iptables rules"""
+
     def __init__(self, iface=None):
-        fmt = '-t nat -p icmp -j REDIRECT'
-        self._iptables_format('OUTPUT', iface, fmt)
+        fmt = "-t nat -p icmp -j REDIRECT"
+        self._iptables_format("OUTPUT", iface, fmt)
 
 
 class LinuxDiverterNfqueue(object):
@@ -104,7 +105,7 @@ class LinuxDiverterNfqueue(object):
     """
 
     def __init__(self, qno, chain, table, callback, iface=None):
-        self.logger = logging.getLogger('Diverter')
+        self.logger = logging.getLogger("Diverter")
 
         # Specifications
         self.qno = qno
@@ -123,7 +124,7 @@ class LinuxDiverterNfqueue(object):
         self._started = False
 
     def __repr__(self):
-        return '%s/%s@%d' % (self.chain, self.table, self.qno)
+        return "%s/%s@%d" % (self.chain, self.table, self.qno)
 
     def start(self, timeout_sec=0.5):
         """Binds to the netfilter queue number specified in the ctor, obtains
@@ -144,18 +145,15 @@ class LinuxDiverterNfqueue(object):
             self._nfqueue.bind(self.qno, self._callback)
             self._bound = True
         except OSError as e:
-            self.logger.error('Failed to start queue for %s: %s' %
-                              (str(self), str(e)))
+            self.logger.error("Failed to start queue for %s: %s" % (str(self), str(e)))
         except RuntimeWarning as e:
-            self.logger.error('Failed to start queue for %s: %s' %
-                              (str(self), str(e)))
+            self.logger.error("Failed to start queue for %s: %s" % (str(self), str(e)))
 
         if not self._bound:
             return False
 
         # Facilitate _stopflag monitoring and thread joining
-        self._sk = socket.fromfd(
-            self._nfqueue.get_fd(), socket.AF_UNIX, socket.SOCK_STREAM)
+        self._sk = socket.fromfd(self._nfqueue.get_fd(), socket.AF_UNIX, socket.SOCK_STREAM)
         self._sk.settimeout(timeout_sec)
 
         # Start a thread to run the queue and monitor the stop flag
@@ -166,7 +164,7 @@ class LinuxDiverterNfqueue(object):
             self._thread.start()
             self._started = True
         except RuntimeError as e:
-            self.logger.error('Failed to start queue thread: %s' % (str(e)))
+            self.logger.error("Failed to start queue thread: %s" % (str(e)))
 
         return self._started
 
@@ -206,6 +204,7 @@ class LinuxDiverterNfqueue(object):
 
 class ProcfsReader(object):
     """Standard row/field reading for proc files."""
+
     def __init__(self, path, skip, cb):
         self.path = path
         self.skip = skip
@@ -224,7 +223,7 @@ class ProcfsReader(object):
         retval = list() if multi else None
 
         try:
-            with open(self.path, 'r') as f:
+            with open(self.path, "r") as f:
                 while True:
                     line = f.readline()
 
@@ -234,9 +233,7 @@ class ProcfsReader(object):
 
                     # Insufficient columns => ValueError
                     if max_col and (len(line) < max_col):
-                        raise ValueError(('Line %d in %s has less than %d '
-                                          'columns') %
-                                         (n, self.path, max_col))
+                        raise ValueError(("Line %d in %s has less than %d " "columns") % (n, self.path, max_col))
                     # Skip header lines
                     if self.skip:
                         self.skip -= 1
@@ -251,7 +248,7 @@ class ProcfsReader(object):
                             retval = cb_retval
                             break
         except IOError as e:
-            self.logger.error('Failed accessing %s: %s' % (path, str(e)))
+            self.logger.error("Failed accessing %s: %s" % (path, str(e)))
             # All or nothing
             retval = [] if multi else None
 
@@ -265,16 +262,16 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
     def init_linux_mixin(self):
         self.old_dns = None
-        self.iptables_captured = b''
+        self.iptables_captured = b""
 
     def getNewDestinationIp(self, ip):
         """On Linux, FTP tests fail if IP redirection uses the external IP, so
         always return localhost.
         """
-        return '127.0.0.1'
+        return "127.0.0.1"
 
     def check_active_ethernet_adapters(self):
-        return (len(self._linux_get_ifaces()) > 0)
+        return len(self._linux_get_ifaces()) > 0
 
     def check_gateways(self):
         return True if self.linux_get_default_gw() else False
@@ -296,62 +293,57 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         return False
 
     def linux_capture_iptables(self):
-        self.iptables_captured = b''
+        self.iptables_captured = b""
         ret = None
 
         try:
-            p = subprocess.Popen(['iptables-save'], stdout=subprocess.PIPE)
+            p = subprocess.Popen(["iptables-save"], stdout=subprocess.PIPE)
             while True:
                 buf = p.stdout.read()
-                if buf == b'':
+                if buf == b"":
                     break
                 self.iptables_captured += buf
 
-            if self.iptables_captured == b'':
-                self.logger.warning('Null iptables-save output, likely not ' +
-                                    'privileged')
+            if self.iptables_captured == b"":
+                self.logger.warning("Null iptables-save output, likely not " + "privileged")
             ret = p.wait()
         except OSError as e:
-            self.logger.error('Error executing iptables-save: %s' %
-                              (str(e)))
+            self.logger.error("Error executing iptables-save: %s" % (str(e)))
 
         return ret
 
     def linux_restore_iptables(self):
         ret = None
 
-        self.pdebug(DIPTBLS, 'Restoring iptables')
+        self.pdebug(DIPTBLS, "Restoring iptables")
 
         try:
-            p = subprocess.Popen(['iptables-restore'], stdin=subprocess.PIPE)
+            p = subprocess.Popen(["iptables-restore"], stdin=subprocess.PIPE)
             p.communicate(self.iptables_captured)
             ret = p.wait()
         except OSError as e:
-            self.logger.error('Error executing iptables-restore: %s' %
-                              (str(e)))
+            self.logger.error("Error executing iptables-restore: %s" % (str(e)))
 
         return ret
 
     def linux_flush_iptables(self):
         rets = []
-        cmd = ''
+        cmd = ""
 
-        table_names = ['raw', 'filter', 'mangle', 'nat']
+        table_names = ["raw", "filter", "mangle", "nat"]
 
-        self.pdebug(DIPTBLS, 'Flushing iptables: %s' %
-                    (', '.join(table_names)))
+        self.pdebug(DIPTBLS, "Flushing iptables: %s" % (", ".join(table_names)))
 
         try:
             for table_name in table_names:
-                cmd = 'iptables --flush -t %s' % (table_name)
+                cmd = "iptables --flush -t %s" % (table_name)
                 p = subprocess.Popen(cmd.split())
                 ret = p.wait()
                 rets.append(ret)
                 if ret != 0:
-                    self.logger.error('Received return code %d from %s' +
-                                      (ret, cmd))
+                    self.logger.error("Received return code %d from %s" + (ret, cmd))
         except OSError as e:
-            self.logger.error('Error executing %s: %s' % (cmd, str(e)))
+            self.logger.error("Error executing %s: %s" % (cmd, str(e)))
 
         return rets
 
@@ -371,30 +363,33 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         for giving the user more control if it becomes necessary.
         """
 
-        procfs_path = '/proc/net/netfilter/nfnetlink_queue'
+        procfs_path = "/proc/net/netfilter/nfnetlink_queue"
 
         qnos = list()
         try:
-            with open(procfs_path, 'r') as f:
-                lines = f.read().split('\n')
+            with open(procfs_path, "r") as f:
+                lines = f.read().split("\n")
                 for line in lines:
                     line = line.strip()
                     if line:
                         queue_nr = int(line.split()[0], 10)
-                        self.pdebug(DNFQUEUE, ('Found NFQUEUE #' +
-                                    str(queue_nr) + ' per ') + procfs_path)
+                        self.pdebug(DNFQUEUE, ("Found NFQUEUE #" + str(queue_nr) + " per ") + procfs_path)
                         qnos.append(queue_nr)
         except IOError as e:
-            self.logger.debug(('Failed to open %s to enumerate netfilter '
-                               'netlink queues, caller may proceed as if '
-                               'none are in use: %s') %
-                              (procfs_path, str(e)))
+            self.logger.debug(
+                (
+                    "Failed to open %s to enumerate netfilter "
+                    "netlink queues, caller may proceed as if "
+                    "none are in use: %s"
+                )
+                % (procfs_path, str(e))
+            )
 
         return qnos
 
     def linux_get_next_nfqueue_numbers(self, n):
         # Queue numbers are of type u_int16_t hence 0xffff being the maximum
-        QNO_MAX = 0xffff
+        QNO_MAX = 0xFFFF
 
         existing_queues = self.linux_get_current_nfnlq_bindings()
 
@@ -422,8 +417,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         ret = rule.add()
 
         if ret != 0:
-            self.logger.error('Failed to create PREROUTING/REDIRECT ' +
-                              'rule for %s, stopping...' % (iface))
+            self.logger.error("Failed to create PREROUTING/REDIRECT " + "rule for %s, stopping..." % (iface))
             return (False, iptables_rules)
 
         iptables_rules.append(rule)
@@ -433,19 +427,18 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
     def _linux_get_ifaces(self):
         ifaces = []
 
-        procfs_path = '/proc/net/dev'
+        procfs_path = "/proc/net/dev"
 
         try:
-            with open(procfs_path, 'r') as f:
-                lines = f.read().split('\n')
+            with open(procfs_path, "r") as f:
+                lines = f.read().split("\n")
                 for line in lines:
                     # Only lines with colons contain interface names
-                    if ':' in line:
-                        fields = line.split(':')
+                    if ":" in line:
+                        fields = line.split(":")
                         ifaces.append(fields[0].strip())
         except IOError as e:
-            self.logger.error('Failed to open %s to enumerate interfaces: %s' %
-                              (procfs_path, str(e)))
+            self.logger.error("Failed to open %s to enumerate interfaces: %s" % (procfs_path, str(e)))
 
         return ifaces
 
@@ -463,40 +456,38 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         return failed
 
     def linux_modifylocaldns_ephemeral(self):
-        resolvconf_path = '/etc/resolv.conf'
+        resolvconf_path = "/etc/resolv.conf"
         self.old_dns = None
 
         try:
-            with open(resolvconf_path, 'r') as f:
+            with open(resolvconf_path, "r") as f:
                 self.old_dns = f.read()
         except IOError as e:
-            self.logger.error(('Failed to open %s to save DNS ' +
-                              'configuration: %s') % (resolvconf_path,
-                              str(e)))
+            self.logger.error(("Failed to open %s to save DNS " + "configuration: %s") % (resolvconf_path, str(e)))
 
         if self.old_dns:
             try:
-                with open(resolvconf_path, 'w') as f:
+                with open(resolvconf_path, "w") as f:
                     ip = self.linux_first_nonlo_ip()
                     if not ip:
-                        ip = '127.0.0.1'
-                    f.write('nameserver %s\n' % (ip))
+                        ip = "127.0.0.1"
+                    f.write("nameserver %s\n" % (ip))
             except IOError as e:
-                self.logger.error(('Failed to open %s to modify DNS ' +
-                                  'configuration: %s') % (resolvconf_path,
-                                  str(e)))
+                self.logger.error(
+                    ("Failed to open %s to modify DNS " + "configuration: %s") % (resolvconf_path, str(e))
+                )
 
     def linux_restore_local_dns(self):
-        resolvconf_path = '/etc/resolv.conf'
+        resolvconf_path = "/etc/resolv.conf"
         if self.old_dns:
             try:
-                with open(resolvconf_path, 'w') as f:
+                with open(resolvconf_path, "w") as f:
                     f.write(self.old_dns)
                     self.old_dns = None
             except IOError as e:
-                self.logger.error(('Failed to open %s to restore DNS ' +
-                                  'configuration: %s') % (resolvconf_path,
-                                  str(e)))
+                self.logger.error(
+                    ("Failed to open %s to restore DNS " + "configuration: %s") % (resolvconf_path, str(e))
+                )
 
     def linux_find_processes(self, names):
         """But what if a blacklisted process spawns after we call
@@ -504,16 +495,16 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         """
         pids = []
 
-        proc_pid_dirs = glob.glob('/proc/[0-9]*/')
-        comm_file = ''
+        proc_pid_dirs = glob.glob("/proc/[0-9]*/")
+        comm_file = ""
 
         for proc_pid_dir in proc_pid_dirs:
-            comm_file = os.path.join(proc_pid_dir, 'comm')
+            comm_file = os.path.join(proc_pid_dir, "comm")
             try:
-                with open(comm_file, 'r') as f:
+                with open(comm_file, "r") as f:
                     comm = f.read().strip()
                     if comm in names:
-                        pid = int(proc_pid_dir.split('/')[-2], 10)
+                        pid = int(proc_pid_dir.split("/")[-2], 10)
                         pids.append(pid)
             except IOError as e:
                 # Silently ignore
@@ -522,7 +513,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         return pids
 
     def _port_for_proc_net_tcp(self, port):
-        return ':%s' % (hex(port).lstrip('0x').zfill(4).upper())
+        return ":%s" % (hex(port).lstrip("0x").zfill(4).upper())
 
     def _ip_port_for_proc_net_tcp(self, ipver, ip_dotdecimal, port):
         # IPv6 untested
@@ -532,20 +523,17 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         ip_str = binascii.hexlify(ip_pton[::-1]).upper()
         port_str = self._port_for_proc_net_tcp(port)
 
-        return '%s:%s' % (ip_str, port_str)
+        return "%s:%s" % (ip_str, port_str)
 
-    def linux_find_sock_by_endpoint(self, ipver, proto_name, ip, port,
-                                    local=True):
+    def linux_find_sock_by_endpoint(self, ipver, proto_name, ip, port, local=True):
         """Check args and call _linux_find_sock_by_endpoint_unsafe."""
 
         if proto_name and ip and port:
-            return self._linux_find_sock_by_endpoint_unsafe(ipver, proto_name,
-                                                            ip, port, local)
+            return self._linux_find_sock_by_endpoint_unsafe(ipver, proto_name, ip, port, local)
         else:
             return None
 
-    def _linux_find_sock_by_endpoint_unsafe(self, ipver, proto_name, ip, port,
-                                            local=True):
+    def _linux_find_sock_by_endpoint_unsafe(self, ipver, proto_name, ip, port, local=True):
         """Search /proc/net/tcp for a socket whose local (field 1, zero-based)
         or remote (field 2) address matches ip:port and return the
         corresponding inode (field 9).
@@ -577,9 +565,9 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         INODE_COLUMN = 9
 
         # IPv6 untested
-        suffix = '6' if (ipver == 6) else ''
+        suffix = "6" if (ipver == 6) else ""
 
-        procfs_path = '/proc/net/' + proto_name.lower() + suffix
+        procfs_path = "/proc/net/" + proto_name.lower() + suffix
 
         inode = None
 
@@ -602,23 +590,19 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
                     # Local matches can be made based on port only
                     if local and fields[local_column].endswith(port_tag):
                         inode = int(fields[INODE_COLUMN], 10)
-                        self.pdebug(DPROCFS, 'MATCHING CONNECTION: %s' %
-                                    (line.strip()))
+                        self.pdebug(DPROCFS, "MATCHING CONNECTION: %s" % (line.strip()))
                         break
                     # Untested: Remote matches must be more specific and
                     # include the IP address. Hence, an "endpoint tag" is
                     # constructed to match what would appear in
                     # /proc/net/{tcp,udp}{,6}
                     elif not local:
-                        endpoint_tag = self._ip_port_for_proc_net_tcp(ipver,
-                                                                      ip, port)
+                        endpoint_tag = self._ip_port_for_proc_net_tcp(ipver, ip, port)
                         if fields[remote_column] == endpoint_tag:
                             inode = int(fields[INODE_COLUMN], 10)
-                            self.pdebug(DPROCFS, 'MATCHING CONNECTION: %s' %
-                                        (line.strip()))
+                            self.pdebug(DPROCFS, "MATCHING CONNECTION: %s" % (line.strip()))
         except IOError as e:
-            self.logger.error('No such protocol/IP ver (%s) or error: %s' %
-                              (procfs_path, str(e)))
+            self.logger.error("No such protocol/IP ver (%s) or error: %s" % (procfs_path, str(e)))
 
         return inode
 
@@ -630,11 +614,11 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         dgw = None
 
         def scan_for_default_gw(fields):
-            if fields[DEST_COLUMN] == '00000000':
+            if fields[DEST_COLUMN] == "00000000":
                 s = fields[GW_COLUMN]
                 return socket.inet_ntoa(binascii.unhexlify(s)[::-1])
 
-        r = ProcfsReader('/proc/net/route', 1, scan_for_default_gw)
+        r = ProcfsReader("/proc/net/route", 1, scan_for_default_gw)
         dgw = r.parse()
 
         return dgw
@@ -646,7 +630,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
     def linux_first_nonlo_ip(self):
         for ip in self.ip_addrs[4]:
-            if not ip.startswith('127.'):
+            if not ip.startswith("127."):
                 return ip
         return None
 
@@ -655,7 +639,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         if not ip:
             return False
 
-        cmd = 'route add default gw %s' % (ip)
+        cmd = "route add default gw %s" % (ip)
         ret = subprocess.call(cmd.split())
         return ret == 0
 
@@ -665,7 +649,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         for pid in self.linux_find_processes(names):
 
             # Check all /proc/<pid>/fd/* to see if they are symlinks
-            proc_fds_glob = '/proc/%d/fd/*' % (pid)
+            proc_fds_glob = "/proc/%d/fd/*" % (pid)
             proc_fd_paths = glob.glob(proc_fds_glob)
             for fd_path in proc_fd_paths:
                 inode = self._linux_get_sk_ino_for_fd_file(fd_path)
@@ -673,8 +657,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
                     if inode_sought is None:
                         inodes.append(inode)
                     elif inode == inode_sought:
-                        self.pdebug(DPROCFS, 'MATCHING FD %s -> socket:[%d]' %
-                                    (fd_path, inode))
+                        self.pdebug(DPROCFS, "MATCHING FD %s -> socket:[%d]" % (fd_path, inode))
                         return [inode]
 
         return inodes
@@ -684,7 +667,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         try:
             target = os.readlink(fd_file_path)
-            m = re.match(r'socket:\[([0-9]+)\]', target)
+            m = re.match(r"socket:\[([0-9]+)\]", target)
             if m:
                 inode = int(m.group(1), 10)
         except OSError:
@@ -695,13 +678,12 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
     def linux_get_comm_by_pid(self, pid):
         comm = None
 
-        procfs_path = '/proc/%d/comm' % (pid)
+        procfs_path = "/proc/%d/comm" % (pid)
         try:
-            with open(procfs_path, 'r') as f:
+            with open(procfs_path, "r") as f:
                 comm = f.read().strip()
         except IOError as e:
-            self.pdebug(DPROCFS, 'Failed to open %s: %s' %
-                        (procfs_path, str(e)))
+            self.pdebug(DPROCFS, "Failed to open %s: %s" % (procfs_path, str(e)))
         return comm
 
     def linux_get_pid_comm_by_endpoint(self, ipver, proto_name, ip, port):
@@ -724,7 +706,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         if inode:
             # 2. Search for a /proc/<pid>/fd/<fd> that has this inode open.
-            proc_fds_glob = '/proc/[0-9]*/fd/*'
+            proc_fds_glob = "/proc/[0-9]*/fd/*"
             proc_fd_paths = glob.glob(proc_fds_glob)
             for fd_path in proc_fd_paths:
                 candidate = self._linux_get_sk_ino_for_fd_file(fd_path)
@@ -732,7 +714,7 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
                     # 3. Record the pid and executable name
                     try:
-                        pid = int(fd_path.split('/')[-3], 10)
+                        pid = int(fd_path.split("/")[-3], 10)
                         comm = self.linux_get_comm_by_pid(pid)
                     # Not interested in e.g.
                     except ValueError:
@@ -741,24 +723,19 @@ class LinUtilMixin(diverterbase.DiverterPerOSDelegate):
         return pid, comm
 
     def get_pid_comm(self, pkt):
-        return self.linux_get_pid_comm_by_endpoint(pkt.ipver, pkt.proto,
-                                                   pkt.src_ip, pkt.sport)
+        return self.linux_get_pid_comm_by_endpoint(pkt.ipver, pkt.proto, pkt.src_ip, pkt.sport)
 
-    def linux_endpoint_owned_by_processes(self, ipver, proto_name, ip, port,
-                                          names):
+    def linux_endpoint_owned_by_processes(self, ipver, proto_name, ip, port, names):
         inode = self.linux_find_sock_by_endpoint(ipver, proto_name, ip, port)
         t = self._ip_port_for_proc_net_tcp(ipver, ip, port)
 
         if inode:
-            self.pdebug(DPROCFS, 'inode %d found for %s:%s (%s)' %
-                        (inode, ip, port, t))
+            self.pdebug(DPROCFS, "inode %d found for %s:%s (%s)" % (inode, ip, port, t))
             conns = self.linux_find_process_connections(names, inode)
             if len(conns):
-                self.pdebug(DPROCFS, 'FOUND inode %d for %s' %
-                            (inode, str(names)))
+                self.pdebug(DPROCFS, "FOUND inode %d for %s" % (inode, str(names)))
                 return True
         else:
-            self.pdebug(DPROCFS, 'No inode found for %s:%d (%s)' %
-                        (ip, port, t))
+            self.pdebug(DPROCFS, "No inode found for %s:%d (%s)" % (ip, port, t))
 
         return False

@@ -1,5 +1,6 @@
 # Copyright 2025 Google LLC
 
+
 class Config(object):
     """Configuration primitives.
 
@@ -32,13 +33,13 @@ class Config(object):
         for entry in stringlists:
             stringlist = self.getconfigval(entry)
             if stringlist:
-                expanded = [s.strip() for s in stringlist.split(',')]
+                expanded = [s.strip() for s in stringlist.split(",")]
                 self.setconfigval(entry, expanded)
 
         for entry in idlists:
             idlist = self.getconfigval(entry)
             if idlist:
-                expanded = [int(c) for c in idlist.split(',')]
+                expanded = [int(c) for c in idlist.split(",")]
                 self.setconfigval(entry, expanded)
 
     def reconfigure(self, portlists=[], stringlists=[]):
@@ -55,19 +56,19 @@ class Config(object):
 
     def _expand_ports(self, ports_list):
         ports = []
-        for i in ports_list.split(','):
-            if '-' not in i:
+        for i in ports_list.split(","):
+            if "-" not in i:
                 ports.append(int(i))
             else:
-                l, h = list(map(int, i.split('-')))
+                l, h = list(map(int, i.split("-")))
                 ports += list(range(l, h + 1))
         return ports
 
     def _fuzzy_true(self, value):
-        return value.lower() in ['yes', 'on', 'true', 'enable', 'enabled']
+        return value.lower() in ["yes", "on", "true", "enable", "enabled"]
 
     def _fuzzy_false(self, value):
-        return value.lower() in ['no', 'off', 'false', 'disable', 'disabled']
+        return value.lower() in ["no", "off", "false", "disable", "disabled"]
 
     def is_configured(self, opt):
         return opt.lower() in list(self._dict.keys())
@@ -76,12 +77,10 @@ class Config(object):
         return not self.is_configured(opt)
 
     def is_set(self, opt):
-        return (self.is_configured(opt) and
-                self._fuzzy_true(self._dict[opt.lower()]))
+        return self.is_configured(opt) and self._fuzzy_true(self._dict[opt.lower()])
 
     def is_clear(self, opt):
-        return (self.is_configured(opt) and
-                self._fuzzy_false(self._dict[opt.lower()]))
+        return self.is_configured(opt) and self._fuzzy_false(self._dict[opt.lower()])
 
     def getconfigval(self, opt, default=None):
         return self._dict[opt.lower()] if self.is_configured(opt) else default

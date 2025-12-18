@@ -19,7 +19,7 @@ import threading
 
 from collections import OrderedDict
 
-from optparse import OptionParser,OptionGroup
+from optparse import OptionParser, OptionGroup
 from configparser import ConfigParser
 
 import platform
@@ -36,11 +36,12 @@ from fakenet.listeners import *
 # FakeNet
 ###############################################################################
 
+
 class Fakenet(object):
 
-    def __init__(self, logging_level = logging.INFO):
+    def __init__(self, logging_level=logging.INFO):
 
-        self.logger = logging.getLogger('FakeNet')
+        self.logger = logging.getLogger("FakeNet")
         self.logger.setLevel(logging_level)
 
         self.logging_level = logging_level
@@ -49,7 +50,7 @@ class Fakenet(object):
         self.diverter = None
 
         # FakeNet options and parameters
-        self.fakenet_config_dir = ''
+        self.fakenet_config_dir = ""
         self.fakenet_config = dict()
 
         # Diverter options and parameters
@@ -63,55 +64,53 @@ class Fakenet(object):
 
     def parse_config(self, config_filename):
         # Handling Pyinstaller bundle scenario: https://pyinstaller.org/en/stable/runtime-information.html
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
             dir_path = os.path.dirname(sys.executable)
         else:
             dir_path = os.path.dirname(__file__)
 
         if not config_filename:
 
-            config_filename = os.path.join(dir_path, 'configs', 'default.ini')
+            config_filename = os.path.join(dir_path, "configs", "default.ini")
 
         if not os.path.exists(config_filename):
 
-            config_filename = os.path.join(dir_path, 'configs', config_filename)
+            config_filename = os.path.join(dir_path, "configs", config_filename)
 
             if not os.path.exists(config_filename):
 
-                self.logger.critical('Could not open configuration file %s',
-                                     config_filename)
+                self.logger.critical("Could not open configuration file %s", config_filename)
                 sys.exit(1)
 
         self.fakenet_config_dir = os.path.dirname(config_filename)
         config = ConfigParser()
         config.read(config_filename)
 
-        self.logger.info('Loaded configuration file: %s', config_filename)
+        self.logger.info("Loaded configuration file: %s", config_filename)
 
         # Parse configuration
         for section in config.sections():
 
-            if section == 'FakeNet':
+            if section == "FakeNet":
                 self.fakenet_config = dict(config.items(section))
 
-            elif section == 'Diverter':
+            elif section == "Diverter":
                 self.diverter_config = dict(config.items(section))
 
-            elif config.getboolean(section, 'enabled'):
+            elif config.getboolean(section, "enabled"):
                 self.listeners_config[section] = dict(config.items(section))
-
 
         # Expand listeners
         self.listeners_config = self.expand_listeners(self.listeners_config)
 
     def expand_ports(self, ports_list):
         ports = []
-        for i in ports_list.split(','):
-            if '-' not in i:
+        for i in ports_list.split(","):
+            if "-" not in i:
                 ports.append(int(i))
             else:
-                l,h = list(map(int, i.split('-')))
-                ports+= list(range(l,h+1))
+                l, h = list(map(int, i.split("-")))
+                ports += list(range(l, h + 1))
         return ports
 
     def expand_listeners(self, listeners_config):
@@ -121,13 +120,13 @@ class Fakenet(object):
         for listener_name in listeners_config:
 
             listener_config = self.listeners_config[listener_name]
-            ports = self.expand_ports(listener_config['port'])
+            ports = self.expand_ports(listener_config["port"])
 
             if len(ports) > 1:
 
                 for port in ports:
 
-                    listener_config['port'] = port
+                    listener_config["port"] = port
                     listeners_config_expanded["%s_%d" % (listener_name, port)] = listener_config.copy()
 
             else:
@@ -137,14 +136,16 @@ class Fakenet(object):
 
     def start(self):
 
-        if self.fakenet_config.get('diverttraffic') and self.fakenet_config['diverttraffic'].lower() == 'yes':
+        if self.fakenet_config.get("diverttraffic") and self.fakenet_config["diverttraffic"].lower() == "yes":
 
-            if (('networkmode' not in self.diverter_config) or
-                    (self.diverter_config['networkmode'].lower() not in
-                     ['singlehost', 'multihost', 'auto'])):
-                self.logger.critical('Error: You must configure a ' +
-                                     'NetworkMode for Diverter, either ' +
-                                     'SingleHost, MultiHost, or Auto')
+            if ("networkmode" not in self.diverter_config) or (
+                self.diverter_config["networkmode"].lower() not in ["singlehost", "multihost", "auto"]
+            ):
+                self.logger.critical(
+                    "Error: You must configure a "
+                    + "NetworkMode for Diverter, either "
+                    + "SingleHost, MultiHost, or Auto"
+                )
                 sys.exit(1)
 
             # Select platform specific diverter
@@ -155,87 +156,87 @@ class Fakenet(object):
             ip_addrs = dict()
             ip_addrs[4] = iface_ip_info.get_ips([4])
             ip_addrs[6] = iface_ip_info.get_ips([6])
-            fn_addr = '0.0.0.0'
+            fn_addr = "0.0.0.0"
 
-            if platform_name == 'Windows':
+            if platform_name == "Windows":
 
                 # Check Windows version
-                if platform.release() in ['2000', 'XP', '2003Server', 'post2003']:
-                    self.logger.critical('Error: FakeNet-NG only supports ' +
-                                         'Windows Vista+.')
-                    self.logger.critical('       Please use the original ' +
-                                         'Fakenet for older versions of ' +
-                                         'Windows.')
+                if platform.release() in ["2000", "XP", "2003Server", "post2003"]:
+                    self.logger.critical("Error: FakeNet-NG only supports " + "Windows Vista+.")
+                    self.logger.critical(
+                        "       Please use the original " + "Fakenet for older versions of " + "Windows."
+                    )
                     sys.exit(1)
 
-                if self.diverter_config['networkmode'].lower() == 'auto':
-                    self.diverter_config['networkmode'] = 'singlehost'
+                if self.diverter_config["networkmode"].lower() == "auto":
+                    self.diverter_config["networkmode"] = "singlehost"
 
                 from fakenet.diverters.windows import Diverter
+
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
 
-            elif platform_name.lower().startswith('linux'):
-                if self.diverter_config['networkmode'].lower() == 'auto':
-                    self.diverter_config['networkmode'] = 'multihost'
+            elif platform_name.lower().startswith("linux"):
+                if self.diverter_config["networkmode"].lower() == "auto":
+                    self.diverter_config["networkmode"] = "multihost"
 
-                if self.diverter_config['networkmode'].lower() == 'multihost':
-                    if (self.diverter_config['linuxrestrictinterface'].lower()
-                            != 'off'):
-                        fn_iface = self.diverter_config['linuxrestrictinterface']
+                if self.diverter_config["networkmode"].lower() == "multihost":
+                    if self.diverter_config["linuxrestrictinterface"].lower() != "off":
+                        fn_iface = self.diverter_config["linuxrestrictinterface"]
                         if fn_iface in iface_ip_info.ifaces:
                             try:
                                 # default to first link
                                 fn_addr = iface_ip_info.get_ips([4], fn_iface)[0]
                             except LookupError as e:
-                                self.logger.error('Couldn\'t get IP for %s' %
-                                                  (fn_iface))
+                                self.logger.error("Couldn't get IP for %s" % (fn_iface))
                                 sys.exit(1)
                         else:
                             self.logger.error(
-                                'Invalid interface %s specified. Proceeding '
-                                'without interface restriction. Exiting.',
-                                fn_iface)
+                                "Invalid interface %s specified. Proceeding " "without interface restriction. Exiting.",
+                                fn_iface,
+                            )
                             sys.exit(1)
 
                 from fakenet.diverters.linux import Diverter
+
                 self.diverter = Diverter(self.diverter_config, self.listeners_config, ip_addrs, self.logging_level)
 
             else:
-                self.logger.critical(
-                    'Error: Your system %s is currently not supported.' %
-                    (platform_name))
+                self.logger.critical("Error: Your system %s is currently not supported." % (platform_name))
                 sys.exit(1)
 
         # Import DiverterListenerCallbacks
         from fakenet.diverters.diverterbase import DiverterListenerCallbacks
+
         self.diverterListenerCallbacks = DiverterListenerCallbacks(self.diverter)
 
         # Start all of the listeners
         for listener_name in self.listeners_config:
 
             listener_config = self.listeners_config[listener_name]
-            listener_config['ipaddr'] = fn_addr
-            listener_config['configdir'] = self.fakenet_config_dir
+            listener_config["ipaddr"] = fn_addr
+            listener_config["configdir"] = self.fakenet_config_dir
             # Anonymous listener
-            if not 'listener' in listener_config:
-                self.logger.debug('Anonymous %s listener on %s port %s...',
-                                 listener_name, listener_config['protocol'],
-                                 listener_config['port'])
+            if not "listener" in listener_config:
+                self.logger.debug(
+                    "Anonymous %s listener on %s port %s...",
+                    listener_name,
+                    listener_config["protocol"],
+                    listener_config["port"],
+                )
                 continue
 
             # Get a specific provider for the listener name
             try:
-                listener_module   = getattr(listeners, listener_config['listener'])
-                listener_provider = getattr(listener_module, listener_config['listener'])
+                listener_module = getattr(listeners, listener_config["listener"])
+                listener_provider = getattr(listener_module, listener_config["listener"])
 
             except AttributeError as e:
-                self.logger.error('Listener %s is not implemented.', listener_config['listener'])
+                self.logger.error("Listener %s is not implemented.", listener_config["listener"])
                 self.logger.error("%s" % e)
 
             else:
-                listener_config['networkmode'] = self.diverter_config['networkmode']
-                listener_provider_instance = listener_provider(
-                        listener_config, listener_name, self.logging_level)
+                listener_config["networkmode"] = self.diverter_config["networkmode"]
+                listener_provider_instance = listener_provider(listener_config, listener_name, self.logging_level)
 
                 # Store listener provider object
                 self.running_listener_providers.append(listener_provider_instance)
@@ -243,9 +244,9 @@ class Fakenet(object):
                 try:
                     listener_provider_instance.start()
                 except Exception as e:
-                    self.logger.error('Error starting %s listener on port %s:',
-                                      listener_config['listener'],
-                                      listener_config['port'])
+                    self.logger.error(
+                        "Error starting %s listener on port %s:", listener_config["listener"], listener_config["port"]
+                    )
                     self.logger.error(" %s" % e)
                     sys.exit(1)
 
@@ -287,10 +288,10 @@ class Fakenet(object):
             self.diverter.stop()
 
 
-class IfaceIpInfo():
+class IfaceIpInfo:
     """Make netifaces queryable via listcomps of namedtuples"""
 
-    IfaceIp = namedtuple('IfaceIp', 'iface ip ver')
+    IfaceIp = namedtuple("IfaceIp", "iface ip ver")
 
     _ver_to_spec = {4: netifaces.AF_INET, 6: netifaces.AF_INET6}
     _valid_ipvers = [4, 6]
@@ -311,8 +312,8 @@ class IfaceIpInfo():
                 self._tabulate_link(iface, link, ipver)
 
     def _tabulate_link(self, iface, link, ipver):
-        if 'addr' in link:
-            addr = link['addr']
+        if "addr" in link:
+            addr = link["addr"]
             self.ips.append(self.IfaceIp(iface, addr, ipver))
 
     def get_ips(self, ipvers, iface=None):
@@ -328,10 +329,10 @@ class IfaceIpInfo():
             list(str): IP addresses as requested
         """
         if not all(ver in self._valid_ipvers for ver in ipvers):
-            raise ValueError('Only IP versions 4 and 6 are supported')
+            raise ValueError("Only IP versions 4 and 6 are supported")
 
         if iface and (iface not in self.ifaces):
-            raise ValueError('Unrecognized iface %s' % (iface))
+            raise ValueError("Unrecognized iface %s" % (iface))
 
         downselect = [i for i in self.ips if i.ver in ipvers]
         if iface:
@@ -341,7 +342,8 @@ class IfaceIpInfo():
 
 def main():
 
-    print("""
+    print(
+        """
   ______      _  ________ _   _ ______ _______     _   _  _____
  |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
  | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
@@ -354,62 +356,67 @@ def main():
                    Developed by FLARE Team
     Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
   _____________________________________________________________
-                                               """)
+                                               """
+    )
 
     # Parse command line arguments
-    parser = OptionParser(usage = "python -m fakenet.fakenet [options]:")
-    parser.add_option("-c", "--config-file", action="store",  dest="config_file",
-                      help="configuration filename", metavar="FILE")
-    parser.add_option("-v", "--verbose",
-                      action="store_true", dest="verbose", default=False,
-                      help="print more verbose messages.")
+    parser = OptionParser(usage="python -m fakenet.fakenet [options]:")
+    parser.add_option(
+        "-c", "--config-file", action="store", dest="config_file", help="configuration filename", metavar="FILE"
+    )
+    parser.add_option(
+        "-v", "--verbose", action="store_true", dest="verbose", default=False, help="print more verbose messages."
+    )
     parser.add_option("-l", "--log-file", action="store", dest="log_file")
-    parser.add_option("-s", "--log-syslog", action="store_true", dest="syslog",
-                      default=False, help="Log to syslog via /dev/log")
-    parser.add_option("-f", "--stop-flag", action="store", dest="stop_flag",
-                      help="terminate if stop flag file is created")
+    parser.add_option(
+        "-s", "--log-syslog", action="store_true", dest="syslog", default=False, help="Log to syslog via /dev/log"
+    )
+    parser.add_option(
+        "-f", "--stop-flag", action="store", dest="stop_flag", help="terminate if stop flag file is created"
+    )
     # TODO: Rework the way loggers are created and configured by subcomponents
     # to produce the expected result when logging control is asserted at the
     # top level. For now, the setting serves its real purpose which is to ease
     # testing on Linux after modifying logging such that console and file
     # output are not mutually exclusive.
-    parser.add_option("-n", "--no-console-output", action="store_true",
-                      dest="no_con_out", default=False,
-                      help="Suppress console output (for testing on Linux)")
+    parser.add_option(
+        "-n",
+        "--no-console-output",
+        action="store_true",
+        dest="no_con_out",
+        default=False,
+        help="Suppress console output (for testing on Linux)",
+    )
 
     (options, args) = parser.parse_args()
 
     logging_level = logging.DEBUG if options.verbose else logging.INFO
 
-    date_format = '%m/%d/%y %I:%M:%S %p'
-    logging.basicConfig(format='%(asctime)s [%(name)18s] %(message)s',
-                        datefmt=date_format, level=logging_level)
-    logger = logging.getLogger('')  # Get the root logger i.e. ''
+    date_format = "%m/%d/%y %I:%M:%S %p"
+    logging.basicConfig(format="%(asctime)s [%(name)18s] %(message)s", datefmt=date_format, level=logging_level)
+    logger = logging.getLogger("")  # Get the root logger i.e. ''
 
     if options.no_con_out:
         logger.handlers = []
 
     if options.log_file:
         try:
-            loghandler = logging.StreamHandler(stream=open(options.log_file,
-                                                           'a'))
+            loghandler = logging.StreamHandler(stream=open(options.log_file, "a"))
         except IOError:
-            print(('Failed to open specified log file: %s' % (options.log_file)))
+            print(("Failed to open specified log file: %s" % (options.log_file)))
             sys.exit(1)
-        loghandler.formatter = logging.Formatter(
-            '%(asctime)s [%(name)18s] %(message)s', datefmt=date_format)
+        loghandler.formatter = logging.Formatter("%(asctime)s [%(name)18s] %(message)s", datefmt=date_format)
         logger.addHandler(loghandler)
 
     if options.syslog:
         platform_name = platform.system()
         sysloghandler = None
-        if platform_name == 'Windows':
-            sysloghandler = logging.handlers.NTEventLogHandler('FakeNet-NG')
-        elif platform_name.lower().startswith('linux'):
-            sysloghandler = logging.handlers.SysLogHandler('/dev/log')
+        if platform_name == "Windows":
+            sysloghandler = logging.handlers.NTEventLogHandler("FakeNet-NG")
+        elif platform_name.lower().startswith("linux"):
+            sysloghandler = logging.handlers.SysLogHandler("/dev/log")
         else:
-            print(('Error: Your system %s is currently not supported.' %
-                  (platform_name)))
+            print(("Error: Your system %s is currently not supported." % (platform_name)))
             sys.exit(1)
 
         # Specify datefmt for consistency, but syslog generally logs the time
@@ -418,7 +425,9 @@ def main():
             '"FakeNet-NG": {"loggerName":"%(name)s", '
             '"moduleName":"%(module)s", '
             '"levelName":"%(levelname)s", '
-            '"message":"%(message)s"}', datefmt=date_format)
+            '"message":"%(message)s"}',
+            datefmt=date_format,
+        )
         logger.addHandler(sysloghandler)
 
     fakenet = Fakenet(logging_level)
@@ -426,7 +435,7 @@ def main():
 
     if options.stop_flag:
         options.stop_flag = os.path.expandvars(options.stop_flag)
-        fakenet.logger.info('Will seek stop flag at %s' % (options.stop_flag))
+        fakenet.logger.info("Will seek stop flag at %s" % (options.stop_flag))
 
     fakenet.start()
 
@@ -434,7 +443,7 @@ def main():
         while True:
             time.sleep(1)
             if options.stop_flag and os.path.exists(options.stop_flag):
-                fakenet.logger.info('Stop flag found at %s' % (options.stop_flag))
+                fakenet.logger.info("Stop flag found at %s" % (options.stop_flag))
                 break
 
     except KeyboardInterrupt:
@@ -452,5 +461,6 @@ def main():
 
     sys.exit(0)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

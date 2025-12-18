@@ -2,6 +2,7 @@
 
 import socket
 
+
 # To read about customizing HTTP responses, see docs/CustomResponse.md
 def HandleRequest(req, method, post_data=None):
     """Sample dynamic HTTP response handler.
@@ -16,21 +17,21 @@ def HandleRequest(req, method, post_data=None):
         The HTTP post data received by calling `rfile.read()` against the
         BaseHTTPRequestHandler that received the request.
     """
-    response = b'Ahoy\r\n'
+    response = b"Ahoy\r\n"
 
-    if method == 'GET':
+    if method == "GET":
         req.send_response(200)
-        req.send_header('Content-Length', len(response))
+        req.send_header("Content-Length", len(response))
         req.end_headers()
         req.wfile.write(response)
 
-    elif method == 'POST':
+    elif method == "POST":
         req.send_response(200)
-        req.send_header('Content-Length', len(response))
+        req.send_header("Content-Length", len(response))
         req.end_headers()
         req.wfile.write(response)
 
-    elif method == 'HEAD':
+    elif method == "HEAD":
         req.send_response(200)
         req.end_headers()
 
@@ -53,7 +54,7 @@ def HandleTcp(sock):
         if not data:
             break
 
-        resp = b''.join([chr(c+1).encode() for c in data])
+        resp = b"".join([chr(c + 1).encode() for c in data])
         sock.sendall(resp)
 
 
@@ -70,5 +71,5 @@ def HandleUdp(sock, data, addr):
         The host and port of the remote peer
     """
     if data:
-        resp = b''.join([chr(c+1).encode() for c in data])
+        resp = b"".join([chr(c + 1).encode() for c in data])
         sock.sendto(resp, addr)

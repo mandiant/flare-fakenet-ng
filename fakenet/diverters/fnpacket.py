@@ -23,19 +23,19 @@ class PacketCtx(object):
         Need static method because getOriginalDestPort (called by proxy
         listener) uses this.
         """
-        return str(ip) + ':' + str(proto) + '/' + str(port)
+        return str(ip) + ":" + str(proto) + "/" + str(port)
 
     def __init__(self, label, raw):
-        self.logger = logging.getLogger('Diverter')
+        self.logger = logging.getLogger("Diverter")
 
         # Universal parameters
         self.label = label
         self._raw = raw
-        self._mangled = False       # Determines whether to recalculate csums
+        self._mangled = False  # Determines whether to recalculate csums
 
         self.handled_protocols = {
-            dpkt.ip.IP_PROTO_TCP: 'TCP',
-            dpkt.ip.IP_PROTO_UDP: 'UDP',
+            dpkt.ip.IP_PROTO_TCP: "TCP",
+            dpkt.ip.IP_PROTO_UDP: "UDP",
         }
 
         self._is_ip = False
@@ -47,32 +47,32 @@ class PacketCtx(object):
 
         # L3 (IP) parameters
         self.ipver = None
-        self._ipcsum0 = None        # Initial checksum
+        self._ipcsum0 = None  # Initial checksum
         self._hdr = None
         self.proto_num = None
-        self.proto = None           # Abused as flag: is L4 protocol handled?
-        self._src_ip0 = None        # Initial source IP address
-        self._src_ip = None         # Cached in ASCII form
-        self._dst_ip0 = None        # Initial destination IP address
-        self._dst_ip = None         # Again cached in ASCII
+        self.proto = None  # Abused as flag: is L4 protocol handled?
+        self._src_ip0 = None  # Initial source IP address
+        self._src_ip = None  # Cached in ASCII form
+        self._dst_ip0 = None  # Initial destination IP address
+        self._dst_ip = None  # Again cached in ASCII
 
         # L4 (TCP or UDP) parameters
-        self._tcpudpcsum0 = None    # Initial checksum
-        self._sport0 = None         # Initial source port
-        self._sport = None          # Cached for uniformity/ease
+        self._tcpudpcsum0 = None  # Initial checksum
+        self._sport0 = None  # Initial source port
+        self._sport = None  # Cached for uniformity/ease
         self.skey = None
-        self._dport0 = None         # Initial destination port
-        self._dport = None          # Cached for uniformity/ease
+        self._dport0 = None  # Initial destination port
+        self._dport = None  # Cached for uniformity/ease
         self.dkey = None
 
         # Parse as much as possible
-        self.ipver = ((self._raw[0] & 0xf0) >> 4)
+        self.ipver = (self._raw[0] & 0xF0) >> 4
         if self.ipver == 4:
             self._parseIpv4()
         elif self.ipver == 6:
             self._parseIpv6()
-        self._parseIp()             # If _parseIpv4 or _parseIpv6 worked...
-        self._parseIcmp()           # Or handle ICMP packets
+        self._parseIp()  # If _parseIpv4 or _parseIpv6 worked...
+        self._parseIcmp()  # Or handle ICMP packets
 
     def __len__(self):
         if self._mangled:
@@ -210,56 +210,59 @@ class PacketCtx(object):
 
     @property
     def icmp_id(self):
-        if self._is_icmp and self._hdr.data.type in \
-            [dpkt.icmp.ICMP_ECHO, dpkt.icmp.ICMP_ECHOREPLY]:
+        if self._is_icmp and self._hdr.data.type in [dpkt.icmp.ICMP_ECHO, dpkt.icmp.ICMP_ECHOREPLY]:
             return self._hdr.icmp.data.id
         return None
 
     def fmtL3Csums(self):
-        s = 'IP csum N/A'
+        s = "IP csum N/A"
         if self._is_ip:
             if self.ipver == 4:
-                csum0 = hex(self._ipcsum0).rstrip('L')
+                csum0 = hex(self._ipcsum0).rstrip("L")
                 if self._mangled:
                     self._calcCsums()
-                    csum = hex(self._hdr.sum).rstrip('L')
-                    s = 'IPv4 csum %s->%s' % (csum0, csum)
+                    csum = hex(self._hdr.sum).rstrip("L")
+                    s = "IPv4 csum %s->%s" % (csum0, csum)
                 else:
-                    s = 'IPv4 csum %s' % (csum0)
+                    s = "IPv4 csum %s" % (csum0)
             elif self.ipver == 6:
-                s = 'IPv6 csum N/A'
+                s = "IPv6 csum N/A"
         return s
 
     def fmtL4Csums(self):
-        s = 'L4 csum N/A'
+        s = "L4 csum N/A"
         if self.proto:
-            csum0 = hex(self._tcpudpcsum0).rstrip('L')
+            csum0 = hex(self._tcpudpcsum0).rstrip("L")
             if self._mangled:
                 self._calcCsums()
-                csum = hex(self._hdr.data.sum).rstrip('L')
-                s = '%s csum %s->%s' % (self.proto, csum0, csum)
+                csum = hex(self._hdr.data.sum).rstrip("L")
+                s = "%s csum %s->%s" % (self.proto, csum0, csum)
             else:
-                s = '%s csum %s' % (self.proto, csum0)
+                s = "%s csum %s" % (self.proto, csum0)
         return s
 
-    def fmtCsumData(self, sep='/'):
+    def fmtCsumData(self, sep="/"):
         if self._is_ip:
-            return '%s %s %s ' % (self.fmtL3Csums(), sep, self.fmtL4Csums())
+            return "%s %s %s " % (self.fmtL3Csums(), sep, self.fmtL4Csums())
         else:
-            return 'No identifying info'
+            return "No identifying info"
 
-    def hdrToStr2(self, sep='/'):
-        return '%s %s %s' % (self.hdrToStr(), sep, self.fmtCsumData(sep))
+    def hdrToStr2(self, sep="/"):
+        return "%s %s %s" % (self.hdrToStr(), sep, self.fmtCsumData(sep))
 
     def hdrToStr(self):
-        s = 'No valid IP headers parsed'
+        s = "No valid IP headers parsed"
         if self._is_ip:
             if self.proto:
-                s = '%s %s:%d->%s:%d' % (self.proto, self._src_ip,
-                                         self._hdr.data.sport, self._dst_ip,
-                                         self._hdr.data.dport)
+                s = "%s %s:%d->%s:%d" % (
+                    self.proto,
+                    self._src_ip,
+                    self._hdr.data.sport,
+                    self._dst_ip,
+                    self._hdr.data.dport,
+                )
             else:
-                s = '%s->%s' % (self._src_ip, self._dst_ip)
+                s = "%s->%s" % (self._src_ip, self._dst_ip)
 
         return s
 
@@ -282,7 +285,7 @@ class PacketCtx(object):
         return PacketCtx.gen_endpoint_key(self.proto, ip, port)
 
     def _parseIcmp(self):
-        self._is_icmp = (self.proto_num == dpkt.ip.IP_PROTO_ICMP)
+        self._is_icmp = self.proto_num == dpkt.ip.IP_PROTO_ICMP
 
     def _parseIpv4(self):
         hdr = dpkt.ip.IP(self._raw)
@@ -310,5 +313,3 @@ class PacketCtx(object):
     def _updateRaw(self):
         self._calcCsums()
         self._raw = self._hdr.pack()
-
-
