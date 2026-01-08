@@ -16,6 +16,7 @@ import sys
 import time
 import netifaces
 import threading
+import traceback
 
 from collections import OrderedDict
 
@@ -340,21 +341,23 @@ class IfaceIpInfo():
 
 
 def main():
+    # Wrap everything in try/except for SystemExit to require confirmation 
+    # before closing the console window
     try:
             
         print("""
-    ______      _  ________ _   _ ______ _______     _   _  _____
-    |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
-    | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
-    |  __/ /\ \ |  < |  __| | . ` |  __|    | |______| . ` | | |_ |
-    | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
-    |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
+______      _  ________ _   _ ______ _______     _   _  _____
+|  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
+| |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
+|  __/ /\ \ |  < |  __| | . ` |  __|    | |______| . ` | | |_ |
+| | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
+|_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
-                            Version 3.5
-    _____________________________________________________________
-                    Developed by FLARE Team
-        Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
-    _____________________________________________________________
+                        Version 3.5
+_____________________________________________________________
+                Developed by FLARE Team
+    Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
+_____________________________________________________________
                                                 """)
 
         # Parse command line arguments
@@ -452,8 +455,14 @@ def main():
             os.remove(options.stop_flag)
                 
         sys.exit(0)
-    except SystemExit:
-        input("[Press any key to exit]")
+
+    except SystemExit as e:        
+        input("[Press Enter to exit]")
+        sys.exit(e.code)
+    except Exception:
+        print(traceback.format_exc())
+        input("[Press Enter to exit]")
+        sys.exit(e.code)
 
 if __name__ == '__main__':
     main()
