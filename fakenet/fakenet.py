@@ -344,6 +344,7 @@ def main():
     # Wrap everything in try/except for SystemExit to require confirmation 
     # before closing the console window
     try:
+        rc = 0
             
         print("""
 ______      _  ________ _   _ ______ _______     _   _  _____
@@ -432,37 +433,29 @@ _____________________________________________________________
             options.stop_flag = os.path.expandvars(options.stop_flag)
             fakenet.logger.info('Will seek stop flag at %s' % (options.stop_flag))
 
-        fakenet.start()
+        fakenet.start()        
 
-        try:
-            while True:
-                time.sleep(1)
-                if options.stop_flag and os.path.exists(options.stop_flag):
-                    fakenet.logger.info('Stop flag found at %s' % (options.stop_flag))
-                    break
-
-        except KeyboardInterrupt:
-            pass
-
-        except:
-            e = sys.exc_info()[0]
-            fakenet.logger.error("ERROR: %s" % e)
-
+        while True:
+            time.sleep(1)
+            if options.stop_flag and os.path.exists(options.stop_flag):
+                fakenet.logger.info('Stop flag found at %s' % (options.stop_flag))
+                raise KeyboardInterrupt()            
+        
+    except KeyboardInterrupt:
         fakenet.stop()
 
         # Delete flag only after FakeNet-NG has stopped to indicate completion
         if options.stop_flag and os.path.exists(options.stop_flag):
             os.remove(options.stop_flag)
-                
-        sys.exit(0)
-
-    except SystemExit as e:        
-        input("[Press Enter to exit]")
-        sys.exit(e.code)
+    except SystemExit as e:
+        rc = e
     except Exception:
-        print(traceback.format_exc())
+        e = sys.exc_info()[0]
+        fakenet.logger.error("ERROR: %s" % e)
+        rc = 1
+    finally:
         input("[Press Enter to exit]")
-        sys.exit(e.code)
+        sys.exit(rc)
 
 if __name__ == '__main__':
     main()
