@@ -433,20 +433,16 @@ _____________________________________________________________
             options.stop_flag = os.path.expandvars(options.stop_flag)
             fakenet.logger.info('Will seek stop flag at %s' % (options.stop_flag))
 
-        fakenet.start()        
+        fakenet.start()
 
         while True:
             time.sleep(1)
             if options.stop_flag and os.path.exists(options.stop_flag):
                 fakenet.logger.info('Stop flag found at %s' % (options.stop_flag))
-                raise KeyboardInterrupt()            
-        
+                raise KeyboardInterrupt()
+
     except KeyboardInterrupt:
         fakenet.stop()
-
-        # Delete flag only after FakeNet-NG has stopped to indicate completion
-        if options.stop_flag and os.path.exists(options.stop_flag):
-            os.remove(options.stop_flag)
     except SystemExit as e:
         rc = e
     except Exception:
@@ -454,6 +450,10 @@ _____________________________________________________________
         fakenet.logger.error("ERROR: %s" % e)
         rc = 1
     finally:
+        # Delete flag only after FakeNet-NG has stopped to indicate completion
+        if options.stop_flag and os.path.exists(options.stop_flag):
+            os.remove(options.stop_flag)
+
         input("[Press Enter to exit]")
         sys.exit(rc)
 
