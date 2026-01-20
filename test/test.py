@@ -234,7 +234,7 @@ class FakeNetTester(object):
             if timeoutsec is not None:
                 timeoutsec -= 1
                 if timeoutsec <= 0:
-                    logger.warning("Delete stop file timed out")
+                    logger.warning("Deletion of stop flag file timed out")
                     break
 
         return retval

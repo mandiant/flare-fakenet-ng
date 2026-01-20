@@ -341,11 +341,12 @@ class IfaceIpInfo():
 
 
 def main():
-    # Wrap everything in try/except for SystemExit to require confirmation 
+    rc = 0
+    fakenet = None
+    options = None
+    # Wrap everything in try/except for SystemExit to require confirmation
     # before closing the console window
     try:
-        rc = 0
-            
         print("""
 ______      _  ________ _   _ ______ _______     _   _  _____
 |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
@@ -439,20 +440,22 @@ _____________________________________________________________
             time.sleep(1)
             if options.stop_flag and os.path.exists(options.stop_flag):
                 fakenet.logger.info('Stop flag found at %s' % (options.stop_flag))
-                raise KeyboardInterrupt()
+                break
 
     except KeyboardInterrupt:
-        fakenet.stop()
-    except SystemExit as e:
-        rc = e
-    except Exception:
-        e = sys.exc_info()[0]
-        fakenet.logger.error("ERROR: %s" % e)
-        rc = 1
+        print("KeyboardInterrupt")
+    except BaseException as e:
+        rc = e.code if isinstance(e, SystemExit) else 1
+        traceback.print_exc()
     finally:
+        if fakenet:
+            fakenet.stop()
         # Delete flag only after FakeNet-NG has stopped to indicate completion
-        if options.stop_flag and os.path.exists(options.stop_flag):
-            os.remove(options.stop_flag)
+        if options and options.stop_flag and os.path.exists(options.stop_flag):
+            try:
+                os.remove(options.stop_flag)
+            except:
+                print(f"WARNING: could not delete stop flag file: {options.stop_flag}")
 
         input("[Press Enter to exit]")
         sys.exit(rc)
