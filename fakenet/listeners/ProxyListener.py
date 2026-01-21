@@ -52,7 +52,7 @@ class ProxyListener(object):
 
             if proto == 'TCP':
 
-                self.logger.debug('Starting TCP ...')                
+                self.logger.debug('Starting TCP ...')
                 config = {
                     'cert_dir': self.config.get('cert_dir', 'configs/temp_certs'),
                     'networkmode': self.config.get('networkmode', None),
@@ -242,17 +242,18 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 listener_sock.daemon = True
                 listener_sock.start()
-                remote_sock.setblocking(0)
 
                 # ssl has no 'peek' option, so we need to process the first
                 # packet that is already consumed from the socket
                 if ssl_remote_sock:
                     ssl_remote_sock.setblocking(0)
                     remote_q.put(data)
-                
+                else:
+                    remote_sock.setblocking(0)
+
                 while True:
                     readable, writable, exceptional = select.select(
-                            [remote_sock], [], [], .001)
+                            [ssl_remote_sock if ssl_remote_sock else remote_sock], [], [], .001)
                     if readable:
                         try:
                             if ssl_remote_sock:
