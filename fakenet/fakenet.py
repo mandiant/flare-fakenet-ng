@@ -12,6 +12,7 @@ import logging
 import logging.handlers
 
 import os
+import pdb
 import sys
 import time
 import netifaces
@@ -358,7 +359,7 @@ ______      _  ________ _   _ ______ _______     _   _  _____
                         Version 3.5
 _____________________________________________________________
                 Developed by FLARE Team
-    Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
+    Copyright (C) 2016-2026 Mandiant, Inc. All rights reserved.
 _____________________________________________________________
                                                 """)
 
@@ -368,12 +369,14 @@ _____________________________________________________________
                         help="configuration filename", metavar="FILE")
         parser.add_option("-v", "--verbose",
                         action="store_true", dest="verbose", default=False,
-                        help="print more verbose messages.")
+                        help="print more verbose messages (default: False)")
         parser.add_option("-l", "--log-file", action="store", dest="log_file")
         parser.add_option("-s", "--log-syslog", action="store_true", dest="syslog",
-                        default=False, help="Log to syslog via /dev/log")
+                        default=False, help="Log to syslog via /dev/log  (default: False)")
         parser.add_option("-f", "--stop-flag", action="store", dest="stop_flag",
                         help="terminate if stop flag file is created")
+        parser.add_option("-p", "--pause", action="store_true", default=True,
+                          help="pause for confirmation before closing the console (default: True)")
         # TODO: Rework the way loggers are created and configured by subcomponents
         # to produce the expected result when logging control is asserted at the
         # top level. For now, the setting serves its real purpose which is to ease
@@ -446,7 +449,8 @@ _____________________________________________________________
         print("KeyboardInterrupt")
     except BaseException as e:
         rc = e.code if isinstance(e, SystemExit) else 1
-        traceback.print_exc()
+        if rc != 0:
+            traceback.print_exc()
     finally:
         if fakenet:
             fakenet.stop()
@@ -457,7 +461,10 @@ _____________________________________________________________
             except:
                 print(f"WARNING: could not delete stop flag file: {options.stop_flag}")
 
-        input("[Press Enter to exit]")
+        # we have to check if options has been fully parsed because of --help or invalid options
+        if options and options.pause:
+            input("[Press Enter to exit]")
+
         sys.exit(rc)
 
 if __name__ == '__main__':
