@@ -935,7 +935,6 @@ class FakeNetTestSettings:
         self.sender = 'from-fakenet@example.org'
         self.recipient = 'to-fakenet@example.org'
         self.smtpmsg = 'FakeNet-NG SMTP test email'
-        self.pause = False # wait for confirmation before exit
 
         # Behaviors
         self.sleep_after_start = 4
@@ -948,8 +947,8 @@ class FakeNetTestSettings:
             return os.path.expandvars(unixypath)
 
     def genFakenetCmd(self):
-        return ('%s -f %s -n -l %s -c %s -p %s' %
-                (self.fakenet, self.stopflag, self.logpath, self.configpath, self.pause))
+        return ('%s -f %s -n -l %s -c %s --no-pause' %
+                (self.fakenet, self.stopflag, self.logpath, self.configpath))
 
 def is_ip(s):
     pat = r'^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'

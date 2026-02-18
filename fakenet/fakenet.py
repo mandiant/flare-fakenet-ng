@@ -375,8 +375,8 @@ _____________________________________________________________
                         default=False, help="Log to syslog via /dev/log  (default: False)")
         parser.add_option("-f", "--stop-flag", action="store", dest="stop_flag",
                         help="terminate if stop flag file is created")
-        parser.add_option("-p", "--pause", action="store_true", default=True,
-                          help="pause for confirmation before closing the console (default: True)")
+        parser.add_option("-p", "--no-pause", action="store_true", default=False,
+                          help="disable pause for confirmation before closing the console (default: pause)")
         # TODO: Rework the way loggers are created and configured by subcomponents
         # to produce the expected result when logging control is asserted at the
         # top level. For now, the setting serves its real purpose which is to ease
@@ -461,8 +461,9 @@ _____________________________________________________________
             except:
                 print(f"WARNING: could not delete stop flag file: {options.stop_flag}")
 
-        # we have to check if options has been fully parsed because of --help or invalid options
-        if options and options.pause:
+        # We have to check if options has been fully parsed because of --help or invalid options
+        # "not no_pause" is confusing, but this is unfortunately the best way to set the default  with optparse
+        if options and not options.no_pause:
             input("[Press Enter to exit]")
 
         sys.exit(rc)
