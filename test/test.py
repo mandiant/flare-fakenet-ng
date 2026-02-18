@@ -39,8 +39,8 @@ def is_admin():
     return result
 
 def execute_detached(execute_cmd, winders=False):
-    # allows stdin pipe to FN child, unlike DETACHED_PROCESS
-    cflags = subprocess.CREATE_NEW_CONSOLE if winders else 0
+    DETACHED_PROCESS = 0x00000008
+    cflags = DETACHED_PROCESS if winders else 0
     cfds = False if winders else True
     shl = False if winders else True
 
@@ -53,17 +53,16 @@ def execute_detached(execute_cmd, winders=False):
     preexec = None if winders else ign_sigint
 
     try:
-        process = subprocess.Popen(execute_cmd, creationflags=cflags,
+        pid = subprocess.Popen(execute_cmd, creationflags=cflags,
                                shell=shl,
                                close_fds = cfds,
-                               preexec_fn = preexec,
-                               stdin = subprocess.PIPE)
+                               preexec_fn = preexec).pid
     except Exception as e:
         logger.info('Error: Failed to execute command: %s', execute_cmd)
         logger.info('       %s', e)
-        return None, None
+        return None
     else:
-        return process.pid, process
+        return pid
 
 def get_ips(ipvers):
     """Return IP addresses bound to local interfaces including loopbacks.
@@ -205,7 +204,6 @@ class FakeNetTester(object):
     def __init__(self, settings):
         self.settings = settings
         self.pid_fakenet = None
-        self.process_fakenet = None
 
     def _setStopFlag(self):
         with open(self.settings.stopflag, 'w') as f:
@@ -223,10 +221,6 @@ class FakeNetTester(object):
 
         while True:
             if self._confirmFakenetStopped():
-                time.sleep(3)
-                logger.info("Sending ENTER to FakeNet stdin")
-                self.process_fakenet.stdin.write(b"\r\r")
-                self.process_fakenet.stdin.flush()
                 retval = True
                 break
             time.sleep(1)
@@ -234,7 +228,6 @@ class FakeNetTester(object):
             if timeoutsec is not None:
                 timeoutsec -= 1
                 if timeoutsec <= 0:
-                    logger.warning("Deletion of stop flag file timed out")
                     break
 
         return retval
@@ -284,7 +277,6 @@ class FakeNetTester(object):
                 self._kill(self.pid_fakenet)
 
         self.pid_fakenet = None
-        self.process_fakenet = None
 
         return stopped_responsive
 
@@ -314,7 +306,7 @@ class FakeNetTester(object):
 
         cmd = self.settings.genFakenetCmd()
         logger.info('About to run %s' % (cmd))
-        self.pid_fakenet, self.process_fakenet = execute_detached(cmd, self.settings.windows)
+        self.pid_fakenet = execute_detached(cmd, self.settings.windows)
         if self.pid_fakenet:
             logger.info('FakeNet started with PID %s' % (str(self.pid_fakenet)))
 
@@ -497,7 +489,7 @@ class FakeNetTester(object):
             time.sleep(sec)
 
             logger.info('Stopping FakeNet-NG and waiting for it to complete')
-            responsive = self.stopFakenetAndWait(45, True)
+            responsive = self.stopFakenetAndWait(15, True)
 
             if responsive:
                 logger.info('FakeNet-NG is stopped')
