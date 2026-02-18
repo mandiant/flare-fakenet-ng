@@ -1963,7 +1963,11 @@ class DiverterBase(fnconfig.Config):
                         if v is not None:
                             # Let's convert the NBI value to str if it's not already
                             if isinstance(v, bytes):
-                                v = v.decode('utf-8')
+                                try:
+                                    v = v.decode('utf-8')
+                                except UnicodeDecodeError:
+                                    self.logger.error(f"Unicode Decode Error: {v[:40]}")
+                                    continue
 
                             # Let's print maximum 40 characters for NBI values
                             v = (v[:40]+"...") if len(v)>40 else v
