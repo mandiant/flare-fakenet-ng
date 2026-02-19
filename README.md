@@ -167,7 +167,7 @@ parameter to get simple help:
                             Version 3.5
     _____________________________________________________________
                     Developed by FLARE Team
-        Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
+        Copyright (C) 2016-2026 Mandiant, Inc. All rights reserved.
     _____________________________________________________________
     
     Usage: python -m fakenet.fakenet [options]:
@@ -181,8 +181,8 @@ parameter to get simple help:
     -s, --log-syslog    Log to syslog via /dev/log  (default: False)
     -f STOP_FLAG, --stop-flag=STOP_FLAG
                         terminate if stop flag file is created
-    -p, --pause         pause for confirmation before closing the console 
-                        (default: True)
+    -p, --no-pause      disable pause for confirmation before closing the console 
+                        (default: pause)
     -n, --no-console-output
                         Suppress console output (for testing on Linux)
 
@@ -230,7 +230,7 @@ and an HTTP connection:
                              Version  3.5
       _____________________________________________________________
                        Developed by FLARE Team
-        Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
+        Copyright (C) 2016-2026 Mandiant, Inc. All rights reserved.
       _____________________________________________________________
 
     07/06/16 10:20:52 PM [           FakeNet] Loaded configuration file: configs/default.ini
@@ -310,6 +310,10 @@ To stop FakeNet-NG and save the generated PCAP file and HTML report to disk simp
     07/06/16 10:21:42 PM [      SMTPListener] Stopping...
     07/06/16 10:21:43 PM [          Diverter] Stopping...
 	07/06/16 10:21:43 PM [          Diverter] Generated new HTML report: report_20160607_102143.html
+    [Press Enter to exit]
+
+Wait for the PCAP and report to be generated then press Enter to quit; the console window will stay
+open until you do. This can be disabled (for example in scripts) with the `--no-pause` flag.
 
 User Interface
 --------------
