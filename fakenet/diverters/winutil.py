@@ -1123,9 +1123,9 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             self.logger.error('Failed calling GetBestInterface (error code: %d)', error_code)
             self.logger.error('This typically means no network interface with a valid IP address could be identified.')
             self.logger.error('Troubleshooting steps:')
-            self.logger.error('  1. Ensure that your VM is attached to a host-only network')
+            self.logger.error('  1. Ensure the VM/system has at least one active network adapter')
             self.logger.error('  2. Verify the network adapter has a valid IP address (not 0.0.0.0)')
-            self.logger.error('  3. If using a VM, attach to a host-only or NAT network')
+            self.logger.error('  3. Ensure that your VM is attached to a host-only network')
             self.logger.error('  4. Check that the network adapter has valid DHCP settings')
             self.logger.error('  5. Try running "ipconfig /all" to verify network configuration')
             return None
