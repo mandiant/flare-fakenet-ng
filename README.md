@@ -312,8 +312,9 @@ To stop FakeNet-NG and save the generated PCAP file and HTML report to disk simp
 	07/06/16 10:21:43 PM [          Diverter] Generated new HTML report: report_20160607_102143.html
     [Press Enter to exit]
 
-Wait for the PCAP and report to be generated then press Enter to quit; the console window will stay
-open until you do. This can be disabled (for example in scripts) with the `--no-pause` flag.
+Wait for the PCAP and report to be generated, then press `Enter` to quit. The console
+window will stay open until you do; this can be disabled (for example, in scripts)
+with the `--no-pause` flag.
 
 User Interface
 --------------
