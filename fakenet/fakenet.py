@@ -12,7 +12,6 @@ import logging
 import logging.handlers
 
 import os
-import pdb
 import sys
 import time
 import netifaces
