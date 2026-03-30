@@ -442,8 +442,10 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             elif pkt.proto == 'UDP':
                 conn_pid = self._get_pid_port_udp(pkt.sport)
 
-            if conn_pid:
+            if conn_pid is not None:
                 process_name = self.get_process_image_filename(conn_pid)
+                if process_name is None:
+                    self.logger.debug(f"Failed to get process name | PID {conn_pid} | source port {pkt.sport} {pkt.proto}")
         return conn_pid, process_name
 
     def check_gateways(self):
@@ -870,16 +872,18 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
             yield item
 
     def _get_pid_port_udp(self, port):
-
+        checked = 0
         for item in self.get_extended_udp_table():
 
             lPort = socket.ntohs(item.dwLocalPort)
             lAddr = socket.inet_ntoa(struct.pack('L', item.dwLocalAddr))
             pid = item.dwOwningPid
 
+            checked += 1
             if lPort == port:
                 return pid
         else:
+            self.logger.debug(f"Couldn't find PID in {checked} entries for UDP sport {port}")
             return None
 
     ##########################################################################
@@ -895,7 +899,7 @@ class WinUtilMixin(diverterbase.DiverterPerOSDelegate):
 
         process_name = None
 
-        if pid == 4:
+        if pid in (0, 4):
             # Skip the inevitable errno 87, invalid parameter
             process_name = 'System'
         elif pid:
