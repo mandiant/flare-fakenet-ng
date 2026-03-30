@@ -157,26 +157,34 @@ executable as an Administrator. You can provide `--help` command-line
 parameter to get simple help:
 
     C:\tools\fakenet-ng>fakenet.exe --help
-      ______      _  ________ _   _ ______ _______     _   _  _____
-     |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
-     | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
-     |  __/ /\ \ |  < |  __| | . ` |  __|    | |______| . ` | | |_ |
-     | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
-     |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
-
-                             Version  3.5
-      _____________________________________________________________
-                       Developed by FLARE Team
-        Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
-      _____________________________________________________________
+    ______      _  ________ _   _ ______ _______     _   _  _____
+    |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
+    | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
+    |  __/ /\ \ |  < |  __| | . ` |  __|    | |______| . ` | | |_ |
+    | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
+    |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
+    
+                            Version 3.5
+    _____________________________________________________________
+                    Developed by FLARE Team
+        Copyright (C) 2016-2026 Mandiant, Inc. All rights reserved.
+    _____________________________________________________________
+    
     Usage: python -m fakenet.fakenet [options]:
-
+    
     Options:
-      -h, --help            show this help message and exit
-      -c FILE, --config-file=FILE
-                            configuration filename
-      -v, --verbose         print more verbose messages.
-      -l LOG_FILE, --log-file=LOG_FILE
+    -h, --help            show this help message and exit
+    -c FILE, --config-file=FILE
+                        configuration filename
+    -v, --verbose       print more verbose messages (default: False)
+    -l LOG_FILE, --log-file=LOG_FILE
+    -s, --log-syslog    Log to syslog via /dev/log  (default: False)
+    -f STOP_FLAG, --stop-flag=STOP_FLAG
+                        terminate if stop flag file is created
+    -p, --no-pause      disable pause for confirmation before closing the console 
+                        (default: pause)
+    -n, --no-console-output
+                        Suppress console output (for testing on Linux)
 
 As you can see from the simple help above it is possible to configure the
 configuration file used to start FakeNet-NG. By default, the tool uses
@@ -222,7 +230,7 @@ and an HTTP connection:
                              Version  3.5
       _____________________________________________________________
                        Developed by FLARE Team
-        Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
+        Copyright (C) 2016-2026 Mandiant, Inc. All rights reserved.
       _____________________________________________________________
 
     07/06/16 10:20:52 PM [           FakeNet] Loaded configuration file: configs/default.ini
@@ -302,6 +310,10 @@ To stop FakeNet-NG and save the generated PCAP file and HTML report to disk simp
     07/06/16 10:21:42 PM [      SMTPListener] Stopping...
     07/06/16 10:21:43 PM [          Diverter] Stopping...
 	07/06/16 10:21:43 PM [          Diverter] Generated new HTML report: report_20160607_102143.html
+    [Press Enter to exit]
+
+Wait for the PCAP and report to be generated then press Enter to quit; the console window will stay
+open until you do. This can be disabled (for example in scripts) with the `--no-pause` flag.
 
 User Interface
 --------------

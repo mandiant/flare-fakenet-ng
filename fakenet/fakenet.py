@@ -16,6 +16,7 @@ import sys
 import time
 import netifaces
 import threading
+import traceback
 
 from collections import OrderedDict
 
@@ -340,97 +341,103 @@ class IfaceIpInfo():
 
 
 def main():
-
-    print("""
-  ______      _  ________ _   _ ______ _______     _   _  _____
- |  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
- | |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
- |  __/ /\ \ |  < |  __| | . ` |  __|    | |______| . ` | | |_ |
- | | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
- |_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
+    rc = 0
+    fakenet = None
+    options = None
+    # Wrap everything in try/except for SystemExit to require confirmation
+    # before closing the console window
+    try:
+        print("""
+______      _  ________ _   _ ______ _______     _   _  _____
+|  ____/\   | |/ /  ____| \ | |  ____|__   __|   | \ | |/ ____|
+| |__ /  \  | ' /| |__  |  \| | |__     | |______|  \| | |  __
+|  __/ /\ \ |  < |  __| | . ` |  __|    | |______| . ` | | |_ |
+| | / ____ \| . \| |____| |\  | |____   | |      | |\  | |__| |
+|_|/_/    \_\_|\_\______|_| \_|______|  |_|      |_| \_|\_____|
 
                         Version 3.5
-  _____________________________________________________________
-                   Developed by FLARE Team
-    Copyright (C) 2016-2024 Mandiant, Inc. All rights reserved.
-  _____________________________________________________________
-                                               """)
+_____________________________________________________________
+                Developed by FLARE Team
+    Copyright (C) 2016-2026 Mandiant, Inc. All rights reserved.
+_____________________________________________________________
+                                                """)
 
-    # Parse command line arguments
-    parser = OptionParser(usage = "python -m fakenet.fakenet [options]:")
-    parser.add_option("-c", "--config-file", action="store",  dest="config_file",
-                      help="configuration filename", metavar="FILE")
-    parser.add_option("-v", "--verbose",
-                      action="store_true", dest="verbose", default=False,
-                      help="print more verbose messages.")
-    parser.add_option("-l", "--log-file", action="store", dest="log_file")
-    parser.add_option("-s", "--log-syslog", action="store_true", dest="syslog",
-                      default=False, help="Log to syslog via /dev/log")
-    parser.add_option("-f", "--stop-flag", action="store", dest="stop_flag",
-                      help="terminate if stop flag file is created")
-    # TODO: Rework the way loggers are created and configured by subcomponents
-    # to produce the expected result when logging control is asserted at the
-    # top level. For now, the setting serves its real purpose which is to ease
-    # testing on Linux after modifying logging such that console and file
-    # output are not mutually exclusive.
-    parser.add_option("-n", "--no-console-output", action="store_true",
-                      dest="no_con_out", default=False,
-                      help="Suppress console output (for testing on Linux)")
+        # Parse command line arguments
+        parser = OptionParser(usage = "python -m fakenet.fakenet [options]:")
+        parser.add_option("-c", "--config-file", action="store",  dest="config_file",
+                        help="configuration filename", metavar="FILE")
+        parser.add_option("-v", "--verbose",
+                        action="store_true", dest="verbose", default=False,
+                        help="print more verbose messages (default: False)")
+        parser.add_option("-l", "--log-file", action="store", dest="log_file")
+        parser.add_option("-s", "--log-syslog", action="store_true", dest="syslog",
+                        default=False, help="Log to syslog via /dev/log  (default: False)")
+        parser.add_option("-f", "--stop-flag", action="store", dest="stop_flag",
+                        help="terminate if stop flag file is created")
+        parser.add_option("-p", "--no-pause", action="store_true", default=False,
+                          help="disable pause for confirmation before closing the console (default: pause)")
+        # TODO: Rework the way loggers are created and configured by subcomponents
+        # to produce the expected result when logging control is asserted at the
+        # top level. For now, the setting serves its real purpose which is to ease
+        # testing on Linux after modifying logging such that console and file
+        # output are not mutually exclusive.
+        parser.add_option("-n", "--no-console-output", action="store_true",
+                        dest="no_con_out", default=False,
+                        help="Suppress console output (for testing on Linux)")
 
-    (options, args) = parser.parse_args()
+        (options, args) = parser.parse_args()
 
-    logging_level = logging.DEBUG if options.verbose else logging.INFO
+        logging_level = logging.DEBUG if options.verbose else logging.INFO
 
-    date_format = '%m/%d/%y %I:%M:%S %p'
-    logging.basicConfig(format='%(asctime)s [%(name)18s] %(message)s',
-                        datefmt=date_format, level=logging_level)
-    logger = logging.getLogger('')  # Get the root logger i.e. ''
+        date_format = '%m/%d/%y %I:%M:%S %p'
+        logging.basicConfig(format='%(asctime)s [%(name)18s] %(message)s',
+                            datefmt=date_format, level=logging_level)
+        logger = logging.getLogger('')  # Get the root logger i.e. ''
 
-    if options.no_con_out:
-        logger.handlers = []
+        if options.no_con_out:
+            logger.handlers = []
 
-    if options.log_file:
-        try:
-            loghandler = logging.StreamHandler(stream=open(options.log_file,
-                                                           'a'))
-        except IOError:
-            print(('Failed to open specified log file: %s' % (options.log_file)))
-            sys.exit(1)
-        loghandler.formatter = logging.Formatter(
-            '%(asctime)s [%(name)18s] %(message)s', datefmt=date_format)
-        logger.addHandler(loghandler)
+        if options.log_file:
+            try:
+                loghandler = logging.StreamHandler(stream=open(options.log_file,
+                                                            'a'))
+            except IOError:
+                print(('Failed to open specified log file: %s' % (options.log_file)))
+                sys.exit(1)
+            loghandler.formatter = logging.Formatter(
+                '%(asctime)s [%(name)18s] %(message)s', datefmt=date_format)
+            logger.addHandler(loghandler)
 
-    if options.syslog:
-        platform_name = platform.system()
-        sysloghandler = None
-        if platform_name == 'Windows':
-            sysloghandler = logging.handlers.NTEventLogHandler('FakeNet-NG')
-        elif platform_name.lower().startswith('linux'):
-            sysloghandler = logging.handlers.SysLogHandler('/dev/log')
-        else:
-            print(('Error: Your system %s is currently not supported.' %
-                  (platform_name)))
-            sys.exit(1)
+        if options.syslog:
+            platform_name = platform.system()
+            sysloghandler = None
+            if platform_name == 'Windows':
+                sysloghandler = logging.handlers.NTEventLogHandler('FakeNet-NG')
+            elif platform_name.lower().startswith('linux'):
+                sysloghandler = logging.handlers.SysLogHandler('/dev/log')
+            else:
+                print(('Error: Your system %s is currently not supported.' %
+                    (platform_name)))
+                sys.exit(1)
 
-        # Specify datefmt for consistency, but syslog generally logs the time
-        # on each log line, so %(asctime) is omitted here.
-        sysloghandler.formatter = logging.Formatter(
-            '"FakeNet-NG": {"loggerName":"%(name)s", '
-            '"moduleName":"%(module)s", '
-            '"levelName":"%(levelname)s", '
-            '"message":"%(message)s"}', datefmt=date_format)
-        logger.addHandler(sysloghandler)
+            # Specify datefmt for consistency, but syslog generally logs the time
+            # on each log line, so %(asctime) is omitted here.
+            sysloghandler.formatter = logging.Formatter(
+                '"FakeNet-NG": {"loggerName":"%(name)s", '
+                '"moduleName":"%(module)s", '
+                '"levelName":"%(levelname)s", '
+                '"message":"%(message)s"}', datefmt=date_format)
+            logger.addHandler(sysloghandler)
 
-    fakenet = Fakenet(logging_level)
-    fakenet.parse_config(options.config_file)
+        fakenet = Fakenet(logging_level)
+        fakenet.parse_config(options.config_file)
 
-    if options.stop_flag:
-        options.stop_flag = os.path.expandvars(options.stop_flag)
-        fakenet.logger.info('Will seek stop flag at %s' % (options.stop_flag))
+        if options.stop_flag:
+            options.stop_flag = os.path.expandvars(options.stop_flag)
+            fakenet.logger.info('Will seek stop flag at %s' % (options.stop_flag))
 
-    fakenet.start()
+        fakenet.start()
 
-    try:
         while True:
             time.sleep(1)
             if options.stop_flag and os.path.exists(options.stop_flag):
@@ -438,19 +445,27 @@ def main():
                 break
 
     except KeyboardInterrupt:
-        pass
+        print("KeyboardInterrupt")
+    except BaseException as e:
+        rc = e.code if isinstance(e, SystemExit) else 1
+        if rc != 0:
+            traceback.print_exc()
+    finally:
+        if fakenet:
+            fakenet.stop()
+        # Delete flag only after FakeNet-NG has stopped to indicate completion
+        if options and options.stop_flag and os.path.exists(options.stop_flag):
+            try:
+                os.remove(options.stop_flag)
+            except:
+                print(f"WARNING: could not delete stop flag file: {options.stop_flag}")
 
-    except:
-        e = sys.exc_info()[0]
-        fakenet.logger.error("ERROR: %s" % e)
+        # We have to check if options has been fully parsed because of --help or invalid options
+        # "not no_pause" is confusing, but this is unfortunately the best way to set the default  with optparse
+        if options and not options.no_pause:
+            input("[Press Enter to exit]")
 
-    fakenet.stop()
-
-    # Delete flag only after FakeNet-NG has stopped to indicate completion
-    if options.stop_flag and os.path.exists(options.stop_flag):
-        os.remove(options.stop_flag)
-
-    sys.exit(0)
+        sys.exit(rc)
 
 if __name__ == '__main__':
     main()
