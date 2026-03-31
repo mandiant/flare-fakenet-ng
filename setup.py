@@ -14,7 +14,7 @@ requirements = [
     "netifaces",
     "pyftpdlib",
     "cryptography",
-    "pyopenssl",
+    "pyopenssl==24.2.1",
     "jinja2",
 ]
 

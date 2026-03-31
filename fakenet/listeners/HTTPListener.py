@@ -217,7 +217,8 @@ class HTTPListener(object):
                 'networkmode': self.config.get('networkmode', None),
                 'static_ca': self.config.get('static_ca', 'No'),
                 'ca_cert': self.config.get('ca_cert'),
-                'ca_key': self.config.get('ca_key')
+                'ca_key': self.config.get('ca_key'),
+                'webroot': self.config.get('webroot')
             }
             self.sslwrapper = SSLWrapper(config)
             self.server.sslwrapper = self.sslwrapper

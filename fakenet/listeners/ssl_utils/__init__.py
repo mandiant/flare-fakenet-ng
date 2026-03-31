@@ -24,6 +24,7 @@ class SSLWrapper(object):
         self.config = config
         self.ca_cert = None
         self.ca_key = None
+        self.ca_crl = None
         self.ca_cn = self.CN
 
         cert_dir = self.abs_config_path(self.config.get('cert_dir', None))
@@ -39,11 +40,11 @@ class SSLWrapper(object):
             self.ca_key = self.abs_config_path(self.config.get('ca_key', None))
             self.ca_cn = self._load_cert(self.ca_cert).get_subject().CN
         else:
-            self.ca_cert, self.ca_key = self.create_cert(self.CN)
+            self.ca_cert, self.ca_key, self.ca_crl = self.create_cert(self.CN)
         if ( not self.config.get('networkmode', None) == 'multihost' and
              not self.config.get('static_ca').lower() == 'yes'):
             self.logger.debug('adding root cert: %s', self.ca_cert)
-            self._add_root_ca(self.ca_cert)
+            self._add_root_ca(self.ca_cert, self.ca_crl)
 
     def wrap_socket(self, s):
         try:
@@ -74,17 +75,23 @@ class SSLWrapper(object):
 
         cert_file = os.path.join(cert_dir, "%s.crt" % (cn))
         key_file = os.path.join(cert_dir, "%s.key" % (cn))
-        if os.path.exists(cert_file) and os.path.exists(key_file):
-            return cert_file, key_file
+        crl_file = os.path.join(cert_dir, "ca.crl")
+        if os.path.exists(cert_file) and os.path.exists(key_file) and os.path.exists(crl_file):
+            webroot = self.config.get("webroot")
+            if webroot and os.path.exists(webroot):
+                web_crl_path = os.path.join(webroot, "ca.crl")
+                if not os.path.exists(web_crl_path):
+                    shutil.copyfile(crl_file, web_crl_path)
+            return cert_file, key_file, crl_file
 
         if ca_cert is not None and ca_key is not None:
             ca_cert_data = self._load_cert(ca_cert)
             if ca_cert_data is None:
-                return None, None
+                return None, None, None
 
             ca_key_data = self._load_private_key(ca_key)
             if ca_key_data is None:
-                return None, None
+                return None, None, None
 
         # generate crypto keys:
         key = crypto.PKey()
@@ -106,17 +113,45 @@ class SSLWrapper(object):
         cert.gmtime_adj_notAfter(na)
         cert.set_pubkey(key)
         if f_selfsign:
+            # root CA cert
             extensions = [
                 crypto.X509Extension(b'basicConstraints', True, b'CA:TRUE'),
+                crypto.X509Extension(b"keyUsage", True, b"keyCertSign, cRLSign"),
+                crypto.X509Extension(b"crlDistributionPoints", False, b"URI:http://fakenet.mandiant.com/ca.crl")
             ]
             cert.set_issuer(cert.get_subject())
             cert.add_extensions(extensions)
             cert.sign(key, "sha256")
+
+            # empty CRL for this CA
+            crl = crypto.CRL()
+            now = time.strftime("%Y%m%d%H%M%SZ", time.gmtime())
+            next_update = time.strftime("%Y%m%d%H%M%SZ", time.gmtime(time.time() + (30 * 24 * 60 * 60))) # 30 days
+            crl.set_lastUpdate(now.encode('ascii'))
+            crl.set_nextUpdate(next_update.encode('ascii'))
+            crl.set_version(1)
+            crl.sign(cert, key, digest=b"sha256")
+            crl_der = crl.export(cert, key, crypto.FILETYPE_ASN1, digest=b"sha256")
+
+            # write CRL to disk to import into cert store and also serve over HTTP when necessary
+            try:
+                with open(crl_file, "wb") as f:
+                    f.write(crl_der)
+                webroot = self.config.get("webroot")
+                if webroot and os.path.exists(webroot):
+                    with open(os.path.join(webroot, "ca.crl"), "wb") as f:
+                        f.write(crl_der)
+            except IOError:
+                traceback.print_exc()
+                return None, None, None
+
         else:
+            # leaf cert for a requested domain
             alt_name = b'DNS:' + cn.encode()
             extensions = [
                 crypto.X509Extension(b'basicConstraints', False, b'CA:FALSE'),
-                crypto.X509Extension(b'subjectAltName', False, alt_name)
+                crypto.X509Extension(b'subjectAltName', False, alt_name),
+                crypto.X509Extension(b"crlDistributionPoints", False, b"URI:http://fakenet.mandiant.com/ca.crl")
             ]
             cert.set_issuer(ca_cert_data.get_subject())
             cert.add_extensions(extensions)
@@ -133,8 +168,8 @@ class SSLWrapper(object):
                 )
         except IOError:
             traceback.print_exc()
-            return None, None
-        return cert_file, key_file
+            return None, None, None
+        return cert_file, key_file, crl_file
 
     def sni_callback(self, sslsock, servername, sslctx):
         if servername is None:
@@ -142,7 +177,7 @@ class SSLWrapper(object):
         newctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
         newctx.options |= ssl.OP_NO_TLSv1
         newctx.options |= ssl.OP_NO_TLSv1_1
-        cert_file, key_file = self.create_cert(servername, self.ca_cert, self.ca_key)
+        cert_file, key_file, _ = self.create_cert(servername, self.ca_cert, self.ca_key)
         if cert_file is None or key_file is None:
             return
 
@@ -175,6 +210,7 @@ class SSLWrapper(object):
         rc = True
         if sys.platform.startswith('win'):
             try:
+                self.logger.debug(f"Running cmd: {argv}")
                 subprocess.check_call(argv, shell=True, stdout=None)
                 rc = True
             except subprocess.CalledProcessError:
@@ -182,12 +218,20 @@ class SSLWrapper(object):
                 rc = False
         return rc
 
-    def _add_root_ca(self, ca_cert_file):
+    def _add_root_ca(self, ca_cert_file, ca_crl_file):
         argv = ['certutil', '-addstore', 'Root', ca_cert_file]
+        installed_cert = self._run_process(argv)
+        if not installed_cert:
+            return False
+        argv = ['certutil', '-addstore', 'CA', ca_crl_file]
         return self._run_process(argv)
 
     def _remove_root_ca(self, cn):
         argv = ['certutil', '-delstore', 'Root', cn]
+        removed = self._run_process(argv)
+        if not removed:
+            return False
+        argv = ['certutil', '-delstore', 'CA', cn]
         return self._run_process(argv)
 
     def __del__(self):
@@ -195,6 +239,10 @@ class SSLWrapper(object):
                 not self.config.get('static_ca').lower() == 'yes'): 
             self._remove_root_ca(self.ca_cn)
         shutil.rmtree(self.abs_config_path(self.config.get('cert_dir', None)), ignore_errors=True)
+        if self.config.get("webroot"):
+            crl = os.path.join(self.config.get("webroot"), "ca.crl")
+            if os.path.exists(crl):
+                os.remove(crl)
         return
 
     def abs_config_path(self, path):
