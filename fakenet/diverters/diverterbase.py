@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2026 Google LLC
 
 import os
 import abc
@@ -32,9 +32,11 @@ class DivertParms(object):
     been parsed and validated.
     """
 
-    def __init__(self, diverter, pkt):
+    def __init__(self, diverter, pkt, pid, comm):
         self.diverter = diverter
         self.pkt = pkt
+        self.pid = pid
+        self.comm = comm
 
     @property
     def is_loopback0(self):
@@ -93,13 +95,28 @@ class DivertParms(object):
             True if this pair of endpoints hasn't conversed before, else False
         """
         # sessions.get returns (dst_ip, dport, pid, comm, dport0, proto) or
-        # None. We just want dst_ip and dport for comparison.
+        # None.
+        # Sessions are only keyed on the outgoing UDP port because PID and
+        # process name are not available everywhere we need to access sessions,
+        # but we must check dst_ip, dport, PID, and process name for full comparison.
+
         session = self.diverter.sessions.get(self.pkt.sport)
         if session is None:
             return True
 
-        return not ((session.dst_ip, session.dport) ==
-                        (self.pkt.dst_ip, self.pkt.dport))
+        # Check for process change only if we have valid new information to compare
+        if self.pid is not None:
+            # Is the same process still using that UDP port, or has it been reused by a new one?
+            if session.pid != self.pid:
+                return True
+            if self.comm is not None and session.comm != self.comm:
+                return True
+
+        # Is the destination different from the previous use of this source port?
+        if (session.dst_ip, session.dport) != (self.pkt.dst_ip, self.pkt.dport):
+            return True
+
+        return False
 
 class DiverterPerOSDelegate(object, metaclass=abc.ABCMeta):
     """Delegate class for OS-specific methods that FakeNet-NG implementors must
@@ -1203,10 +1220,9 @@ class DiverterBase(fnconfig.Config):
         else:
             self.pdebug(DGENPKT, '%s %s' % (pkt.label, pkt.hdrToStr()))
 
-            crit = DivertParms(self, pkt)
-
             # fnpacket has parsed all that can be parsed, so
             pid, comm = self.get_pid_comm(pkt)
+            crit = DivertParms(self, pkt, pid, comm)
             if self.pdebug_level & DGENPKTV:
                 logline = self.formatPkt(pkt, pid, comm)
                 self.pdebug(DGENPKTV, logline)
@@ -1699,7 +1715,7 @@ class DiverterBase(fnconfig.Config):
             self.delete_stale_port_fwd_key(pkt.skey)
 
         if crit.first_packet_new_session:
-            self.addSession(pkt)
+            self.addSession(pkt, pid, comm)
 
             # Execute command if applicable
             self.maybeExecuteCmd(pkt, pid, comm)
@@ -1792,7 +1808,7 @@ class DiverterBase(fnconfig.Config):
 
         return (not a and not d) or (not c and not d)
 
-    def addSession(self, pkt):
+    def addSession(self, pkt, pid, comm):
         """Add a connection to the sessions hash table.
 
         Args:
@@ -1803,7 +1819,6 @@ class DiverterBase(fnconfig.Config):
         """
         session = namedtuple('session', ['dst_ip', 'dport', 'pid',
                                          'comm', 'dport0', 'proto'])
-        pid, comm = self.get_pid_comm(pkt)
         self.sessions[pkt.sport] = session(pkt.dst_ip, pkt.dport, pid,
                                            comm, pkt._dport0, pkt.proto)
 
@@ -1874,13 +1889,14 @@ class DiverterBase(fnconfig.Config):
         else:
             orig_sport = sport
 
-        if self.sessions.get(orig_sport) is None:
+        session = self.sessions.get(orig_sport)
+        if session is None:
             return
-
-        dst_ip, _, pid, comm, orig_dport, transport_layer_proto = self.sessions.get(orig_sport)
+        pid = session.pid
+        comm = session.comm
 
         if application_layer_proto == '':
-            application_layer_proto = transport_layer_proto
+            application_layer_proto = session.proto
 
         # Normalize pid and comm for MultiHost mode
         if pid is None and comm is None and self.network_mode.lower() == 'multihost':
@@ -1890,10 +1906,10 @@ class DiverterBase(fnconfig.Config):
 
         # Craft the dictionary
         nbi_entry = {
-            'transport_layer_proto': transport_layer_proto,
+            'transport_layer_proto': session.proto,
             'sport': orig_sport,
-            'dst_ip': dst_ip,
-            'dport': orig_dport,
+            'dst_ip': session.dst_ip,
+            'dport': session.dport0,
             'is_ssl_encrypted': is_ssl_encrypted,
             'network_mode': self.network_mode.lower(),
             'nbi': nbi
@@ -2012,6 +2028,8 @@ class DiverterBase(fnconfig.Config):
         if self.single_host_mode and proto is not None:
             if process_name is None or dport is None:
                 if sport is None:
+                    # arguably should raise an exception here
+                    # or else split this method in two
                     return False, process_name, pid
 
                 orig_sport = self.proxy_sport_to_orig_sport_map.get((proto, sport), sport)
