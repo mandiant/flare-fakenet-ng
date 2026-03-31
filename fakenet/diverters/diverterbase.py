@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2026 Google LLC
 
 import os
 import abc
@@ -104,9 +104,13 @@ class DivertParms(object):
         if session is None:
             return True
 
-        # Is the same process still using that UDP port, or has it been reused by a new one?
-        if session.pid != self.pid or session.comm != self.comm:
-            return True
+        # Check for process change only if we have valid new information to compare
+        if self.pid is not None:
+            # Is the same process still using that UDP port, or has it been reused by a new one?
+            if session.pid != self.pid:
+                return True
+            if self.comm is not None and session.comm != self.comm:
+                return True
 
         # Is the destination different from the previous use of this source port?
         if (session.dst_ip, session.dport) != (self.pkt.dst_ip, self.pkt.dport):
