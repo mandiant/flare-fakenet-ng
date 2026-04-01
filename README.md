@@ -114,7 +114,7 @@ install dependencies as follows:
 
 2) In Windows, install Python dependencies by running the following commands with admin privileges:
 
-        python -m pip install pydivert dnslib dpkt pyopenssl pyftpdlib netifaces jinja2
+        python -m pip install pydivert dnslib dpkt pyopenssl==24.2.1 pyftpdlib netifaces jinja2
 
     *NOTE*: pydivert will also download and install WinDivert library and
     driver in the `%PYTHONHOME%\DLLs` directory. FakeNet-NG bundles those
@@ -131,7 +131,7 @@ install dependencies as follows:
         # This will get the required version of cffi packages for cryptography
         python -m pip install --upgrade cryptography
 
-        python -m pip install netfilterqueue dnslib dpkt pyopenssl pyftpdlib netifaces jinja2
+        python -m pip install netfilterqueue dnslib dpkt pyopenssl==24.2.1 pyftpdlib netifaces jinja2
 
    Optionally, you can install the following module used for testing:
 

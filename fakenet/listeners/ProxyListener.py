@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2026 Google LLC
 
 import socket
 import socketserver
@@ -54,7 +54,7 @@ class ProxyListener(object):
 
                 self.logger.debug('Starting TCP ...')                
                 config = {
-                    'cert_dir': self.config.get('cert_dir', 'configs/temp_certs'),
+                    'cert_dir': self.config.get('cert_dir', os.path.join('configs', 'temp_certs')),
                     'networkmode': self.config.get('networkmode', None),
                     'static_ca': self.config.get('static_ca', 'No'),
                     'ca_cert': self.config.get('ca_cert'),

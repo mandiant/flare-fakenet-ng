@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2026 Google LLC
 
 import logging
 from configparser import ConfigParser
@@ -213,11 +213,12 @@ class HTTPListener(object):
         if self.config.get('usessl') == 'Yes':
             self.logger.debug("HTTP Listener starting with SSL")
             config = {
-                'cert_dir': self.config.get('cert_dir', 'configs/temp_certs'),
+                'cert_dir': self.config.get('cert_dir', os.path.join('configs', 'temp_certs')),
                 'networkmode': self.config.get('networkmode', None),
                 'static_ca': self.config.get('static_ca', 'No'),
                 'ca_cert': self.config.get('ca_cert'),
-                'ca_key': self.config.get('ca_key')
+                'ca_key': self.config.get('ca_key'),
+                'webroot': self.webroot_path
             }
             self.sslwrapper = SSLWrapper(config)
             self.server.sslwrapper = self.sslwrapper
