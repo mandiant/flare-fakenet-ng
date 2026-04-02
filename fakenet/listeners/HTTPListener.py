@@ -385,12 +385,31 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         nbi["Method"] = method
         nbi["URI"] = uri
         nbi["Version"] = version
+        encodings = ['utf-8', 'utf-16']
 
         for line in str(headers).rstrip().split("\n"):
             key, _, value = line.partition(":")
             nbi[key] = value.lstrip()
 
-        if post_data:
+        def _try_decode_printable(data, encodings):
+            """Decode bytes trying multiple encodings, returning decoded string if all chars are printable."""
+            for enc in encodings:
+                try:
+                    decoded = data.decode(enc)
+                    if all(c.isprintable() or c in '\r\n\t' for c in decoded):
+                        return decoded
+                except UnicodeDecodeError:
+                    continue
+            return None
+
+        if post_data and isinstance(post_data, bytes):
+            decoded = _try_decode_printable(post_data, encodings)
+            if decoded:
+                nbi["Request Body"] = decoded
+            else:
+                hexdump_lines = ListenerBase.hexdump_table(post_data[:256])
+                nbi["Request Body (Hexdump)"] = hexdump_lines
+        elif post_data:
             nbi["Request Body"] = post_data
 
         # report diverter everytime we capture an NBI

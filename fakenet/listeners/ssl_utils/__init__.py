@@ -16,7 +16,6 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 
 from fakenet import listeners
-from fakenet.listeners import ListenerBase
 
 class SSLWrapper(object):
     NOT_AFTER_DELTA_SECONDS = 300  * 24 * 60 * 60
