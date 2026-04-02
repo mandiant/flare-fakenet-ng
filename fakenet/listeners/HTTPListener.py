@@ -1,6 +1,7 @@
 # Copyright 2026 Google LLC
 
 import logging
+import re
 from configparser import ConfigParser
 
 import os
@@ -114,17 +115,33 @@ class CustomResponse(object):
         self.content_type = conf.get('ContentType')
 
     def checkMatch(self, host, uri):
-        hostmatch = (host.strip().lower() in self.hosts)
+        def match_pattern(value, patterns, is_host=False):
+            value = value.strip().lower() if is_host else value
+            for pattern in patterns:
+                if pattern == '*':
+                    return True
+                if pattern.startswith('/') and pattern.endswith('/') and len(pattern) > 2:
+                    # Regex match
+                    try:
+                        if re.search(pattern[1:-1], value):
+                            return True
+                    except re.error:
+                        continue
+                else:
+                    if is_host:
+                        if value == pattern:
+                            return True
+                    else:
+                        if value.endswith(pattern):
+                            return True
+            return False
+
+        hostmatch = match_pattern(host, self.hosts, is_host=True)
         if (not hostmatch) and (':' in host):
-            host = host[:host.find(':')]
-            hostmatch = (host.strip().lower() in self.hosts)
+            host_base = host[:host.find(':')]
+            hostmatch = match_pattern(host_base, self.hosts, is_host=True)
 
-
-        urimatch = False
-        for match_uri in self.uris:
-            if uri.endswith(match_uri):
-                urimatch = True
-                break
+        urimatch = match_pattern(uri, self.uris, is_host=False)
 
         # Conjunctive (logical and) evaluation if both are specified
         if self.uris and self.hosts:
