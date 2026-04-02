@@ -14,9 +14,7 @@ requirements = [
     "netifaces",
     "pyftpdlib",
     "cryptography",
-    # Pin pyopenssl to 24.2.1 because newer versions removed CRL functionality.
-    # TODO: Migrate ssl_utils/__init__.py to cryptography to unpin.
-    "pyopenssl==24.2.1",
+    "pyopenssl",
     "jinja2",
 ]
 

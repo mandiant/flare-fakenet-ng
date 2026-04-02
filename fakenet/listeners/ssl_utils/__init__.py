@@ -9,8 +9,11 @@ import shutil
 import sys
 import ssl
 import random
+import datetime
 from pathlib import Path
 from OpenSSL import crypto
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
 
 from fakenet import listeners
 from fakenet.listeners import ListenerBase
@@ -123,15 +126,22 @@ class SSLWrapper(object):
             cert.add_extensions(extensions)
             cert.sign(key, "sha256")
 
-            # empty CRL for this CA
-            crl = crypto.CRL()
-            now = time.strftime("%Y%m%d%H%M%SZ", time.gmtime())
-            next_update = time.strftime("%Y%m%d%H%M%SZ", time.gmtime(time.time() + (30 * 24 * 60 * 60))) # 30 days
-            crl.set_lastUpdate(now.encode('ascii'))
-            crl.set_nextUpdate(next_update.encode('ascii'))
-            crl.set_version(1)
-            crl.sign(cert, key, digest=b"sha256")
-            crl_der = crl.export(cert, key, crypto.FILETYPE_ASN1, digest=b"sha256")
+            # Bridge pyOpenSSL objects to cryptography using PEM serialization
+            cert_pem = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
+            key_pem = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
+
+            # Use cryptography library for CRL generation
+            crypto_ca_cert = x509.load_pem_x509_certificate(cert_pem)
+            crypto_ca_key = serialization.load_pem_private_key(key_pem, password=None)
+
+            builder = x509.CertificateRevocationListBuilder()
+            builder = builder.issuer_name(crypto_ca_cert.subject)
+            builder = builder.last_update(datetime.datetime.now(datetime.timezone.utc))
+            builder = builder.next_update(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30))
+            
+            # Sign and serialize to DER (ASN1)
+            crl = builder.sign(private_key=crypto_ca_key, algorithm=hashes.SHA256())
+            crl_der = crl.public_bytes(serialization.Encoding.DER)
 
             # write CRL to disk to import into cert store and also serve over HTTP when necessary
             try:
