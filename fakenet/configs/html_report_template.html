@@ -332,7 +332,7 @@
                     <td>
                       <ul class="nested">
                         {% for key, value in nbi_info['nbi'].items() %}
-                          {% if key == 'Data Hexdump' %}
+                          {% if key == 'Data Hexdump' or key == 'Request Body (Hexdump)' %}
                             <li><b>{{ key|e }} (showing first 256 bytes)</b>:
                               {% for line in value %}
                                 <p>{{ line|e }}<p/>
@@ -498,65 +498,78 @@
     const protocolCell = findProtocolCell(row);
     
     const dataCells = Array.from(row.querySelectorAll('td'));
-      const headers = Array.from(tableHeader.querySelectorAll('th'));
+    const headers = Array.from(tableHeader.querySelectorAll('th'));
 
-      const nbiData = {};
-        headers.forEach((header, index) => {
-        const key = header.textContent.trim();
-        const value = dataCells[index].textContent.trim();
-        nbiData[key] = value;
-      });
-
-      const fieldMap = {};
-
-      Object.keys(nbiData).forEach(key => {
-      const lines = nbiData[key].split('\n');
+    // Build fieldMap directly from DOM structure instead of re-parsing text
+    const fieldMap = {};
+    
+    headers.forEach((header, index) => {
+      const columnName = header.textContent.trim();
+      const cell = dataCells[index];
+      
+      // Skip columns without meaningful data
+      if (columnName === 'Select' || columnName === 'Actions') {
+        return;
+      }
+      
+      // Extract data from <li> elements directly
+      const listItems = cell.querySelectorAll('ul.nested > li');
       const keyMap = {};
-
-      lines.forEach(line => {
-        const parts = line.split(':');
-        if (parts.length > 1) {
-          const subKey = parts.shift().trim();
-          const subValue = parts.join(':').trim();
-          
-          if (subKey && subValue) {
-            keyMap[subKey] = subValue;
-          }
+      
+      listItems.forEach(li => {
+        // Find the <b> tag which contains the field name
+        const boldTag = li.querySelector('b');
+        if (!boldTag) return;
+        
+        const fieldName = boldTag.textContent.trim();
+        
+        // Get the value after the <b> tag
+        // Clone the li, remove the bold tag and the colon, get remaining text
+        const liClone = li.cloneNode(true);
+        const boldInClone = liClone.querySelector('b');
+        if (boldInClone) {
+          boldInClone.remove();
         }
-      });
-
-      fieldMap[key] = keyMap;
+        
+        // Get text content and remove leading colon and whitespace
+        let fieldValue = liClone.textContent.trim();
+        if (fieldValue.startsWith(':')) {
+          fieldValue = fieldValue.substring(1).trim();
+        }
+        
+        keyMap[fieldName] = fieldValue;
       });
       
-      let copiedText = '';
+      fieldMap[columnName] = keyMap;
+    });
+      
+    let copiedText = '';
 
     if (protocolCell) {
-    const protocolText = protocolCell.textContent.trim().toLowerCase();
+      const protocolText = protocolCell.textContent.trim().toLowerCase();
 
-    if (protocolText === 'http') {
-
-      copiedText += '## URL\n\n';
-      copiedText += `*   HTTP Headers`;
-    }
-    
-    else if (protocolText === 'dns') {
-      copiedText += '## DNS\n\n';
-      copiedText += `*   \`${fieldMap['NBI']['Domain']}\``;
-    }
-    
-    // ftp, smtp, tftp, pop, irc, raw and unknown protocols come in connections.
-    else {
-      copiedText += '## Connections\n\n';
-      copiedText += `*   \`${protocolText}[:]//${fieldMap['Additional Information']['Destination IP']}:${fieldMap['Additional Information']['Destination port']}\``;
-    }
-    
-    Object.entries(fieldMap).forEach(([key, value]) => {
-      if (key !== 'Select' && key !== 'Actions') {
-         Object.entries(value).forEach(([key1, value1]) => {
-          copiedText += `\n    * ${key1}: \`${value1}\``;
-         })
+      if (protocolText === 'http') {
+        copiedText += '## URL\n\n';
+        copiedText += `*   HTTP Headers`;
       }
+      else if (protocolText === 'dns') {
+        copiedText += '## DNS\n\n';
+        copiedText += `*   \`${fieldMap['NBI']['Domain']}\``;
+      }
+      else {
+        // ftp, smtp, tftp, pop, irc, raw and unknown protocols come in connections.
+        copiedText += '## Connections\n\n';
+        copiedText += `*   \`${protocolText}[:]//${fieldMap['Additional Information']['Destination IP']}:${fieldMap['Additional Information']['Destination port']}\``;
+      }
+      
+      Object.entries(fieldMap).forEach(([key, value]) => {
+        if (key !== 'Select' && key !== 'Actions') {
+          Object.entries(value).forEach(([key1, value1]) => {
+            copiedText += `\n    * ${key1}: \`${value1}\``;
+          })
+        }
       });
+      
       copyToClipboard(copiedText);
     }
     return copiedText;

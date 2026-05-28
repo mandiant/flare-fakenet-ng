@@ -221,7 +221,7 @@ class SocketWithHexdumpRecv():
             return getattr(self.s, item)
 
     def do_hexdump(self, data):
-        hexdump_lines = hexdump_table(data)
+        hexdump_lines = ListenerBase.hexdump_table(data)
 
         for line in hexdump_lines:
             self.logger.info(INDENT + line)
@@ -262,7 +262,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         break
 
                     # Collect NBIs
-                    hexdump_lines = hexdump_table(data)
+                    hexdump_lines = ListenerBase.hexdump_table(data)
                     collect_nbi(self.client_address[1], hexdump_lines,
                                 self.server.config.get('protocol'),
                                 self.server.config.get('usessl'),
@@ -289,7 +289,7 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
 
         if data:
             # Collect NBIs
-            hexdump_lines = hexdump_table(data)
+            hexdump_lines = ListenerBase.hexdump_table(data)
             collect_nbi(self.client_address[1], hexdump_lines,
                         self.server.config.get('protocol'),
                         self.server.config.get('usessl'),
@@ -319,16 +319,6 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
     pass
-
-def hexdump_table(data, length=16):
-
-    hexdump_lines = []
-    for i in range(0, len(data), 16):
-        chunk = data[i:i+16]
-        hex_line   = ' '.join(["%02X" % b for b in chunk ] )
-        ascii_line = ''.join([chr(b) if b > 31 and b < 127 else '.' for b in chunk ] )
-        hexdump_lines.append("%04X: %-*s %s" % (i, length*3, hex_line, ascii_line ))
-    return hexdump_lines
 
 def collect_nbi(sport, hexdump_lines, proto, is_ssl_encrypted,
         diverterCallbacks):
