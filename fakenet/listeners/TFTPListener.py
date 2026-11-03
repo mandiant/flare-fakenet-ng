@@ -53,7 +53,7 @@ class TFTPListener(object):
 
         stripped = data.lstrip()
         if (stripped.startswith(OPCODE_RRQ) or 
-                stripped().startswith(OPCODE_WRQ)):
+                stripped.startswith(OPCODE_WRQ)):
             if len(data) >= min_rrq_wrq_len and len(data) <= max_rrq_wrq_len:
                 confidence += 2
         elif stripped.startswith(OPCODE_DATA):
