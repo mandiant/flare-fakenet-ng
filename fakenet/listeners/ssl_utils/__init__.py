@@ -11,9 +11,10 @@ import ssl
 import random
 import datetime
 from pathlib import Path
-from OpenSSL import crypto
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 
 from fakenet import listeners
 from fakenet.listeners import ListenerBase
@@ -41,7 +42,8 @@ class SSLWrapper(object):
         if self.config.get('static_ca').lower() == 'yes':
             self.ca_cert = self.abs_config_path(self.config.get('ca_cert', None))
             self.ca_key = self.abs_config_path(self.config.get('ca_key', None))
-            self.ca_cn = self._load_cert(self.ca_cert).get_subject().CN
+            self.ca_cn = self._load_cert(self.ca_cert).subject.get_attributes_for_oid(
+                NameOID.COMMON_NAME)[0].value
         else:
             self.ca_cert, self.ca_key, self.ca_crl = self.create_cert(self.CN)
         if ( not self.config.get('networkmode', None) == 'multihost' and
@@ -97,50 +99,62 @@ class SSLWrapper(object):
                 return None, None, None
 
         # generate crypto keys:
-        key = crypto.PKey()
-        key.generate_key(crypto.TYPE_RSA, 2048)
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
-        # Create a cert
-
-        cert = crypto.X509()
-
-        # Setting certificate version to 3. This is required to use certificate 
-        # extensions which have proven necessary when working with browsers
-        cert.set_version(2)
-        cert.get_subject().C = "US"
-        cert.get_subject().CN = cn
-        cert.set_serial_number(random.randint(1, 0x31337))
-        now = time.time() / 1000000
-        na = int(now + self.NOT_AFTER_DELTA_SECONDS)
-        cert.gmtime_adj_notBefore(0)
-        cert.gmtime_adj_notAfter(na)
-        cert.set_pubkey(key)
+        # Create a cert. CertificateBuilder always produces an X.509 v3
+        # certificate, which is required to use certificate extensions which
+        # have proven necessary when working with browsers.
+        subject = x509.Name([
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
+            x509.NameAttribute(NameOID.COMMON_NAME, cn),
+        ])
+        now = datetime.datetime.now(datetime.timezone.utc)
+        crl_dp = x509.CRLDistributionPoints([
+            x509.DistributionPoint(
+                full_name=[x509.UniformResourceIdentifier("http://fakenet.mandiant.com/ca.crl")],
+                relative_name=None,
+                reasons=None,
+                crl_issuer=None,
+            )
+        ])
+        builder = (
+            x509.CertificateBuilder()
+            .subject_name(subject)
+            .public_key(key.public_key())
+            .serial_number(random.randint(1, 0x31337))
+            .not_valid_before(now)
+            .not_valid_after(now + datetime.timedelta(seconds=self.NOT_AFTER_DELTA_SECONDS))
+        )
         if f_selfsign:
             # root CA cert
-            extensions = [
-                crypto.X509Extension(b'basicConstraints', True, b'CA:TRUE'),
-                crypto.X509Extension(b"keyUsage", True, b"keyCertSign, cRLSign"),
-                crypto.X509Extension(b"crlDistributionPoints", False, b"URI:http://fakenet.mandiant.com/ca.crl")
-            ]
-            cert.set_issuer(cert.get_subject())
-            cert.add_extensions(extensions)
-            cert.sign(key, "sha256")
+            builder = (
+                builder.issuer_name(subject)
+                .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+                .add_extension(
+                    x509.KeyUsage(
+                        digital_signature=False,
+                        content_commitment=False,
+                        key_encipherment=False,
+                        data_encipherment=False,
+                        key_agreement=False,
+                        key_cert_sign=True,
+                        crl_sign=True,
+                        encipher_only=False,
+                        decipher_only=False,
+                    ),
+                    critical=True,
+                )
+                .add_extension(crl_dp, critical=False)
+            )
+            cert = builder.sign(private_key=key, algorithm=hashes.SHA256())
 
-            # Bridge pyOpenSSL objects to cryptography using PEM serialization
-            cert_pem = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
-            key_pem = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
+            crl_builder = x509.CertificateRevocationListBuilder()
+            crl_builder = crl_builder.issuer_name(cert.subject)
+            crl_builder = crl_builder.last_update(now)
+            crl_builder = crl_builder.next_update(now + datetime.timedelta(days=30))
 
-            # Use cryptography library for CRL generation
-            crypto_ca_cert = x509.load_pem_x509_certificate(cert_pem)
-            crypto_ca_key = serialization.load_pem_private_key(key_pem, password=None)
-
-            builder = x509.CertificateRevocationListBuilder()
-            builder = builder.issuer_name(crypto_ca_cert.subject)
-            builder = builder.last_update(datetime.datetime.now(datetime.timezone.utc))
-            builder = builder.next_update(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30))
-            
             # Sign and serialize to DER (ASN1)
-            crl = builder.sign(private_key=crypto_ca_key, algorithm=hashes.SHA256())
+            crl = crl_builder.sign(private_key=key, algorithm=hashes.SHA256())
             crl_der = crl.public_bytes(serialization.Encoding.DER)
 
             # write CRL to disk to import into cert store and also serve over HTTP when necessary
@@ -157,25 +171,23 @@ class SSLWrapper(object):
 
         else:
             # leaf cert for a requested domain
-            alt_name = b'DNS:' + cn.encode()
-            extensions = [
-                crypto.X509Extension(b'basicConstraints', False, b'CA:FALSE'),
-                crypto.X509Extension(b'subjectAltName', False, alt_name),
-                crypto.X509Extension(b"crlDistributionPoints", False, b"URI:http://fakenet.mandiant.com/ca.crl")
-            ]
-            cert.set_issuer(ca_cert_data.get_subject())
-            cert.add_extensions(extensions)
-            cert.sign(ca_key_data, "sha256")
+            builder = (
+                builder.issuer_name(ca_cert_data.subject)
+                .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=False)
+                .add_extension(x509.SubjectAlternativeName([x509.DNSName(cn)]), critical=False)
+                .add_extension(crl_dp, critical=False)
+            )
+            cert = builder.sign(private_key=ca_key_data, algorithm=hashes.SHA256())
 
         try:
             with open(cert_file, "wb") as cert_file_input:
-                cert_file_input.write(crypto.dump_certificate(
-                    crypto.FILETYPE_PEM, cert)
-                )
+                cert_file_input.write(cert.public_bytes(serialization.Encoding.PEM))
             with open(key_file, "wb") as key_file_output:
-                key_file_output.write(crypto.dump_privatekey(
-                    crypto.FILETYPE_PEM, key)
-                )
+                key_file_output.write(key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.TraditionalOpenSSL,
+                    encryption_algorithm=serialization.NoEncryption(),
+                ))
         except IOError:
             traceback.print_exc()
             return None, None, None
@@ -201,8 +213,8 @@ class SSLWrapper(object):
         try:
             with open(certpath, 'rb') as cert_file_input:
                 data = cert_file_input.read()
-            ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, data)
-        except crypto.Error as e:
+            ca_cert = x509.load_pem_x509_certificate(data)
+        except (OSError, ValueError) as e:
             self.logger.error("Failed to load certficate: %s", str(e))
         return ca_cert
 
@@ -210,7 +222,7 @@ class SSLWrapper(object):
         try:
             with open(keypath, 'rb') as key_file_input:
                 data = key_file_input.read()
-            privkey = crypto.load_privatekey(crypto.FILETYPE_PEM, data)
+            privkey = serialization.load_pem_private_key(data, password=None)
         except Exception:
             traceback.print_exc()
             privkey = None
