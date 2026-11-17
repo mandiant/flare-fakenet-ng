@@ -266,6 +266,26 @@ class HTTPListener(object):
         self.server.diverterListenerCallbacks = diverterListenerCallbacks
 
 
+def open_new_file(base, extension):
+    """Create and open base + extension for binary writing.
+
+    If that file already exists, _1, _2, ... is added before the extension
+    until a free name is found, so that requests logged within the same second
+    get their own files instead of overwriting each other. Returns the open
+    file and its name.
+    """
+    counter = 0
+    while True:
+        if counter:
+            filename = '%s_%d%s' % (base, counter, extension)
+        else:
+            filename = base + extension
+        try:
+            return open(filename, 'xb'), filename
+        except FileExistsError:
+            counter += 1
+
+
 class ThreadedHTTPServer(http.server.HTTPServer):
 
     def handle_error(self, request, client_address):
@@ -352,10 +372,10 @@ class ThreadedHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
 
         # Store HTTP Posts
         if self.server.config.get('dumphttpposts') and self.server.config['dumphttpposts'].lower() == 'yes':
-                http_filename = "%s_%s.txt" % (self.server.config.get('dumphttppostsfileprefix', 'http'), time.strftime("%Y%m%d_%H%M%S"))
+                http_filename_base = "%s_%s" % (self.server.config.get('dumphttppostsfileprefix', 'http'), time.strftime("%Y%m%d_%H%M%S"))
+                http_f, http_filename = open_new_file(http_filename_base, '.txt')
 
                 self.server.logger.info('Storing HTTP POST headers and data to %s.', http_filename)
-                http_f = open(http_filename, 'wb')
 
                 if http_f:
                     http_f.write(self.requestline.encode('utf-8') + b"\r\n")
